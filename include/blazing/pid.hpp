@@ -23,10 +23,10 @@ class PID {
     KI_t<Input, Output> kI;
     KD_t<Input, Output> kD;
 
-    windup_t<Input> windupRange;
-    bool signFlipReset;
+    std::optional<windup_t<Input>> windupRange;
 
     Input target;
+    Output range;
 
     Input previousError = 0;
     Multiplied<Input, Time> integral = 0;
@@ -37,8 +37,7 @@ class PID {
     PID(KP_t<Input, Output> kP,
         KI_t<Input, Output> kI,
         KD_t<Input, Output> kD,
-        windup_t<Input> windupRange,
-        bool signFlipReset);
+        std::optional<windup_t<Input>> windupRange = std::nullopt);
 
     void reset();
 
@@ -50,14 +49,25 @@ class PID {
     KI_t<Input, Output> get_kI();
     KD_t<Input, Output> get_kD();
 
-    windup_t<Input> get_windupRange();
-    bool get_signFlipReset();
+    std::optional<windup_t<Input>> get_windupRange();
 
     void set_kP(KP_t<Input, Output> kP);
     void set_kI(KI_t<Input, Output> kI);
     void set_kD(KD_t<Input, Output> kD);
 
-    void set_windupRange(windup_t<Input> windupRange);
-    void set_signFlipReset(bool signFlipReset);
+    void set_windupRange(std::optional<windup_t<Input>> windupRange);
 };
+
+template<typename T, typename Input, typename Output>
+concept hasKP =
+  requires(T t, KP_t<Input, Output> kp_value) { t.set_kP(kp_value); };
+
+template<typename T, typename Input, typename Output>
+concept hasKI =
+  requires(T t, KI_t<Input, Output> kp_value) { t.set_kI(kp_value); };
+
+template<typename T, typename Input, typename Output>
+concept hasKD =
+  requires(T t, KD_t<Input, Output> kp_value) { t.set_kD(kp_value); };
+
 } // namespace blazing

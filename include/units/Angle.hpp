@@ -515,35 +515,35 @@ constexpr FCAngle operator""_FcRot(unsigned long long value) {
 
 // FAngle functions
 namespace units {
-constexpr Number sin(const FAngle& rhs) {
-    return Number(std::sin(rhs.internal()));
+constexpr float fsin(const FAngle& rhs) {
+    return std::sin(rhs.internal());
 }
 
-constexpr Number cos(const FAngle& rhs) {
-    return Number(std::cos(rhs.internal()));
+constexpr float fcos(const FAngle& rhs) {
+    return std::cos(rhs.internal());
 }
 
-constexpr Number tan(const FAngle& rhs) {
-    return Number(std::tan(rhs.internal()));
+constexpr float ftan(const FAngle& rhs) {
+    return std::tan(rhs.internal());
 }
 
 template<isQuantity Q>
-constexpr FAngle asin(const Q& rhs) {
+constexpr FAngle fasin(const Q& rhs) {
     return FAngle(std::asin(rhs.internal()));
 }
 
 template<isQuantity Q>
-constexpr FAngle acos(const Q& rhs) {
+constexpr FAngle facos(const Q& rhs) {
     return FAngle(std::acos(rhs.internal()));
 }
 
 template<isQuantity Q>
-constexpr FAngle atan(const Q& rhs) {
+constexpr FAngle fatan(const Q& rhs) {
     return FAngle(std::atan(rhs.internal()));
 }
 
 template<isQuantity Q>
-constexpr FAngle atan2(const Q& lhs, const Q& rhs) {
+constexpr FAngle fatan2(const Q& lhs, const Q& rhs) {
     return FAngle(std::atan2(lhs.internal(), rhs.internal()));
 }
 
