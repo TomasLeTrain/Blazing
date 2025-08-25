@@ -1,11 +1,11 @@
 #pragma once
 
+#include "blazing/tolerances.hpp"
 #include "pros/motor_group.hpp"
 #include "units/Angle.hpp"
 #include "units/Vector2D.hpp"
 #include "units/units.hpp"
 #include <concepts>
-#include <cstddef>
 
 template<typename Q>
 concept angleTracker = requires(Q q) {
@@ -21,9 +21,20 @@ template<typename Q>
 concept poseTracker = positionTracker<Q> && angleTracker<Q>;
 
 template<typename Q>
-concept ArcadeDrivetrain = requires(Q q) { q.moveArcade(); };
+concept velocityTracker = requires(Q q) {
+    { q.getVelocity() } -> std::same_as<LinearVelocity>;
+};
+
 template<typename Q>
-concept TankDrivetrain = requires(Q q) { q.moveTank(); };
+concept ArcadeDrivetrain =
+  requires(Q q, Voltage linear_output, Voltage angular_output) {
+      q.moveArcade(linear_output, angular_output);
+  };
+template<typename Q>
+concept TankDrivetrain =
+  requires(Q q, Voltage left_voltage, Voltage right_voltage) {
+      q.moveTank(left_voltage, right_voltage);
+  };
 
 namespace blazing {
 class PoseTracker {
@@ -33,6 +44,8 @@ class PoseTracker {
     Angle getAngle() {}
 
     units::V2Position getPosition() {}
+
+    LinearVelocity getVelocity() {}
 };
 
 class PositionOnlyTracker {
@@ -40,7 +53,6 @@ class PositionOnlyTracker {
     units::V2Position getPosition() {}
 };
 
-template<typename TrackerType>
 class DifferentialDrivetrain {
   private:
     pros::MotorGroup* left_motors;
@@ -48,8 +60,7 @@ class DifferentialDrivetrain {
 
   public:
     DifferentialDrivetrain(pros::MotorGroup* left_motors,
-                           pros::MotorGroup* right_motors,
-                           TrackerType tracker)
+                           pros::MotorGroup* right_motors)
         : left_motors(left_motors),
           right_motors(right_motors) {}
 
@@ -69,14 +80,19 @@ class DifferentialDrivetrain {
 
 // holds both a drivetrain and a drivetrain
 // main hardware abstraction for motions to use
-template<typename DrivetrainType, typename TrackerType>
+template<typename DrivetrainType, typename TrackerType, typename TolerancesType>
 class Chassis {
+  public:
     DrivetrainType drivetrain;
     TrackerType tracker;
+    TolerancesType tolerances;
 
-    Chassis(DrivetrainType drivetrain, TrackerType tracker)
+    Chassis(DrivetrainType drivetrain,
+            TrackerType tracker,
+            TolerancesType tolerances)
         : drivetrain(drivetrain),
-          tracker(tracker) {}
+          tracker(tracker),
+          tolerances(tolerances) {}
 };
 
 } // namespace blazing

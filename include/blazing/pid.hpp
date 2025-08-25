@@ -17,6 +17,7 @@ template<typename Input>
 using windup_t = Multiplied<Input, Time>;
 
 template<typename Input, typename Output>
+
 class PID {
   private:
     KP_t<Input, Output> kP;
@@ -25,11 +26,10 @@ class PID {
 
     std::optional<windup_t<Input>> windupRange;
 
-    Input target;
     Output range;
 
-    Input previousError = 0;
-    Multiplied<Input, Time> integral = 0;
+    Input previousError = Input(0);
+    Multiplied<Input, Time> integral = Multiplied<Input, Time>(0);
 
     std::optional<Time> previousTime = std::nullopt;
 
@@ -37,13 +37,15 @@ class PID {
     PID(KP_t<Input, Output> kP,
         KI_t<Input, Output> kI,
         KD_t<Input, Output> kD,
-        std::optional<windup_t<Input>> windupRange = std::nullopt);
+        std::optional<windup_t<Input>> windupRange = std::nullopt)
+    : kP(kP),
+      kI(kI),
+      kD(kD),
+      windupRange(windupRange) {}
 
-    void reset();
+      void reset();
 
-    void setTarget(Input target);
-
-    Output update(Input error);
+      Output update(Input target, Input error, Time dt);
 
     KP_t<Input, Output> get_kP();
     KI_t<Input, Output> get_kI();

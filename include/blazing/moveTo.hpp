@@ -39,10 +39,12 @@ struct MoveToState {
 template<typename LinearController,
          typename AngularController,
          typename Drivetrain,
-         typename Tracker>
+         typename Tracker,
+         typename TolerancesType>
     requires Feedback<LinearController, Length, Voltage> &&
              Feedback<AngularController, Angle, Voltage> &&
-             poseTracker<Tracker> && TankDrivetrain<Drivetrain>
+             poseTracker<Tracker> && velocityTracker<Tracker> &&
+             ArcadeDrivetrain<Drivetrain>
 class moveTo : public Motion {
   private:
     units::V2Position target;
@@ -51,8 +53,7 @@ class moveTo : public Motion {
     LinearController linear_controller;
     AngularController angular_controller;
 
-    Chassis<Drivetrain, Tracker> drivetrain;
-    Tolerances<Length> tolerances;
+    Chassis<Drivetrain, Tracker, TolerancesType> chassis;
 
     std::optional<Time> timeout;
 
@@ -77,63 +78,88 @@ class moveTo : public Motion {
 
         std::optional<Time> timeout;
 
-        units::V2Position position = drivetrain.tracker.getPosition();
-        Angle heading = drivetrain.tracker.getPosition();
+        units::V2Position position = chassis.tracker.getPosition();
+        Angle heading = chassis.tracker.getAngle();
 
         auto local_target = target - position;
         Length distance_error = local_target.magnitude();
 
-        if (units::abs(distance_error) < 7.5_in && !state.close) {
+        if (units::abs(distance_error) < 4_in && !state.close) {
             state.close = true;
         }
 
-        Angle angle_error = heading - local_target.getAngle();
+        Angle angle_error = heading - position.angleTo(target);
 
         if (reversed) {
             distance_error *= -1.0;
             angle_error = (rot / 2) - angle_error;
         }
 
-        // check tolerances and timeout
-        if (tolerances.check(distance_error,
-                             drivetrain.tracker.getVelocity()) ||
-            timeout.transform([&](Time timeout) -> bool {
-                return from_msec(pros::millis()) - state.start_time > timeout;
-            })) {
-            drivetrain.drivetrain.moveArcade(0_volt, 0_volt);
+        // If the turn error exceeds 90 degrees, then the point is behind
+        // the robot, so it's more efficient to travel to the point
+        // backwards. only applies when the robot is close to the point so
+        // that it doesn't accidently go to the point backwards at the
+        // beginning
+        if (state.close && units::abs(angle_error) >= 90.0_stDeg) {
+            distance_error *= -1.0;
+            angle_error = (rot / 2) - angle_error;
         }
 
+        // update tolerances if they are included
+        if constexpr (hasErrorTolerance<TolerancesType, Length>) {
+            chassis.tolerances.errorToleranceUpdate(distance_error);
+        }
+        if constexpr (hasVelocityTolerance<TolerancesType, Length>) {
+            chassis.tolerances.velocityToleranceUpdate(
+              chassis.tracker.getVelocity());
+        }
+        if constexpr (hasVelocityTolerance<TolerancesType, Length>) {
+            chassis.tolerances.halfcircleToleranceUpdate(position,
+                                                         target,
+                                                         heading);
+        }
+
+        // check tolerances and timeout
+        if (chassis.tolerances.check() ||
+            timeout
+              .transform([&](Time timeout) -> bool {
+                  return from_msec(pros::millis()) - state.start_time > timeout;
+              })
+              .value_or(false)) {
+            chassis.drivetrain.moveArcade(0_volt, 0_volt);
+        }
+
+        // 1 - (initial_turn_error / turn_error)
+
         Voltage angular_output =
-          state.close ?
-            0.0 :
-            angular_controller.update(-angle_error, 0_stRad, delta_time);
+          angular_controller.update(-angle_error, 0_stRad, delta_time);
 
         Voltage linear_output =
           linear_controller.update(-distance_error, 0.0_in, delta_time) *
           units::cos(angle_error);
 
-        drivetrain.drivetrain.moveArcade(linear_output, angular_output);
+        chassis.drivetrain.moveArcade(linear_output, angular_output);
     }
 
   public:
-    moveTo(LinearController lateral_controller,
+    moveTo(LinearController linear_controller,
            AngularController angular_controller,
-           Chassis<Drivetrain, Tracker> drivetrain,
+           Chassis<Drivetrain, Tracker, TolerancesType> chassis,
            double x,
            double y)
-        : linear_controller(lateral_controller),
+        : linear_controller(linear_controller),
           angular_controller(angular_controller),
-          drivetrain(drivetrain),
+          chassis(chassis),
           target(from_in(x), from_in(y)) {}
 
-    moveTo(LinearController lateral_controller,
+    moveTo(LinearController linear_controller,
            AngularController angular_controller,
-           Chassis<Drivetrain, Tracker> drivetrain,
+           Chassis<Drivetrain, Tracker, TolerancesType> chassis,
            Length x,
            Length y)
-        : linear_controller(lateral_controller),
+        : linear_controller(linear_controller),
           angular_controller(angular_controller),
-          drivetrain(drivetrain),
+          chassis(chassis),
           target(x, y) {}
 
     // functions which alter the motion conditions

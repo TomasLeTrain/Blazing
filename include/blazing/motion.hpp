@@ -6,8 +6,8 @@ namespace blazing {
 
 class Motion {
   protected:
-    virtual int getLoopDelayTime();
-    virtual void execute();
+    virtual int getLoopDelayTime() = 0;
+    virtual void execute() = 0;
 
   public:
     Motion() {}
