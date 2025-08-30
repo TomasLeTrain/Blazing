@@ -153,7 +153,7 @@ concept hasVelocityTolerance =
       tolerances.velocityToleranceUpdate(velocity);
   };
 
-template<typename TolerancesType, typename T>
+template<typename TolerancesType>
 concept hasHalfcircleTolerance = requires(TolerancesType tolerances,
                                           Length tolerance,
                                           units::V2Position pose,

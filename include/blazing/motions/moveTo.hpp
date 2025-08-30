@@ -87,7 +87,7 @@ class moveTo : public Motion<ControllersType,
             this->tolerances.velocityToleranceUpdate(
               this->tracker.getVelocity());
         }
-        if constexpr (hasVelocityTolerance<TolerancesType, Length>) {
+        if constexpr (hasHalfcircleTolerance<TolerancesType>) {
             this->tolerances.halfcircleToleranceUpdate(position,
                                                        target,
                                                        heading);

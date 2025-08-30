@@ -130,23 +130,4 @@ class PID {
 		this->negativeSlew;
 	}
 };
-
-template<typename T, typename Input, typename Output>
-concept hasKP = requires(T t, KP_t<Input, Output> value) { t.set_kP(value); };
-
-template<typename T, typename Input, typename Output>
-concept hasKI = requires(T t, KI_t<Input, Output> value) { t.set_kI(value); };
-
-template<typename T, typename Input, typename Output>
-concept hasKD = requires(T t, KD_t<Input, Output> value) { t.set_kD(value); };
-
-template<typename T, typename Input, typename Output>
-concept hasWindupRange = requires(T t, std::optional<Input> value) { t.set_windupRange(value); };
-
-template<typename T, typename Input, typename Output>
-concept hasPositiveSlew = requires(T t, std::optional<Output> value) { t.set_positiveSlew(value); };
-
-template<typename T, typename Input, typename Output>
-concept hasNegativeSlew = requires(T t, std::optional<Output> value) { t.set_negativeSlew(value); };
-
 } // namespace blazing

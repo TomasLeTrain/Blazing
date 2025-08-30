@@ -3,6 +3,7 @@
 #include "blazing/chassis.hpp"
 #include "blazing/controllers.hpp"
 #include "blazing/feedback/pid.hpp"
+#include "blazing/tolerances.hpp"
 #include "pros/rtos.hpp"
 #include "units/units.hpp"
 #include <concepts>
@@ -32,14 +33,14 @@ class Motion {
           tracker(chassis.tracker),
           tolerances(chassis.tolerances) {}
 
-    Motion(ControllersType controllers,
-           DrivetrainType drivetrain,
-           TrackerType tracker,
-           TolerancesType tolerances)
-        : controllers(controllers),
-          drivetrain(drivetrain),
-          tracker(tracker),
-          tolerances(tolerances) {}
+    // Motion(ControllersType controllers,
+    //        DrivetrainType drivetrain,
+    //        TrackerType tracker,
+    //        TolerancesType tolerances)
+    //     : controllers(controllers),
+    //       drivetrain(drivetrain),
+    //       tracker(tracker),
+    //       tolerances(tolerances) {}
 
     // waits until finishes
     void run() {
@@ -59,6 +60,36 @@ class Motion {
 
     // the current api allows all the change functions to be specified here
     // without having to repeat them for every motion
+
+    // tolerance functions
+    template<typename Self>
+    [[nodiscard("motion won't be executed!")]]
+    Self& errorTolerance(this Self&& self, Length tolerance)
+        requires hasErrorTolerance<TolerancesType, Length>
+    {
+        self.tolerances.setErrorTolerance(tolerance);
+        return self;
+    }
+
+    template<typename Self>
+    [[nodiscard("motion won't be executed!")]]
+    Self& velocityTolerance(this Self&& self, LinearVelocity tolerance)
+        requires hasVelocityTolerance<TolerancesType, Length>
+    {
+        self.tolerances.setVelocityTolerance(tolerance);
+        return self;
+    }
+
+    template<typename Self>
+    [[nodiscard("motion won't be executed!")]]
+    Self& halfcircleTolerance(this Self&& self, Length tolerance)
+        requires hasHalfcircleTolerance<TolerancesType>
+    {
+        self.tolerances.setHalfcircleTolerance(tolerance);
+        return self;
+    }
+
+    // pid functions
     template<typename Self>
     [[nodiscard("motion won't be executed!")]]
     Self& lateral_kP(this Self&& self, KP_t<Length, Voltage> kP)
@@ -92,7 +123,8 @@ class Motion {
                               std::optional<Length> windupRange)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
-        self.controllers.linear_feedback_controller.set_windupRange(windupRange);
+        self.controllers.linear_feedback_controller.set_windupRange(
+          windupRange);
         return self;
     }
 
@@ -102,7 +134,8 @@ class Motion {
                                std::optional<Voltage> positiveSlew)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
-        self.controllers.linear_feedback_controller.set_positiveSlew(positiveSlew);
+        self.controllers.linear_feedback_controller.set_positiveSlew(
+          positiveSlew);
         return self;
     }
 
@@ -112,7 +145,8 @@ class Motion {
                                std::optional<Voltage> negativeSlew)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
-        self.controllers.linear_feedback_controller.set_negativeSlew(negativeSlew);
+        self.controllers.linear_feedback_controller.set_negativeSlew(
+          negativeSlew);
         return self;
     }
 
@@ -149,7 +183,8 @@ class Motion {
                               std::optional<Angle> windupRange)
         requires std::derived_from<ControllersType, PIDAngularController>
     {
-        self.controllers.angular_feedback_controller.set_windupRange(windupRange);
+        self.controllers.angular_feedback_controller.set_windupRange(
+          windupRange);
         return self;
     }
 
@@ -159,7 +194,8 @@ class Motion {
                                std::optional<Voltage> positiveSlew)
         requires std::derived_from<ControllersType, PIDAngularController>
     {
-        self.controllers.angular_feedback_controller.set_positiveSlew(positiveSlew);
+        self.controllers.angular_feedback_controller.set_positiveSlew(
+          positiveSlew);
         return self;
     }
 
@@ -169,7 +205,8 @@ class Motion {
                                std::optional<Voltage> negativeSlew)
         requires std::derived_from<ControllersType, PIDAngularController>
     {
-        self.controllers.angular_feedback_controller.set_negativeSlew(negativeSlew);
+        self.controllers.angular_feedback_controller.set_negativeSlew(
+          negativeSlew);
         return self;
     }
 };
