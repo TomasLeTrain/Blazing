@@ -3,8 +3,9 @@
 #include "pros/rtos.hpp"
 #include "units/Vector2D.hpp"
 #include "units/units.hpp"
-#include <concepts>
 #include <optional>
+
+namespace blazing {
 
 class Tolerance {
   protected:
@@ -138,6 +139,7 @@ class Tolerances : virtual Tolerance,
     }
 };
 
+// tolerance concepts
 template<typename TolerancesType, typename T>
 concept hasErrorTolerance = requires(TolerancesType tolerances, T error) {
     tolerances.setErrorTolerance(error);
@@ -160,3 +162,4 @@ concept hasHalfcircleTolerance = requires(TolerancesType tolerances,
     tolerances.setHalfcircleTolerance(tolerance);
     tolerances.halfcircleToleranceUpdate(pose, target, theta);
 };
+} // namespace blazing

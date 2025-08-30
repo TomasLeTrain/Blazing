@@ -98,6 +98,14 @@ class PID {
         return windupRange;
     }
 
+    std::optional<Output> get_positiveSlew() {
+        return positiveSlew;
+    }
+
+    std::optional<Output> get_negativeSlew() {
+        return negativeSlew;
+    }
+
     void set_kP(KP_t<Input, Output> kP) {
         this->kP = kP;
     }
@@ -113,18 +121,32 @@ class PID {
     void set_windupRange(std::optional<Input> windupRange) {
         this->windupRange = windupRange;
     }
+
+    void set_positiveSlew(std::optional<Output> positiveSlew) {
+        this->positiveSlew;
+    }
+
+	void set_negativeSlew(std::optional<Output> negativeSlew){
+		this->negativeSlew;
+	}
 };
 
 template<typename T, typename Input, typename Output>
-concept hasKP =
-  requires(T t, KP_t<Input, Output> kp_value) { t.set_kP(kp_value); };
+concept hasKP = requires(T t, KP_t<Input, Output> value) { t.set_kP(value); };
 
 template<typename T, typename Input, typename Output>
-concept hasKI =
-  requires(T t, KI_t<Input, Output> kp_value) { t.set_kI(kp_value); };
+concept hasKI = requires(T t, KI_t<Input, Output> value) { t.set_kI(value); };
 
 template<typename T, typename Input, typename Output>
-concept hasKD =
-  requires(T t, KD_t<Input, Output> kp_value) { t.set_kD(kp_value); };
+concept hasKD = requires(T t, KD_t<Input, Output> value) { t.set_kD(value); };
+
+template<typename T, typename Input, typename Output>
+concept hasWindupRange = requires(T t, std::optional<Input> value) { t.set_windupRange(value); };
+
+template<typename T, typename Input, typename Output>
+concept hasPositiveSlew = requires(T t, std::optional<Output> value) { t.set_positiveSlew(value); };
+
+template<typename T, typename Input, typename Output>
+concept hasNegativeSlew = requires(T t, std::optional<Output> value) { t.set_negativeSlew(value); };
 
 } // namespace blazing

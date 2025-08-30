@@ -1,20 +1,12 @@
 #pragma once
 
+#include "blazing/chassis.hpp"
 #include "blazing/drivetrain.hpp"
-#include "blazing/feedback.hpp"
+#include "blazing/feedback/feedback.hpp"
 #include "blazing/motion.hpp"
-#include "blazing/pid.hpp"
 #include "blazing/tolerances.hpp"
+#include "blazing/tracker.hpp"
 #include "units/Vector2D.hpp"
-
-// pid is just another input
-// trackers are inputs
-// drivetrain is the output
-
-// controllers just control how some target -> some output
-// we could make defaults by using singletons or smth
-// therefore when the motion gets initalized it gets initialized with some
-// defaults, which can then be changed
 
 namespace blazing {
 struct MoveToState {
@@ -23,21 +15,19 @@ struct MoveToState {
     Time start_time;
 };
 
-template<typename LinearController,
-         typename AngularController,
-         typename Drivetrain,
-         typename Tracker,
+template<typename ControllersType,
+         typename DrivetrainType,
+         typename TrackerType,
          typename TolerancesType>
-    requires poseTracker<Tracker> && velocityTracker<Tracker> &&
-               ArcadeDrivetrain<Drivetrain>
-class moveTo : public virtual Motion,
-               public LinearFeedbackMotion<LinearController>,
-               public AngularFeedbackMotion<AngularController> {
+    requires poseTracker<TrackerType> && velocityTracker<TrackerType> &&
+             ArcadeDrivetrain<DrivetrainType>
+class moveTo : public Motion<ControllersType,
+                             DrivetrainType,
+                             TrackerType,
+                             TolerancesType> {
   private:
     units::V2Position target;
     bool reversed;
-
-    Chassis<Drivetrain, Tracker, TolerancesType> chassis;
 
     std::optional<Time> timeout;
 
@@ -62,8 +52,8 @@ class moveTo : public virtual Motion,
 
         std::optional<Time> timeout;
 
-        units::V2Position position = chassis.tracker.getPosition();
-        Angle heading = chassis.tracker.getAngle();
+        units::V2Position position = this->tracker.getPosition();
+        Angle heading = this->tracker.getAngle();
 
         auto local_target = target - position;
         Length distance_error = local_target.magnitude();
@@ -91,64 +81,62 @@ class moveTo : public virtual Motion,
 
         // update tolerances if they are included
         if constexpr (hasErrorTolerance<TolerancesType, Length>) {
-            chassis.tolerances.errorToleranceUpdate(distance_error);
+            this->tolerances.errorToleranceUpdate(distance_error);
         }
         if constexpr (hasVelocityTolerance<TolerancesType, Length>) {
-            chassis.tolerances.velocityToleranceUpdate(
-              chassis.tracker.getVelocity());
+            this->tolerances.velocityToleranceUpdate(
+              this->tracker.getVelocity());
         }
         if constexpr (hasVelocityTolerance<TolerancesType, Length>) {
-            chassis.tolerances.halfcircleToleranceUpdate(position,
-                                                         target,
-                                                         heading);
+            this->tolerances.halfcircleToleranceUpdate(position,
+                                                       target,
+                                                       heading);
         }
 
         // check tolerances and timeout
-        if (chassis.tolerances.check() ||
+        if (this->tolerances.check() ||
             timeout
               .transform([&](Time timeout) -> bool {
                   return from_msec(pros::millis()) - state.start_time > timeout;
               })
               .value_or(false)) {
-            chassis.drivetrain.moveArcade(0_volt, 0_volt);
+            this->drivetrain.moveArcade(0_volt, 0_volt);
         }
 
         Voltage angular_output =
-          this->angular_controller.update(-angle_error, 0_stRad, delta_time);
+          this->controllers.angular_feedback_controller.update(-angle_error,
+                                                               0_stRad,
+                                                               delta_time);
 
         Voltage linear_output =
-          this->linear_controller.update(-distance_error, 0.0_in, delta_time) *
+          this->controllers.linear_feedback_controller.update(-distance_error,
+                                                              0.0_in,
+                                                              delta_time) *
           units::cos(angle_error);
 
-        chassis.drivetrain.moveArcade(linear_output, angular_output);
+        this->drivetrain.moveArcade(linear_output, angular_output);
     }
 
   public:
-    moveTo(LinearController linear_controller,
-           AngularController angular_controller,
-           Chassis<Drivetrain, Tracker, TolerancesType> chassis,
-           double x,
-           double y)
-        : LinearFeedbackMotion<LinearController>(linear_controller),
-          AngularFeedbackMotion<AngularController>(angular_controller),
-          chassis(chassis),
-          target(from_in(x), from_in(y)) {}
-
-    moveTo(LinearController linear_controller,
-           AngularController angular_controller,
-           Chassis<Drivetrain, Tracker, TolerancesType> chassis,
+    moveTo(ControllersType controllers,
+           Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
            Length x,
            Length y)
-        : LinearFeedbackMotion<LinearController>(linear_controller),
-          AngularFeedbackMotion<AngularController>(angular_controller),
-          chassis(chassis),
+        : Motion<ControllersType, DrivetrainType, TrackerType, TolerancesType>(
+            controllers,
+            chassis),
           target(x, y) {}
+
+    moveTo(ControllersType controllers,
+           Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
+           double x,
+           double y)
+        : moveTo(controllers, chassis, from_in(x), from_in(y)) {}
 
     // functions which alter the motion conditions
     [[nodiscard("motion won't be executed!")]]
     moveTo& reverse() {
         // alter current state
-
         this->reversed = true;
 
         return *this;

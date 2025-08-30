@@ -1,7 +1,10 @@
 #include "main.h"
+#include "blazing/chassis.hpp"
+#include "blazing/controllers.hpp"
 #include "blazing/drivetrain.hpp"
-#include "blazing/moveTo.hpp"
-#include "blazing/pid.hpp"
+#include "blazing/feedback/pid.hpp"
+#include "blazing/motion_builder.hpp"
+#include "blazing/motions/moveTo.hpp"
 #include "pros/motor_group.hpp"
 
 /**
@@ -98,26 +101,42 @@ void opcontrol() {
                                      10_volt);
     PID<Angle, Voltage> angular_pid(4 * AKP, 2 * AKI, 4 * AKD, std::nullopt);
 
+    Controllers<PIDLinearController, PIDAngularController> controllers(
+      lateral_pid,
+      angular_pid);
+
     // TODO: make sure a motion won't run at the same time as another one
     // could be implemented by using mutexes on the drivetrain
 
+    pros::MotorGroup left_motors({ 1 });
+    pros::MotorGroup right_motors({ 2 });
+
+    DifferentialDrivetrain drivetrain(&left_motors, &right_motors);
+
     PoseTracker pose_tracker;
-    PositionOnlyTracker position_tracker;
 
     Tolerances customTolerances(10_sec,
                                 ErrorTolerance<Length> { 10_in },
                                 VelocityTolerance<Length> { 10_inps },
                                 HalfCircleTolerance { 1_m });
 
-    pros::MotorGroup left_motors({ 1 });
-    pros::MotorGroup right_motors({ 2 });
-    DifferentialDrivetrain drivetrain(&left_motors, &right_motors);
-
     Chassis chassis(drivetrain, pose_tracker, customTolerances);
 
-    moveTo(lateral_pid, angular_pid, chassis, 2, 3)
+    MotionBuilder mb(chassis, controllers);
+
+    mb.moveTo(2_in, 3_in)
+      .reverse()
       .lateral_kD(12 * LKD)
+      .angular_kI(0.02 * AKI)
       .reverse()
       .async();
-    moveTo(lateral_pid, angular_pid, chassis, 2, 3).reverse().run();
+
+    moveTo(controllers, chassis, 2, 3)
+      .reverse()
+      .lateral_kD(12 * LKD)
+      .angular_kI(0.02 * AKI)
+      .reverse()
+      .async();
+
+    moveTo(controllers, chassis, 2, 3).reverse().run();
 }

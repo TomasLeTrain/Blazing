@@ -1,29 +1,9 @@
 #pragma once
 
-#include "blazing/tolerances.hpp"
 #include "pros/motor_group.hpp"
-#include "units/Angle.hpp"
-#include "units/Vector2D.hpp"
 #include "units/units.hpp"
-#include <concepts>
 
-template<typename Q>
-concept angleTracker = requires(Q q) {
-    { q.getAngle() } -> std::same_as<Angle>;
-};
-
-template<typename Q>
-concept positionTracker = requires(Q q) {
-    { q.getPosition() } -> std::same_as<units::V2Position>;
-};
-
-template<typename Q>
-concept poseTracker = positionTracker<Q> && angleTracker<Q>;
-
-template<typename Q>
-concept velocityTracker = requires(Q q) {
-    { q.getVelocity() } -> std::same_as<LinearVelocity>;
-};
+namespace blazing {
 
 template<typename Q>
 concept ArcadeDrivetrain =
@@ -35,23 +15,6 @@ concept TankDrivetrain =
   requires(Q q, Voltage left_voltage, Voltage right_voltage) {
       q.moveTank(left_voltage, right_voltage);
   };
-
-namespace blazing {
-class PoseTracker {
-  public:
-    PoseTracker() {}
-
-    Angle getAngle() {}
-
-    units::V2Position getPosition() {}
-
-    LinearVelocity getVelocity() {}
-};
-
-class PositionOnlyTracker {
-  public:
-    units::V2Position getPosition() {}
-};
 
 class DifferentialDrivetrain {
   private:
@@ -76,23 +39,6 @@ class DifferentialDrivetrain {
     void moveArcade(Voltage linear_output, Voltage angular_output) {
         // TODO: implement
     }
-};
-
-// holds both a drivetrain and a drivetrain
-// main hardware abstraction for motions to use
-template<typename DrivetrainType, typename TrackerType, typename TolerancesType>
-class Chassis {
-  public:
-    DrivetrainType drivetrain;
-    TrackerType tracker;
-    TolerancesType tolerances;
-
-    Chassis(DrivetrainType drivetrain,
-            TrackerType tracker,
-            TolerancesType tolerances)
-        : drivetrain(drivetrain),
-          tracker(tracker),
-          tolerances(tolerances) {}
 };
 
 } // namespace blazing
