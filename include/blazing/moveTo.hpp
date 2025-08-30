@@ -1,6 +1,7 @@
 #pragma once
 
 #include "blazing/drivetrain.hpp"
+#include "blazing/feedback.hpp"
 #include "blazing/motion.hpp"
 #include "blazing/pid.hpp"
 #include "blazing/tolerances.hpp"
@@ -16,20 +17,6 @@
 // defaults, which can then be changed
 
 namespace blazing {
-
-template<typename T, typename Input, typename Output>
-concept Feedback =
-  requires(T controller, Input measurement, Input setpoint, Time duration) {
-      {
-          controller.update(measurement, setpoint, duration)
-      } -> std::same_as<Output>;
-  };
-
-template<typename T, typename Input, typename Output>
-concept Feedforward = requires(T controller, Input input, Time duration) {
-    { controller.update(input, duration) } -> std::same_as<Output>;
-};
-
 struct MoveToState {
     bool close;
     std::optional<Time> last_time;
@@ -41,17 +28,14 @@ template<typename LinearController,
          typename Drivetrain,
          typename Tracker,
          typename TolerancesType>
-    requires Feedback<LinearController, Length, Voltage> &&
-             Feedback<AngularController, Angle, Voltage> &&
-             poseTracker<Tracker> && velocityTracker<Tracker> &&
-             ArcadeDrivetrain<Drivetrain>
-class moveTo : public Motion {
+    requires poseTracker<Tracker> && velocityTracker<Tracker> &&
+               ArcadeDrivetrain<Drivetrain>
+class moveTo : public virtual Motion,
+               public LinearFeedbackMotion<LinearController>,
+               public AngularFeedbackMotion<AngularController> {
   private:
     units::V2Position target;
     bool reversed;
-
-    LinearController linear_controller;
-    AngularController angular_controller;
 
     Chassis<Drivetrain, Tracker, TolerancesType> chassis;
 
@@ -129,13 +113,11 @@ class moveTo : public Motion {
             chassis.drivetrain.moveArcade(0_volt, 0_volt);
         }
 
-        // 1 - (initial_turn_error / turn_error)
-
         Voltage angular_output =
-          angular_controller.update(-angle_error, 0_stRad, delta_time);
+          this->angular_controller.update(-angle_error, 0_stRad, delta_time);
 
         Voltage linear_output =
-          linear_controller.update(-distance_error, 0.0_in, delta_time) *
+          this->linear_controller.update(-distance_error, 0.0_in, delta_time) *
           units::cos(angle_error);
 
         chassis.drivetrain.moveArcade(linear_output, angular_output);
@@ -147,8 +129,8 @@ class moveTo : public Motion {
            Chassis<Drivetrain, Tracker, TolerancesType> chassis,
            double x,
            double y)
-        : linear_controller(linear_controller),
-          angular_controller(angular_controller),
+        : LinearFeedbackMotion<LinearController>(linear_controller),
+          AngularFeedbackMotion<AngularController>(angular_controller),
           chassis(chassis),
           target(from_in(x), from_in(y)) {}
 
@@ -157,8 +139,8 @@ class moveTo : public Motion {
            Chassis<Drivetrain, Tracker, TolerancesType> chassis,
            Length x,
            Length y)
-        : linear_controller(linear_controller),
-          angular_controller(angular_controller),
+        : LinearFeedbackMotion<LinearController>(linear_controller),
+          AngularFeedbackMotion<AngularController>(angular_controller),
           chassis(chassis),
           target(x, y) {}
 
@@ -169,55 +151,6 @@ class moveTo : public Motion {
 
         this->reversed = true;
 
-        return *this;
-    }
-
-    [[nodiscard("motion won't be executed!")]]
-    moveTo& lateral_kP(KP_t<Length, Voltage> kP)
-        requires hasKP<LinearController, Length, Voltage>
-    {
-        linear_controller.set_kP(kP);
-        return *this;
-    }
-
-    [[nodiscard("motion won't be executed!")]]
-    moveTo& angular_kP(KP_t<Angle, Voltage> kP)
-        requires hasKP<AngularController, Angle, Voltage>
-    {
-        angular_controller.set_kP(kP);
-        return *this;
-    }
-
-    [[nodiscard("motion won't be executed!")]]
-    moveTo& lateral_kI(KI_t<Length, Voltage> kI)
-        requires hasKI<LinearController, Length, Voltage>
-    {
-        linear_controller.set_kI(kI);
-        return *this;
-    }
-
-    [[nodiscard("motion won't be executed!")]]
-    moveTo& angular_kI(KI_t<Angle, Voltage> kI)
-        requires hasKI<AngularController, Angle, Voltage>
-    {
-
-        angular_controller.set_kI(kI);
-        return *this;
-    }
-
-    [[nodiscard("motion won't be executed!")]]
-    moveTo& lateral_kD(KD_t<Length, Voltage> kD)
-        requires hasKD<LinearController, Length, Voltage>
-    {
-        linear_controller.set_kD(kD);
-        return *this;
-    }
-
-    [[nodiscard("motion won't be executed!")]]
-    moveTo& angular_kD(KD_t<Angle, Voltage> kD)
-        requires hasKD<AngularController, Angle, Voltage>
-    {
-        angular_controller.set_kD(kD);
         return *this;
     }
 };

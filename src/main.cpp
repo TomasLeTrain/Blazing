@@ -80,8 +80,6 @@ void autonomous() {}
 void opcontrol() {
     using namespace blazing;
 
-    //  * (1_volt * 1_sec / 1_in)
-
     const auto LKP = (1_volt / 1_in);
     const auto LKI = (1_volt / 1_sec / 1_in);
     const auto LKD = (1_volt * 1_sec / 1_in);
@@ -92,31 +90,34 @@ void opcontrol() {
     const auto AKD = (1_volt * 1_sec / 1_stDeg);
     const auto AWindup = (1_stDeg * 1_sec);
 
-    PID<Length, Voltage> lateral_pid(4 * LKP, 2 * LKI, 4 * LKD, 4 * LWindup);
-    // PID<Angle, Voltage> angular_pid(4 * AKP, 2 * AKI, 4 * AKD, std::nullopt);
+    PID<Length, Voltage> lateral_pid(4 * LKP,
+                                     2 * LKI,
+                                     4 * LKD,
+                                     4_in,
+                                     10_volt,
+                                     10_volt);
+    PID<Angle, Voltage> angular_pid(4 * AKP, 2 * AKI, 4 * AKD, std::nullopt);
 
     // TODO: make sure a motion won't run at the same time as another one
     // could be implemented by using mutexes on the drivetrain
-    //
-    // PoseTracker pose_tracker;
-    // PositionOnlyTracker position_tracker;
-    //
-    // Tolerances<ErrorTolerance<Length>,
-    //            VelocityTolerance<Length>,
-    //            HalfCircleTolerance>
-    //   customTolerances(10_sec,
-    //                    ErrorTolerance<Length> { 10_in },
-    //                    VelocityTolerance<Length> { 10_inps },
-    //                    HalfCircleTolerance { 1_m });
-    //
-    // pros::MotorGroup left_motors({ 1 });
-    // pros::MotorGroup right_motors({ 2 });
-    // DifferentialDrivetrain drivetrain(&left_motors, &right_motors);
-    //
-    // Chassis chassis(drivetrain, pose_tracker, customTolerances);
 
-    // moveTo(lateral_pid, angular_pid, chassis, 2, 3)
-    //   .lateral_kD(12 * LKD)
-    //   .async();
-    // moveTo(lateral_pid, angular_pid, chassis, 2, 3).reverse().run();
+    PoseTracker pose_tracker;
+    PositionOnlyTracker position_tracker;
+
+    Tolerances customTolerances(10_sec,
+                                ErrorTolerance<Length> { 10_in },
+                                VelocityTolerance<Length> { 10_inps },
+                                HalfCircleTolerance { 1_m });
+
+    pros::MotorGroup left_motors({ 1 });
+    pros::MotorGroup right_motors({ 2 });
+    DifferentialDrivetrain drivetrain(&left_motors, &right_motors);
+
+    Chassis chassis(drivetrain, pose_tracker, customTolerances);
+
+    moveTo(lateral_pid, angular_pid, chassis, 2, 3)
+      .lateral_kD(12 * LKD)
+      .reverse()
+      .async();
+    moveTo(lateral_pid, angular_pid, chassis, 2, 3).reverse().run();
 }
