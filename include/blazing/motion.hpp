@@ -10,6 +10,17 @@
 
 namespace blazing {
 
+// used to make the motion changer methods more readable
+#define motionChanger                                                  \
+    template<typename Self>                                            \
+    [[nodiscard(                                                       \
+      "motion won't be executed unless run or async are used!")]] auto
+
+#define motionChangerT                                                 \
+    template<typename Self, typename T>                                \
+    [[nodiscard(                                                       \
+      "motion won't be executed unless run or async are used!")]] auto
+
 template<typename ControllersType,
          typename DrivetrainType,
          typename TrackerType,
@@ -61,100 +72,105 @@ class Motion {
     // the current api allows all the change functions to be specified here
     // without having to repeat them for every motion
 
-    // tolerance functions
-    template<typename Self>
-    [[nodiscard("motion won't be executed!")]]
-    auto linearToleranceDuration(this Self&& self, Time duration)
-    {
+    // tolerance duration changers
+    motionChanger linearToleranceDuration(this Self&& self, Time duration) {
         self.tolerances.linear.setDuration(duration);
         return self.getReference();
     }
-    // tolerance functions
-    template<typename Self>
-    [[nodiscard("motion won't be executed!")]]
-    auto angularToleranceDuration(this Self&& self, Time duration)
-    {
+
+    motionChanger angularToleranceDuration(this Self&& self, Time duration) {
         self.tolerances.angular.setDuration(duration);
         return self.getReference();
     }
-	
-    template<typename Self>
-    [[nodiscard("motion won't be executed!")]]
-    auto linearErrorTolerance(this Self&& self, Length tolerance)
-        requires hasLinearErrorTolerance<TolerancesType>
-    {
+
+    motionChanger largeLinearToleranceDuration(this Self&& self,
+                                               Time duration) {
+        self.tolerances.large_linear.setDuration(duration);
+        return self.getReference();
+    }
+
+    motionChanger largeAngularToleranceDuration(this Self&& self,
+                                                Time duration) {
+        self.tolerances.large_angular.setDuration(duration);
+        return self.getReference();
+    }
+
+    // Error tolerance changers
+    motionChanger linearErrorTolerance(this Self&& self, Length tolerance) {
         self.tolerances.linear.setErrorTolerance(tolerance);
         return self.getReference();
     }
 
-    template<typename Self>
-    [[nodiscard("motion won't be executed!")]]
-    auto angularErrorTolerance(this Self&& self, Angle tolerance)
-        requires hasAngularErrorTolerance<TolerancesType>
-    {
+    motionChanger angularErrorTolerance(this Self&& self, Angle tolerance) {
         self.tolerances.angular.setErrorTolerance(tolerance);
         return self.getReference();
     }
 
-    template<typename Self>
-    [[nodiscard("motion won't be executed!")]]
-    auto linearVelocityTolerance(this Self&& self, LinearVelocity tolerance)
-        requires hasLinearVelocityTolerance<TolerancesType>
-    {
+    motionChanger largeLinearErrorTolerance(this Self&& self,
+                                            Length tolerance) {
+        self.tolerances.large_linear.setErrorTolerance(tolerance);
+        return self.getReference();
+    }
+
+    motionChanger largeAngularErrorTolerance(this Self&& self,
+                                             Angle tolerance) {
+        self.tolerances.large_angular.setErrorTolerance(tolerance);
+        return self.getReference();
+    }
+
+    // velocity tolerance changers
+    motionChanger linearVelocityTolerance(this Self&& self,
+                                          LinearVelocity tolerance) {
         self.tolerances.linear.setVelocityTolerance(tolerance);
         return self.getReference();
     }
 
-    template<typename Self>
-    [[nodiscard("motion won't be executed!")]]
-    auto angularVelocityTolerance(this Self&& self, AngularVelocity tolerance)
-        requires hasAngularVelocityTolerance<TolerancesType>
-    {
+    motionChanger angularVelocityTolerance(this Self&& self,
+                                           AngularVelocity tolerance) {
         self.tolerances.angular.setVelocityTolerance(tolerance);
         return self.getReference();
     }
 
-    template<typename Self>
-    [[nodiscard("motion won't be executed!")]]
-    auto halfcircleTolerance(this Self&& self, Length tolerance)
-        requires hasHalfcircleTolerance<TolerancesType>
-    {
+    motionChanger largeLinearVelocityTolerance(this Self&& self,
+                                               LinearVelocity tolerance) {
+        self.tolerances.large_linear.setVelocityTolerance(tolerance);
+        return self.getReference();
+    }
+
+    motionChanger largeAngularVelocityTolerance(this Self&& self,
+                                                AngularVelocity tolerance) {
+        self.tolerances.large_angular.setVelocityTolerance(tolerance);
+        return self.getReference();
+    }
+
+    motionChanger halfcircleTolerance(this Self&& self, Length tolerance) {
         self.tolerances.linear.setHalfcircleTolerance(tolerance);
         return self.getReference();
     }
 
-    // pid functions
-    template<typename Self>
-    [[nodiscard("motion won't be executed!")]]
-    auto lateral_kP(this Self&& self, KP_t<Length, Voltage> kP)
+    // lateral pid changers
+    motionChangerT lateral_kP(this Self&& self, T kP)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
         self.controllers.linear_feedback_controller.set_kP(kP);
         return self.getReference();
     }
 
-    template<typename Self>
-    [[nodiscard("motion won't be executed!")]]
-    auto lateral_kI(this Self&& self, KI_t<Length, Voltage> kI)
+    motionChangerT lateral_kI(this Self&& self, T kI)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
         self.controllers.linear_feedback_controller.set_kI(kI);
         return self.getReference();
     }
 
-    template<typename Self>
-    [[nodiscard("motion won't be executed!")]]
-    auto lateral_kD(this Self&& self, KD_t<Length, Voltage> kD)
+    motionChangerT lateral_kD(this Self&& self, T kD)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
         self.controllers.linear_feedback_controller.set_kD(kD);
         return self.getReference();
     }
 
-    template<typename Self>
-    [[nodiscard("motion won't be executed!")]]
-    auto lateral_windupRange(this Self&& self,
-                              std::optional<Length> windupRange)
+    motionChangerT lateral_windupRange(this Self&& self, T windupRange)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
         self.controllers.linear_feedback_controller.set_windupRange(
@@ -162,10 +178,7 @@ class Motion {
         return self.getReference();
     }
 
-    template<typename Self>
-    [[nodiscard("motion won't be executed!")]]
-    auto lateral_positiveSlew(this Self&& self,
-                               std::optional<Voltage> positiveSlew)
+    motionChangerT lateral_positiveSlew(this Self&& self, T positiveSlew)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
         self.controllers.linear_feedback_controller.set_positiveSlew(
@@ -173,10 +186,7 @@ class Motion {
         return self.getReference();
     }
 
-    template<typename Self>
-    [[nodiscard("motion won't be executed!")]]
-    auto lateral_negativeSlew(this Self&& self,
-                               std::optional<Voltage> negativeSlew)
+    motionChangerT lateral_negativeSlew(this Self&& self, T negativeSlew)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
         self.controllers.linear_feedback_controller.set_negativeSlew(
@@ -184,37 +194,29 @@ class Motion {
         return self.getReference();
     }
 
-    template<typename Self>
-    [[nodiscard("motion won't be executed!")]]
-    auto angular_kP(this Self&& self, KP_t<Angle, Voltage> kP)
+    // angular pid changers
+    motionChangerT angular_kP(this Self&& self, T kP)
         requires std::derived_from<ControllersType, PIDAngularController>
     {
         self.controllers.angular_feedback_controller.set_kP(kP);
         return self.getReference();
     }
 
-    template<typename Self>
-    [[nodiscard("motion won't be executed!")]]
-    auto angular_kI(this Self&& self, KI_t<Angle, Voltage> kI)
+    motionChangerT angular_kI(this Self&& self, T kI)
         requires std::derived_from<ControllersType, PIDAngularController>
     {
         self.controllers.angular_feedback_controller.set_kI(kI);
         return self.getReference();
     }
 
-    template<typename Self>
-    [[nodiscard("motion won't be executed!")]]
-    auto angular_kD(this Self&& self, KD_t<Angle, Voltage> kD)
+    motionChangerT angular_kD(this Self&& self, T kD)
         requires std::derived_from<ControllersType, PIDAngularController>
     {
         self.controllers.angular_feedback_controller.set_kD(kD);
         return self.getReference();
     }
 
-    template<typename Self>
-    [[nodiscard("motion won't be executed!")]]
-    auto angular_windupRange(this Self&& self,
-                              std::optional<Angle> windupRange)
+    motionChangerT angular_windupRange(this Self&& self, T windupRange)
         requires std::derived_from<ControllersType, PIDAngularController>
     {
         self.controllers.angular_feedback_controller.set_windupRange(
@@ -222,10 +224,7 @@ class Motion {
         return self.getReference();
     }
 
-    template<typename Self>
-    [[nodiscard("motion won't be executed!")]]
-    auto angular_positiveSlew(this Self&& self,
-                               std::optional<Voltage> positiveSlew)
+    motionChangerT angular_positiveSlew(this Self&& self, T positiveSlew)
         requires std::derived_from<ControllersType, PIDAngularController>
     {
         self.controllers.angular_feedback_controller.set_positiveSlew(
@@ -233,10 +232,7 @@ class Motion {
         return self.getReference();
     }
 
-    template<typename Self>
-    [[nodiscard("motion won't be executed!")]]
-    auto angular_negativeSlew(this Self&& self,
-                               std::optional<Voltage> negativeSlew)
+    motionChangerT angular_negativeSlew(this Self&& self, T negativeSlew)
         requires std::derived_from<ControllersType, PIDAngularController>
     {
         self.controllers.angular_feedback_controller.set_negativeSlew(

@@ -143,7 +143,7 @@ class moveTo : public Motion<ControllersType,
         // alter current state
         this->reversed = true;
 
-        return *this;
+        return this->getReference();
     }
 };
 } // namespace blazing

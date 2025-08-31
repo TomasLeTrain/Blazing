@@ -145,6 +145,17 @@ struct LinearAndAngularTolerances {
     AngularTolerances angular;
 };
 
+template<typename LinearTolerances,
+         typename AngularTolerances,
+         typename LargeLinearTolerances,
+         typename LargeAngularTolerances>
+struct DefaultTolerances {
+    LinearTolerances linear;
+    AngularTolerances angular;
+    LargeLinearTolerances large_linear;
+    LargeAngularTolerances large_angular;
+};
+
 // tolerance concepts
 template<typename TolerancesType>
 concept hasLinearErrorTolerance =
@@ -152,6 +163,12 @@ concept hasLinearErrorTolerance =
       tolerances.linear.setErrorTolerance(error);
       tolerances.linear.errorToleranceUpdate(error);
   };
+
+template<typename TolerancesType,typename T>
+concept hasErrorTolerance = requires(TolerancesType tolerances, T error) {
+    tolerances.setErrorTolerance(error);
+    tolerances.errorToleranceUpdate(error);
+};
 
 template<typename TolerancesType>
 concept hasAngularErrorTolerance =
