@@ -80,21 +80,21 @@ class moveTo : public Motion<ControllersType,
         }
 
         // update tolerances if they are included
-        if constexpr (hasErrorTolerance<TolerancesType, Length>) {
-            this->tolerances.errorToleranceUpdate(distance_error);
+        if constexpr (hasLinearErrorTolerance<TolerancesType>) {
+            this->tolerances.linear.errorToleranceUpdate(distance_error);
         }
-        if constexpr (hasVelocityTolerance<TolerancesType, Length>) {
-            this->tolerances.velocityToleranceUpdate(
+        if constexpr (hasLinearVelocityTolerance<TolerancesType>) {
+            this->tolerances.linear.velocityToleranceUpdate(
               this->tracker.getVelocity());
         }
         if constexpr (hasHalfcircleTolerance<TolerancesType>) {
-            this->tolerances.halfcircleToleranceUpdate(position,
-                                                       target,
-                                                       heading);
+            this->tolerances.linear.halfcircleToleranceUpdate(position,
+                                                              target,
+                                                              heading);
         }
 
         // check tolerances and timeout
-        if (this->tolerances.check() ||
+        if (this->tolerances.linear.check() ||
             timeout
               .transform([&](Time timeout) -> bool {
                   return from_msec(pros::millis()) - state.start_time > timeout;
@@ -132,6 +132,10 @@ class moveTo : public Motion<ControllersType,
            double x,
            double y)
         : moveTo(controllers, chassis, from_in(x), from_in(y)) {}
+
+	moveTo& getReference(){
+		return *this;
+	}
 
     // functions which alter the motion conditions
     [[nodiscard("motion won't be executed!")]]

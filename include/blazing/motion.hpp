@@ -64,150 +64,184 @@ class Motion {
     // tolerance functions
     template<typename Self>
     [[nodiscard("motion won't be executed!")]]
-    Self& errorTolerance(this Self&& self, Length tolerance)
-        requires hasErrorTolerance<TolerancesType, Length>
+    auto linearToleranceDuration(this Self&& self, Time duration)
     {
-        self.tolerances.setErrorTolerance(tolerance);
-        return self;
+        self.tolerances.linear.setDuration(duration);
+        return self.getReference();
+    }
+    // tolerance functions
+    template<typename Self>
+    [[nodiscard("motion won't be executed!")]]
+    auto angularToleranceDuration(this Self&& self, Time duration)
+    {
+        self.tolerances.angular.setDuration(duration);
+        return self.getReference();
+    }
+	
+    template<typename Self>
+    [[nodiscard("motion won't be executed!")]]
+    auto linearErrorTolerance(this Self&& self, Length tolerance)
+        requires hasLinearErrorTolerance<TolerancesType>
+    {
+        self.tolerances.linear.setErrorTolerance(tolerance);
+        return self.getReference();
     }
 
     template<typename Self>
     [[nodiscard("motion won't be executed!")]]
-    Self& velocityTolerance(this Self&& self, LinearVelocity tolerance)
-        requires hasVelocityTolerance<TolerancesType, Length>
+    auto angularErrorTolerance(this Self&& self, Angle tolerance)
+        requires hasAngularErrorTolerance<TolerancesType>
     {
-        self.tolerances.setVelocityTolerance(tolerance);
-        return self;
+        self.tolerances.angular.setErrorTolerance(tolerance);
+        return self.getReference();
     }
 
     template<typename Self>
     [[nodiscard("motion won't be executed!")]]
-    Self& halfcircleTolerance(this Self&& self, Length tolerance)
+    auto linearVelocityTolerance(this Self&& self, LinearVelocity tolerance)
+        requires hasLinearVelocityTolerance<TolerancesType>
+    {
+        self.tolerances.linear.setVelocityTolerance(tolerance);
+        return self.getReference();
+    }
+
+    template<typename Self>
+    [[nodiscard("motion won't be executed!")]]
+    auto angularVelocityTolerance(this Self&& self, AngularVelocity tolerance)
+        requires hasAngularVelocityTolerance<TolerancesType>
+    {
+        self.tolerances.angular.setVelocityTolerance(tolerance);
+        return self.getReference();
+    }
+
+    template<typename Self>
+    [[nodiscard("motion won't be executed!")]]
+    auto halfcircleTolerance(this Self&& self, Length tolerance)
         requires hasHalfcircleTolerance<TolerancesType>
     {
-        self.tolerances.setHalfcircleTolerance(tolerance);
-        return self;
+        self.tolerances.linear.setHalfcircleTolerance(tolerance);
+        return self.getReference();
     }
 
     // pid functions
     template<typename Self>
     [[nodiscard("motion won't be executed!")]]
-    Self& lateral_kP(this Self&& self, KP_t<Length, Voltage> kP)
+    auto lateral_kP(this Self&& self, KP_t<Length, Voltage> kP)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
         self.controllers.linear_feedback_controller.set_kP(kP);
-        return self;
+        return self.getReference();
     }
 
     template<typename Self>
     [[nodiscard("motion won't be executed!")]]
-    Self& lateral_kI(this Self&& self, KI_t<Length, Voltage> kI)
+    auto lateral_kI(this Self&& self, KI_t<Length, Voltage> kI)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
         self.controllers.linear_feedback_controller.set_kI(kI);
-        return self;
+        return self.getReference();
     }
 
     template<typename Self>
     [[nodiscard("motion won't be executed!")]]
-    Self& lateral_kD(this Self&& self, KD_t<Length, Voltage> kD)
+    auto lateral_kD(this Self&& self, KD_t<Length, Voltage> kD)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
         self.controllers.linear_feedback_controller.set_kD(kD);
-        return self;
+        return self.getReference();
     }
 
     template<typename Self>
     [[nodiscard("motion won't be executed!")]]
-    Self& lateral_windupRange(this Self&& self,
+    auto lateral_windupRange(this Self&& self,
                               std::optional<Length> windupRange)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
         self.controllers.linear_feedback_controller.set_windupRange(
           windupRange);
-        return self;
+        return self.getReference();
     }
 
     template<typename Self>
     [[nodiscard("motion won't be executed!")]]
-    Self& lateral_positiveSlew(this Self&& self,
+    auto lateral_positiveSlew(this Self&& self,
                                std::optional<Voltage> positiveSlew)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
         self.controllers.linear_feedback_controller.set_positiveSlew(
           positiveSlew);
-        return self;
+        return self.getReference();
     }
 
     template<typename Self>
     [[nodiscard("motion won't be executed!")]]
-    Self& lateral_negativeSlew(this Self&& self,
+    auto lateral_negativeSlew(this Self&& self,
                                std::optional<Voltage> negativeSlew)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
         self.controllers.linear_feedback_controller.set_negativeSlew(
           negativeSlew);
-        return self;
+        return self.getReference();
     }
 
     template<typename Self>
     [[nodiscard("motion won't be executed!")]]
-    Self& angular_kP(this Self&& self, KP_t<Angle, Voltage> kP)
+    auto angular_kP(this Self&& self, KP_t<Angle, Voltage> kP)
         requires std::derived_from<ControllersType, PIDAngularController>
     {
         self.controllers.angular_feedback_controller.set_kP(kP);
-        return self;
+        return self.getReference();
     }
 
     template<typename Self>
     [[nodiscard("motion won't be executed!")]]
-    Self& angular_kI(this Self&& self, KI_t<Angle, Voltage> kI)
+    auto angular_kI(this Self&& self, KI_t<Angle, Voltage> kI)
         requires std::derived_from<ControllersType, PIDAngularController>
     {
         self.controllers.angular_feedback_controller.set_kI(kI);
-        return self;
+        return self.getReference();
     }
 
     template<typename Self>
     [[nodiscard("motion won't be executed!")]]
-    Self& angular_kD(this Self&& self, KD_t<Angle, Voltage> kD)
+    auto angular_kD(this Self&& self, KD_t<Angle, Voltage> kD)
         requires std::derived_from<ControllersType, PIDAngularController>
     {
         self.controllers.angular_feedback_controller.set_kD(kD);
-        return self;
+        return self.getReference();
     }
 
     template<typename Self>
     [[nodiscard("motion won't be executed!")]]
-    Self& angular_windupRange(this Self&& self,
+    auto angular_windupRange(this Self&& self,
                               std::optional<Angle> windupRange)
         requires std::derived_from<ControllersType, PIDAngularController>
     {
         self.controllers.angular_feedback_controller.set_windupRange(
           windupRange);
-        return self;
+        return self.getReference();
     }
 
     template<typename Self>
     [[nodiscard("motion won't be executed!")]]
-    Self& angular_positiveSlew(this Self&& self,
+    auto angular_positiveSlew(this Self&& self,
                                std::optional<Voltage> positiveSlew)
         requires std::derived_from<ControllersType, PIDAngularController>
     {
         self.controllers.angular_feedback_controller.set_positiveSlew(
           positiveSlew);
-        return self;
+        return self.getReference();
     }
 
     template<typename Self>
     [[nodiscard("motion won't be executed!")]]
-    Self& angular_negativeSlew(this Self&& self,
+    auto angular_negativeSlew(this Self&& self,
                                std::optional<Voltage> negativeSlew)
         requires std::derived_from<ControllersType, PIDAngularController>
     {
         self.controllers.angular_feedback_controller.set_negativeSlew(
           negativeSlew);
-        return self;
+        return self.getReference();
     }
 };
 

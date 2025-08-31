@@ -139,18 +139,39 @@ class Tolerances : virtual Tolerance,
     }
 };
 
-// tolerance concepts
-template<typename TolerancesType, typename T>
-concept hasErrorTolerance = requires(TolerancesType tolerances, T error) {
-    tolerances.setErrorTolerance(error);
-    tolerances.errorToleranceUpdate(error);
+template<typename LinearTolerances, typename AngularTolerances>
+struct LinearAndAngularTolerances {
+    LinearTolerances linear;
+    AngularTolerances angular;
 };
 
-template<typename TolerancesType, typename T>
-concept hasVelocityTolerance =
-  requires(TolerancesType tolerances, Divided<T, Time> velocity) {
-      tolerances.setVelocityTolerance(velocity);
-      tolerances.velocityToleranceUpdate(velocity);
+// tolerance concepts
+template<typename TolerancesType>
+concept hasLinearErrorTolerance =
+  requires(TolerancesType tolerances, Length error) {
+      tolerances.linear.setErrorTolerance(error);
+      tolerances.linear.errorToleranceUpdate(error);
+  };
+
+template<typename TolerancesType>
+concept hasAngularErrorTolerance =
+  requires(TolerancesType tolerances, Angle error) {
+      tolerances.angular.setErrorTolerance(error);
+      tolerances.angular.errorToleranceUpdate(error);
+  };
+
+template<typename TolerancesType>
+concept hasLinearVelocityTolerance =
+  requires(TolerancesType tolerances, LinearVelocity velocity) {
+      tolerances.linear.setVelocityTolerance(velocity);
+      tolerances.linear.velocityToleranceUpdate(velocity);
+  };
+
+template<typename TolerancesType>
+concept hasAngularVelocityTolerance =
+  requires(TolerancesType tolerances, AngularVelocity velocity) {
+      tolerances.angular.setVelocityTolerance(velocity);
+      tolerances.angular.velocityToleranceUpdate(velocity);
   };
 
 template<typename TolerancesType>
@@ -159,7 +180,7 @@ concept hasHalfcircleTolerance = requires(TolerancesType tolerances,
                                           units::V2Position pose,
                                           units::V2Position target,
                                           Angle theta) {
-    tolerances.setHalfcircleTolerance(tolerance);
-    tolerances.halfcircleToleranceUpdate(pose, target, theta);
+    tolerances.linear.setHalfcircleTolerance(tolerance);
+    tolerances.linear.halfcircleToleranceUpdate(pose, target, theta);
 };
 } // namespace blazing

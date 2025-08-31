@@ -115,12 +115,17 @@ void opcontrol() {
 
     PoseTracker pose_tracker;
 
-    Tolerances customTolerances(10_sec,
+    Tolerances linearTolerances(10_sec,
                                 ErrorTolerance<Length> { 10_in },
                                 VelocityTolerance<Length> { 10_inps },
                                 HalfCircleTolerance { 1_m });
+    Tolerances angularTolerances(10_sec,
+                                 ErrorTolerance<Angle> { 10_stDeg },
+                                 VelocityTolerance<Angle> { 10_degps });
 
-    Chassis chassis(drivetrain, pose_tracker, customTolerances);
+    LinearAndAngularTolerances tolerances(linearTolerances, angularTolerances);
+
+    Chassis chassis(drivetrain, pose_tracker, tolerances);
 
     MotionBuilder mb(chassis, controllers);
 
@@ -129,10 +134,13 @@ void opcontrol() {
       .lateral_kD(12 * LKD)
       .angular_kI(0.02 * AKI)
       .reverse()
+      .angularErrorTolerance(4_stDeg)
+      .linearErrorTolerance(4_in)
+      .linearToleranceDuration(400_msec)
+      .angularToleranceDuration(700_msec)
       .async();
 
     moveTo(controllers, chassis, 2, 3)
-      .reverse()
       .lateral_kD(12 * LKD)
       .angular_kI(0.02 * AKI)
       .reverse()
