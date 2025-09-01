@@ -4,8 +4,11 @@
 #include "blazing/drivetrain.hpp"
 #include "blazing/feedback/pid.hpp"
 #include "blazing/motion_builder.hpp"
+#include "blazing/executor.hpp"
 #include "blazing/motions/moveTo.hpp"
 #include "pros/motor_group.hpp"
+#include <iostream>
+#include <ostream>
 
 /**
  * A callback function for LLEMU's center button.
@@ -121,7 +124,10 @@ Chassis chassis(drivetrain, pose_tracker, tolerances);
 
 MotionBuilder mb(chassis, controllers);
 
+RunExecutor run;
+
 void opcontrol() {
+	std::cout << "hello world!" << std::endl;
     mb.moveTo(2_in, 3_in)
       .reverse()
       .lateral_kD(12 * LKD)
@@ -142,13 +148,17 @@ void opcontrol() {
       .angularToleranceDuration(700_msec)
       .largeLinearToleranceDuration(400_msec)
       .largeAngularToleranceDuration(700_msec)
-      .async();
+		| run;
+
+	std::cout << "erm!" << std::endl;
 
     moveTo(controllers, chassis, 2, 3)
       .lateral_kD(12 * LKD)
       .angular_kI(0.02 * AKI)
       .reverse()
       .async();
+	std::cout << "more!" << std::endl;
 
     moveTo(controllers, chassis, 2, 3).reverse().run();
+	std::cout << "wowskers!" << std::endl;
 }

@@ -19,12 +19,6 @@
           pros-cli-nix.packages.${system}.default
           gcc-arm-embedded
           clang
-          # clang-tools
-          # clangStdenv
-          # clangMultiStdenv
-          # llvmPackages_21.clang-unwrapped
-          # clang
-          #    clang-tools
         ];
         shellHook = ''
           clear

@@ -21,15 +21,26 @@ namespace blazing {
     [[nodiscard(                                                       \
       "motion won't be executed unless run or async are used!")]] auto
 
+struct motionExecutionResult {
+	std::optional<bool> inLargeTolerance = false;
+    std::optional<bool> inSmallTolerance = false;
+    bool finished = false;
+};
+
+// untemplated class to allow pointers
+class MotionBase {
+  public:
+    virtual int getLoopDelayTime() = 0;
+    virtual motionExecutionResult execute() = 0;
+	virtual ~MotionBase() = default;
+};
+
 template<typename ControllersType,
          typename DrivetrainType,
          typename TrackerType,
          typename TolerancesType>
-class Motion {
+class Motion : public MotionBase {
   protected:
-    virtual int getLoopDelayTime() = 0;
-    virtual void execute() = 0;
-
     DrivetrainType drivetrain;
     TrackerType tracker;
     TolerancesType tolerances;
@@ -56,7 +67,8 @@ class Motion {
     // waits until finishes
     void run() {
         while (true) {
-            this->execute();
+            auto result = this->execute();
+			if(result.finished) break;
             pros::delay(getLoopDelayTime());
         }
     };

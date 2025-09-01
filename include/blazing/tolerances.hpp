@@ -113,9 +113,13 @@ class Tolerances : virtual Tolerance,
         this->duration = duration;
     }
 
+	bool withinTolerance(){
+        return in_tolerance.value_or(false);
+	}
+
     // assumes each tolerance check has been performed
-    bool check() {
-        if (in_tolerance.value_or(false)) {
+    bool finished() {
+        if (withinTolerance()) {
             // set timestamp if it doesn't have one
             if (!tolerance_timestamp.has_value()) {
                 tolerance_timestamp = from_msec(pros::millis());
@@ -132,11 +136,13 @@ class Tolerances : virtual Tolerance,
             tolerance_timestamp = std::nullopt;
         }
 
-        // reset in_tolerance
-        in_tolerance = std::nullopt;
-
         return false;
     }
+	// if not called then withinTolerance will always remain on after becoming true once
+	bool reset(){
+        // reset in_tolerance
+        in_tolerance = std::nullopt;
+	}
 };
 
 template<typename LinearTolerances, typename AngularTolerances>
@@ -158,17 +164,39 @@ struct DefaultTolerances {
 
 // tolerance concepts
 template<typename TolerancesType>
+concept hasLinearTolerance =
+  requires(TolerancesType tolerances) {
+      tolerances.linear;
+  };
+template<typename TolerancesType>
+concept hasLargeLinearTolerance =
+  requires(TolerancesType tolerances) {
+      tolerances.large_linear;
+  };
+template<typename TolerancesType>
+concept hasAngularTolerance =
+  requires(TolerancesType tolerances) {
+      tolerances.angular;
+  };
+template<typename TolerancesType>
+concept hasLargeAngularTolerance =
+  requires(TolerancesType tolerances) {
+      tolerances.large_angular;
+  };
+
+template<typename TolerancesType>
 concept hasLinearErrorTolerance =
   requires(TolerancesType tolerances, Length error) {
       tolerances.linear.setErrorTolerance(error);
       tolerances.linear.errorToleranceUpdate(error);
   };
 
-template<typename TolerancesType,typename T>
-concept hasErrorTolerance = requires(TolerancesType tolerances, T error) {
-    tolerances.setErrorTolerance(error);
-    tolerances.errorToleranceUpdate(error);
-};
+template<typename TolerancesType>
+concept hasLargeLinearErrorTolerance =
+  requires(TolerancesType tolerances, Length error) {
+      tolerances.large_linear.setErrorTolerance(error);
+      tolerances.large_linear.errorToleranceUpdate(error);
+  };
 
 template<typename TolerancesType>
 concept hasAngularErrorTolerance =
@@ -178,10 +206,23 @@ concept hasAngularErrorTolerance =
   };
 
 template<typename TolerancesType>
+concept hasLargeAngularErrorTolerance =
+  requires(TolerancesType tolerances, Angle error) {
+      tolerances.large_angular.setErrorTolerance(error);
+      tolerances.large_angular.errorToleranceUpdate(error);
+  };
+
+template<typename TolerancesType>
 concept hasLinearVelocityTolerance =
   requires(TolerancesType tolerances, LinearVelocity velocity) {
       tolerances.linear.setVelocityTolerance(velocity);
       tolerances.linear.velocityToleranceUpdate(velocity);
+  };
+template<typename TolerancesType>
+concept hasLargeLinearVelocityTolerance =
+  requires(TolerancesType tolerances, LinearVelocity velocity) {
+      tolerances.large_linear.setVelocityTolerance(velocity);
+      tolerances.large_linear.velocityToleranceUpdate(velocity);
   };
 
 template<typename TolerancesType>
@@ -192,6 +233,13 @@ concept hasAngularVelocityTolerance =
   };
 
 template<typename TolerancesType>
+concept hasLargeAngularVelocityTolerance =
+  requires(TolerancesType tolerances, AngularVelocity velocity) {
+      tolerances.large_angular.setVelocityTolerance(velocity);
+      tolerances.large_angular.velocityToleranceUpdate(velocity);
+  };
+
+template<typename TolerancesType>
 concept hasHalfcircleTolerance = requires(TolerancesType tolerances,
                                           Length tolerance,
                                           units::V2Position pose,
@@ -199,5 +247,15 @@ concept hasHalfcircleTolerance = requires(TolerancesType tolerances,
                                           Angle theta) {
     tolerances.linear.setHalfcircleTolerance(tolerance);
     tolerances.linear.halfcircleToleranceUpdate(pose, target, theta);
+};
+
+template<typename TolerancesType>
+concept hasLargeHalfcircleTolerance = requires(TolerancesType tolerances,
+                                          Length tolerance,
+                                          units::V2Position pose,
+                                          units::V2Position target,
+                                          Angle theta) {
+    tolerances.large_linear.setHalfcircleTolerance(tolerance);
+    tolerances.large_linear.halfcircleToleranceUpdate(pose, target, theta);
 };
 } // namespace blazing

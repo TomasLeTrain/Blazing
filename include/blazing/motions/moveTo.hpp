@@ -37,7 +37,7 @@ class moveTo : public Motion<ControllersType,
         return 10;
     }
 
-    void execute() override {
+    motionExecutionResult execute() override {
         if (!m_state.has_value()) {
             m_state = { .close = false,
                         .last_time = from_msec(pros::millis()),
@@ -45,6 +45,7 @@ class moveTo : public Motion<ControllersType,
         }
 
         MoveToState& state = m_state.value();
+        motionExecutionResult result;
 
         Time delta_time = state.last_time.has_value() ?
                             from_msec(pros::millis()) - *state.last_time :
@@ -92,15 +93,45 @@ class moveTo : public Motion<ControllersType,
                                                               target,
                                                               heading);
         }
+        if constexpr (hasLargeLinearErrorTolerance<TolerancesType>) {
+            this->tolerances.large_linear.errorToleranceUpdate(distance_error);
+        }
+        if constexpr (hasLargeLinearVelocityTolerance<TolerancesType>) {
+            this->tolerances.large_linear.velocityToleranceUpdate(
+              this->tracker.getVelocity());
+        }
+        if constexpr (hasLargeHalfcircleTolerance<TolerancesType>) {
+            this->tolerances.large_linear.halfcircleToleranceUpdate(position,
+                                                                    target,
+                                                                    heading);
+        }
 
-        // check tolerances and timeout
-        if (this->tolerances.linear.check() ||
-            timeout
-              .transform([&](Time timeout) -> bool {
-                  return from_msec(pros::millis()) - state.start_time > timeout;
-              })
-              .value_or(false)) {
+        // check tolerances
+        if constexpr (hasLinearTolerance<TolerancesType>) {
+            result.inSmallTolerance = this->tolerances.linear.withinTolerance();
+            result.finished |= this->tolerances.linear.finished();
+            this->tolerances.linear.reset();
+        }
+        if constexpr (hasLargeLinearTolerance<TolerancesType>) {
+            result.inLargeTolerance =
+              this->tolerances.large_linear.withinTolerance();
+            result.finished |= this->tolerances.large_linear.finished();
+            this->tolerances.large_linear.reset();
+        }
+
+        // check timeout
+        result.finished |=
+          timeout
+            .transform([state](Time timeout) -> bool {
+                return from_msec(pros::millis()) - state.start_time > timeout;
+            })
+            .value_or(false);
+
+        // finished if any of the available tolerances or timeout are triggered
+        if (result.finished) {
             this->drivetrain.moveArcade(0_volt, 0_volt);
+            // returns immediately to avoid more movement
+            return result;
         }
 
         Voltage angular_output =
@@ -115,6 +146,7 @@ class moveTo : public Motion<ControllersType,
           units::cos(angle_error);
 
         this->drivetrain.moveArcade(linear_output, angular_output);
+        return result;
     }
 
   public:
@@ -133,9 +165,9 @@ class moveTo : public Motion<ControllersType,
            double y)
         : moveTo(controllers, chassis, from_in(x), from_in(y)) {}
 
-	moveTo& getReference(){
-		return *this;
-	}
+    moveTo& getReference() {
+        return *this;
+    }
 
     // functions which alter the motion conditions
     [[nodiscard("motion won't be executed!")]]
