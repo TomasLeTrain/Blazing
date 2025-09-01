@@ -2,11 +2,13 @@
 
 #include "blazing/chassis.hpp"
 #include "blazing/controllers.hpp"
+#include "blazing/drivetrain.hpp"
 #include "blazing/feedback/pid.hpp"
 #include "blazing/tolerances.hpp"
 #include "pros/rtos.hpp"
 #include "units/units.hpp"
 #include <concepts>
+#include <optional>
 
 namespace blazing {
 
@@ -22,7 +24,7 @@ namespace blazing {
       "motion won't be executed unless run or async are used!")]] auto
 
 struct motionExecutionResult {
-	std::optional<bool> inLargeTolerance = false;
+    std::optional<bool> inLargeTolerance = false;
     std::optional<bool> inSmallTolerance = false;
     bool finished = false;
 };
@@ -32,7 +34,13 @@ class MotionBase {
   public:
     virtual int getLoopDelayTime() = 0;
     virtual motionExecutionResult execute() = 0;
-	virtual ~MotionBase() = default;
+
+	// TODO: fix this abomination
+    virtual std::optional<ChainableDrivetrain*> getDrivetrain() {
+        return std::nullopt;
+    }
+
+    virtual ~MotionBase() = default;
 };
 
 template<typename ControllersType,
@@ -40,7 +48,6 @@ template<typename ControllersType,
          typename TrackerType,
          typename TolerancesType>
 class Motion : public MotionBase {
-  protected:
     DrivetrainType drivetrain;
     TrackerType tracker;
     TolerancesType tolerances;
@@ -65,21 +72,21 @@ class Motion : public MotionBase {
     //       tolerances(tolerances) {}
 
     // waits until finishes
-    void run() {
-        while (true) {
-            auto result = this->execute();
-			if(result.finished) break;
-            pros::delay(getLoopDelayTime());
-        }
-    };
-
-    // runs async
-    void async() {
-        // spawn a task to run this in
-        pros::Task([this]() {
-            this->run();
-        });
-    };
+    //  void run() {
+    //      while (true) {
+    //          auto result = this->execute();
+    // if(result.finished) break;
+    //          pros::delay(getLoopDelayTime());
+    //      }
+    //  };
+    //
+    //  // runs async
+    //  void async() {
+    //      // spawn a task to run this in
+    //      pros::Task([this]() {
+    //          this->run();
+    //      });
+    //  };
 
     // the current api allows all the change functions to be specified here
     // without having to repeat them for every motion
