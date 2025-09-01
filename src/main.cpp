@@ -126,10 +126,12 @@ MotionBuilder mb(chassis, controllers);
 
 RunExecutor run;
 AsyncExecutor async;
+ChainedExecutor chain(0.3_sec);
 
 void opcontrol() {
     // needed for async motions to run
     async.init();
+	chain.init();
 
     std::cout << "hello world!" << std::endl;
     mb.moveTo(2_in, 3_in)
@@ -173,4 +175,9 @@ void opcontrol() {
     async.wait();
 
     std::cout << "wowskers!" << std::endl;
+
+
+    mb.moveTo(2_in, 3_in) | chain;
+    mb.moveTo(4_in, 3_in) | chain;
+	chain.wait();
 }

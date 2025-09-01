@@ -40,7 +40,7 @@ class moveTo : public Motion<ControllersType,
     }
 
     motionExecutionResult execute() override {
-        std::cout << "getting5executed!" << std::endl;
+        std::cout << "getting executed!" << std::endl;
 
         if (!m_state.has_value()) {
             m_state = { .close = false,

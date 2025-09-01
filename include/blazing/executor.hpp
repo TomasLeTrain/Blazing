@@ -91,7 +91,7 @@ class AsyncExecutor : public Executor {
             motions.pop();
             mutex.give();
 
-            pros::delay(20);
+            pros::delay(10);
         } else {
             pros::delay(current_motion->getLoopDelayTime());
         }
@@ -121,13 +121,15 @@ class AsyncExecutor : public Executor {
 class ChainedExecutor : public Executor {
   private:
     std::list<std::unique_ptr<MotionBase>> motions;
-	bool fusing = false;
+    std::optional<Time> fuse_start_time = std::nullopt;
+    Time fusing_time;
 
   protected:
     pros::Mutex mutex;
 
   public:
-    ChainedExecutor() {}
+    ChainedExecutor(Time fusing_time)
+        : fusing_time(fusing_time) {}
 
     // executes as soon as motion gets added
     void addMotion(std::unique_ptr<MotionBase> motion) override {
@@ -146,30 +148,91 @@ class ChainedExecutor : public Executor {
         mutex.take();
 
         std::unique_ptr<MotionBase>& current_motion = motions.front();
-		current_motion->getDrivetrain()
+
+        // attempt to disable the drivetrain
+        bool disabled_result = current_motion->setEnabledDrivetrain(false);
+
+        // run motion logic
         auto result = current_motion->execute();
 
-		if(result.inLargeTolerance && !fusing){
-			fusing = true;
-		}
+		// starts fusing if any tolerance gets hit
+        if ((result.inSmallTolerance || result.inLargeTolerance) &&
+            !fuse_start_time.has_value()) {
+            fuse_start_time = from_msec(pros::millis());
+        }
 
-		if(motions.size() >= 2 && fusing){
-			std::unique_ptr<MotionBase>& next_motion = *next(motions.begin()); 
-			auto next_result = next_motion->execute();
-		}else{
-			// perform everything as usual
-		}
+        // get current voltages
+        std::optional<std::vector<Voltage>> current_voltages =
+          current_motion->getVoltagesDrivetrain();
 
+        bool fusing_finished = false;
+
+        if (motions.size() >= 2 && fuse_start_time.has_value() &&
+            // makes sure we can actually disable the drivetrain
+            disabled_result) {
+            std::unique_ptr<MotionBase>& next_motion = *next(motions.begin());
+
+            // NOTE: we must disable the next motion as well since it likely has
+            // a different drivetrain (motions tend to have own all the objects
+            // including the drivetrains)
+            next_motion->setEnabledDrivetrain(false);
+
+            // compute next motion
+            next_motion->execute();
+
+            // get its voltages
+            std::optional<std::vector<Voltage>> next_voltages =
+              next_motion->getVoltagesDrivetrain();
+
+            if (current_voltages.has_value() && next_voltages.has_value() &&
+                current_voltages->size() == next_voltages->size()) {
+
+                std::vector<Voltage> fused_voltages(current_voltages->size());
+
+                Time elapsed_time =
+                  from_msec(pros::millis()) - *fuse_start_time;
+                double normalized_time =
+                  units::clamp(elapsed_time / fusing_time, 0.0, 1.0);
+
+                for (size_t i = 0; i < current_voltages->size(); i++) {
+                    // fuses between voltages with a simple lerp function
+                    fused_voltages[i] =
+                      (1 - normalized_time) * current_voltages->at(i) +
+                      normalized_time * next_voltages->at(i);
+                }
+
+                // move drivetrain based on these fused voltages
+                current_motion->setEnabledDrivetrain(true);
+                current_motion->setVoltagesDrivetrain(fused_voltages);
+
+                // if we have spent enough time fusing, then just finish the
+                // previous motion
+                fusing_finished = elapsed_time > fusing_time;
+            } else if (current_voltages.has_value()) {
+                // couldn't get the next voltages, just use the current ones
+                bool set_voltage_result =
+                  current_motion->setVoltagesDrivetrain(*current_voltages);
+            } // else can't do anything since we don't know the voltages
+        } else {
+            // perform everything as usual
+            if (disabled_result && current_voltages.has_value()) {
+                current_motion->setVoltagesDrivetrain(*current_voltages);
+            }
+            // else the drivetrain was either never disabled or we don't know
+            // the voltages to use either way we don't do anything
+        }
+
+        // not using the queue anymore
         mutex.give();
 
-        if (result.finished) {
+        if (result.finished || fusing_finished) {
             // remove motion from queue, need to take the mutex again
             mutex.take();
             motions.pop_front();
             mutex.give();
-			fusing = false;
+            fuse_start_time = std::nullopt;
 
-            pros::delay(20);
+            pros::delay(10);
         } else {
             pros::delay(current_motion->getLoopDelayTime());
         }

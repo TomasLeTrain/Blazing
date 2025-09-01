@@ -9,6 +9,7 @@
 #include "units/units.hpp"
 #include <concepts>
 #include <optional>
+#include <vector>
 
 namespace blazing {
 
@@ -35,10 +36,18 @@ class MotionBase {
     virtual int getLoopDelayTime() = 0;
     virtual motionExecutionResult execute() = 0;
 
-	// TODO: fix this abomination
-    virtual std::optional<ChainableDrivetrain*> getDrivetrain() {
+    // functions meant to be used for chaining motions
+    virtual bool setEnabledDrivetrain(bool enabled) {
+        return false;
+    };
+
+    virtual std::optional<std::vector<Voltage>> getVoltagesDrivetrain() {
         return std::nullopt;
-    }
+    };
+
+    virtual bool setVoltagesDrivetrain(std::vector<Voltage> voltages) {
+        return false;
+    };
 
     virtual ~MotionBase() = default;
 };
@@ -48,6 +57,7 @@ template<typename ControllersType,
          typename TrackerType,
          typename TolerancesType>
 class Motion : public MotionBase {
+  protected:
     DrivetrainType drivetrain;
     TrackerType tracker;
     TolerancesType tolerances;
@@ -87,6 +97,30 @@ class Motion : public MotionBase {
     //          this->run();
     //      });
     //  };
+
+    // attempt to override chain functions
+    bool setEnabledDrivetrain(bool enabled) override {
+        if constexpr (MotionChainableDrivetrain<DrivetrainType>) {
+            drivetrain.setEnabled(enabled);
+            return true;
+        }
+        return false;
+    };
+
+    std::optional<std::vector<Voltage>> getVoltagesDrivetrain() override {
+        if constexpr (MotionChainableDrivetrain<DrivetrainType>) {
+            return drivetrain.getVoltages();
+        }
+        return std::nullopt;
+    };
+
+    bool setVoltagesDrivetrain(std::vector<Voltage> voltages) override {
+        if constexpr (MotionChainableDrivetrain<DrivetrainType>) {
+            drivetrain.setVoltages(voltages);
+            return true;
+        }
+        return false;
+    };
 
     // the current api allows all the change functions to be specified here
     // without having to repeat them for every motion
