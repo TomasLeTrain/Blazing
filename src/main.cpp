@@ -2,9 +2,9 @@
 #include "blazing/chassis.hpp"
 #include "blazing/controllers.hpp"
 #include "blazing/drivetrain.hpp"
+#include "blazing/executor.hpp"
 #include "blazing/feedback/pid.hpp"
 #include "blazing/motion_builder.hpp"
-#include "blazing/executor.hpp"
 #include "blazing/motions/moveTo.hpp"
 #include "pros/motor_group.hpp"
 #include <iostream>
@@ -125,40 +125,48 @@ Chassis chassis(drivetrain, pose_tracker, tolerances);
 MotionBuilder mb(chassis, controllers);
 
 RunExecutor run;
+AsyncExecutor async;
 
 void opcontrol() {
-	std::cout << "hello world!" << std::endl;
+	// needed for async motions to run
+	async.init();
+
+    std::cout << "hello world!" << std::endl;
     mb.moveTo(2_in, 3_in)
-      .reverse()
-      .lateral_kD(12 * LKD)
-      .angular_kI(0.02 * AKI)
-      .reverse()
+        .reverse()
+        .lateral_kD(12 * LKD)
+        .angular_kI(0.02 * AKI)
+        .reverse()
 
-      .angularErrorTolerance(4_stDeg)
-      .linearErrorTolerance(4_in)
-      .largeLinearErrorTolerance(4_in)
-      .largeAngularErrorTolerance(4_stDeg)
+        .angularErrorTolerance(4_stDeg)
+        .linearErrorTolerance(4_in)
+        .largeLinearErrorTolerance(4_in)
+        .largeAngularErrorTolerance(4_stDeg)
 
-      .angularVelocityTolerance(4_stDeg / 1_sec)
-      .linearVelocityTolerance(4_in / 1_sec)
-      .largeLinearVelocityTolerance(4_in / 1_sec)
-      .largeAngularVelocityTolerance(4_stDeg / 1_sec)
+        .angularVelocityTolerance(4_stDeg / 1_sec)
+        .linearVelocityTolerance(4_in / 1_sec)
+        .largeLinearVelocityTolerance(4_in / 1_sec)
+        .largeAngularVelocityTolerance(4_stDeg / 1_sec)
 
-      .linearToleranceDuration(400_msec)
-      .angularToleranceDuration(700_msec)
-      .largeLinearToleranceDuration(400_msec)
-      .largeAngularToleranceDuration(700_msec)
-		| run;
+        .linearToleranceDuration(400_msec)
+        .angularToleranceDuration(700_msec)
+        .largeLinearToleranceDuration(400_msec)
+        .largeAngularToleranceDuration(700_msec) |
+      run;
 
-	std::cout << "erm!" << std::endl;
+    std::cout << "erm!" << std::endl;
 
     moveTo(controllers, chassis, 2, 3)
-      .lateral_kD(12 * LKD)
-      .angular_kI(0.02 * AKI)
-      .reverse()
-      .async();
-	std::cout << "more!" << std::endl;
+        .lateral_kD(12 * LKD)
+        .angular_kI(0.02 * AKI)
+        .reverse() |
+      async;
+    std::cout << "more!" << std::endl;
 
-    moveTo(controllers, chassis, 2, 3).reverse().run();
-	std::cout << "wowskers!" << std::endl;
+    moveTo(controllers, chassis, 2, 3).reverse() | async;
+
+	// wait until all async movements are done
+	async.wait();
+
+    std::cout << "wowskers!" << std::endl;
 }
