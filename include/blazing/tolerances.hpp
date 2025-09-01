@@ -113,9 +113,9 @@ class Tolerances : virtual Tolerance,
         this->duration = duration;
     }
 
-	bool withinTolerance(){
+    bool withinTolerance() {
         return in_tolerance.value_or(false);
-	}
+    }
 
     // assumes each tolerance check has been performed
     bool finished() {
@@ -124,10 +124,13 @@ class Tolerances : virtual Tolerance,
             if (!tolerance_timestamp.has_value()) {
                 tolerance_timestamp = from_msec(pros::millis());
             }
-            if (duration.transform([&](Time time) -> bool {
-                    return from_msec(pros::millis()) - *tolerance_timestamp >
-                           time;
-                })) {
+            if (duration
+                  .transform(
+                    [timestamp = *this->tolerance_timestamp](Time time) -> bool {
+                        return from_msec(pros::millis()) - timestamp > time;
+                    })
+                  .value_or(false)) {
+                std::cout << "tolerance was triggered!" << std::endl;
                 tolerance_timestamp = std::nullopt;
                 return true;
             }
@@ -138,11 +141,13 @@ class Tolerances : virtual Tolerance,
 
         return false;
     }
-	// if not called then withinTolerance will always remain on after becoming true once
-	bool reset(){
+
+    // if not called then withinTolerance will always remain on after becoming
+    // true once
+    void reset() {
         // reset in_tolerance
         in_tolerance = std::nullopt;
-	}
+    }
 };
 
 template<typename LinearTolerances, typename AngularTolerances>
@@ -165,24 +170,16 @@ struct DefaultTolerances {
 // tolerance concepts
 template<typename TolerancesType>
 concept hasLinearTolerance =
-  requires(TolerancesType tolerances) {
-      tolerances.linear;
-  };
+  requires(TolerancesType tolerances) { tolerances.linear; };
 template<typename TolerancesType>
 concept hasLargeLinearTolerance =
-  requires(TolerancesType tolerances) {
-      tolerances.large_linear;
-  };
+  requires(TolerancesType tolerances) { tolerances.large_linear; };
 template<typename TolerancesType>
 concept hasAngularTolerance =
-  requires(TolerancesType tolerances) {
-      tolerances.angular;
-  };
+  requires(TolerancesType tolerances) { tolerances.angular; };
 template<typename TolerancesType>
 concept hasLargeAngularTolerance =
-  requires(TolerancesType tolerances) {
-      tolerances.large_angular;
-  };
+  requires(TolerancesType tolerances) { tolerances.large_angular; };
 
 template<typename TolerancesType>
 concept hasLinearErrorTolerance =
@@ -251,10 +248,10 @@ concept hasHalfcircleTolerance = requires(TolerancesType tolerances,
 
 template<typename TolerancesType>
 concept hasLargeHalfcircleTolerance = requires(TolerancesType tolerances,
-                                          Length tolerance,
-                                          units::V2Position pose,
-                                          units::V2Position target,
-                                          Angle theta) {
+                                               Length tolerance,
+                                               units::V2Position pose,
+                                               units::V2Position target,
+                                               Angle theta) {
     tolerances.large_linear.setHalfcircleTolerance(tolerance);
     tolerances.large_linear.halfcircleToleranceUpdate(pose, target, theta);
 };

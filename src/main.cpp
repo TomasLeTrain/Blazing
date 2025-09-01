@@ -100,9 +100,9 @@ DifferentialDrivetrain drivetrain(&left_motors, &right_motors);
 PoseTracker pose_tracker;
 
 Tolerances linearTolerances(300_msec,
-                            ErrorTolerance<Length> { 1_in },
-                            VelocityTolerance<Length> { 1_inps },
-                            HalfCircleTolerance { 1_in });
+                            ErrorTolerance<Length> { 1_in });
+                            // VelocityTolerance<Length> { 1_inps },
+                            // HalfCircleTolerance { 1_in });
 Tolerances angularTolerances(300_msec,
                              ErrorTolerance<Angle> { 3_stDeg },
                              VelocityTolerance<Angle> { 2_degps });
@@ -128,8 +128,8 @@ RunExecutor run;
 AsyncExecutor async;
 
 void opcontrol() {
-	// needed for async motions to run
-	async.init();
+    // needed for async motions to run
+    async.init();
 
     std::cout << "hello world!" << std::endl;
     mb.moveTo(2_in, 3_in)
@@ -144,14 +144,15 @@ void opcontrol() {
         .largeAngularErrorTolerance(4_stDeg)
 
         .angularVelocityTolerance(4_stDeg / 1_sec)
-        .linearVelocityTolerance(4_in / 1_sec)
+        // .linearVelocityTolerance(4_in / 1_sec)
         .largeLinearVelocityTolerance(4_in / 1_sec)
         .largeAngularVelocityTolerance(4_stDeg / 1_sec)
 
-        .linearToleranceDuration(400_msec)
+        .linearToleranceDuration(500_msec)
         .angularToleranceDuration(700_msec)
         .largeLinearToleranceDuration(400_msec)
-        .largeAngularToleranceDuration(700_msec) |
+        .largeAngularToleranceDuration(700_msec)
+        .withTimeout(2_sec) |
       run;
 
     std::cout << "erm!" << std::endl;
@@ -161,12 +162,15 @@ void opcontrol() {
         .angular_kI(0.02 * AKI)
         .reverse() |
       async;
-    std::cout << "more!" << std::endl;
+
+    std::cout << "this is async" << std::endl;
 
     moveTo(controllers, chassis, 2, 3).reverse() | async;
 
-	// wait until all async movements are done
-	async.wait();
+    std::cout << "still async!" << std::endl;
+
+    // wait until all async movements are done
+    async.wait();
 
     std::cout << "wowskers!" << std::endl;
 }

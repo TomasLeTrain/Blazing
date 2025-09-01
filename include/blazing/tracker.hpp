@@ -27,16 +27,16 @@ class PoseTracker {
   public:
     PoseTracker() {}
 
-    Angle getAngle() {}
+    Angle getAngle() { return 0_stDeg;}
 
-    units::V2Position getPosition() {}
+    units::V2Position getPosition() { return {2_in, 3_in}; }
 
-    LinearVelocity getVelocity() {}
+    LinearVelocity getVelocity() { return 1_inps; }
 };
 
-class PositionOnlyTracker {
-  public:
-    units::V2Position getPosition() {}
-};
+// class PositionOnlyTracker {
+//   public:
+//     units::V2Position getPosition() {}
+// };
 
 } // namespace blazing

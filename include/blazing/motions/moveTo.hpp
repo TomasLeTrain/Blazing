@@ -7,6 +7,7 @@
 #include "blazing/tolerances.hpp"
 #include "blazing/tracker.hpp"
 #include "units/Vector2D.hpp"
+#include <iostream>
 
 namespace blazing {
 struct MoveToState {
@@ -27,8 +28,9 @@ class moveTo : public Motion<ControllersType,
                              TolerancesType> {
   private:
     units::V2Position target;
-    bool reversed;
 
+    // moveTo-specific properties
+    bool reversed;
     std::optional<Time> timeout;
 
     std::optional<MoveToState> m_state;
@@ -38,6 +40,8 @@ class moveTo : public Motion<ControllersType,
     }
 
     motionExecutionResult execute() override {
+        std::cout << "getting5executed!" << std::endl;
+
         if (!m_state.has_value()) {
             m_state = { .close = false,
                         .last_time = from_msec(pros::millis()),
@@ -47,11 +51,17 @@ class moveTo : public Motion<ControllersType,
         MoveToState& state = m_state.value();
         motionExecutionResult result;
 
-        Time delta_time = state.last_time.has_value() ?
-                            from_msec(pros::millis()) - *state.last_time :
-                            0.0_sec;
+        std::cout << "inited stuff!" << std::endl;
 
-        std::optional<Time> timeout;
+        Time current_time = from_msec(pros::millis());
+
+        Time delta_time = state.last_time
+                            .transform([current_time](Time last_time) -> Time {
+                                return current_time - last_time;
+                            })
+                            .value_or(0.0_sec);
+
+        state.last_time = current_time;
 
         units::V2Position position = this->tracker.getPosition();
         Angle heading = this->tracker.getAngle();
@@ -93,6 +103,7 @@ class moveTo : public Motion<ControllersType,
                                                               target,
                                                               heading);
         }
+
         if constexpr (hasLargeLinearErrorTolerance<TolerancesType>) {
             this->tolerances.large_linear.errorToleranceUpdate(distance_error);
         }
@@ -105,6 +116,8 @@ class moveTo : public Motion<ControllersType,
                                                                     target,
                                                                     heading);
         }
+
+		result.finished = false;
 
         // check tolerances
         if constexpr (hasLinearTolerance<TolerancesType>) {
@@ -123,6 +136,9 @@ class moveTo : public Motion<ControllersType,
         result.finished |=
           timeout
             .transform([state](Time timeout) -> bool {
+                std::cout << "dt "
+                          << from_msec(pros::millis()) - state.start_time
+                          << " timeout:  " << timeout << std::endl;
                 return from_msec(pros::millis()) - state.start_time > timeout;
             })
             .value_or(false);
@@ -145,7 +161,12 @@ class moveTo : public Motion<ControllersType,
                                                               delta_time) *
           units::cos(angle_error);
 
+        std::cout << "calculate voltages" << std::endl;
+
         this->drivetrain.moveArcade(linear_output, angular_output);
+
+        std::cout << "moved arcade" << std::endl;
+
         return result;
     }
 
@@ -169,11 +190,18 @@ class moveTo : public Motion<ControllersType,
         return *this;
     }
 
-    // functions which alter the motion conditions
-    [[nodiscard("motion won't be executed!")]]
+    // changer methods
+
+    [[nodiscard("motion won't be executed unless run or async are used!")]]
     moveTo& reverse() {
-        // alter current state
         this->reversed = true;
+
+        return this->getReference();
+    }
+
+    [[nodiscard("motion won't be executed unless run or async are used!")]]
+    moveTo& withTimeout(Time timeout) {
+        this->timeout = timeout;
 
         return this->getReference();
     }

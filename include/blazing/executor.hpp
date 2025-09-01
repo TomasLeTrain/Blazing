@@ -2,7 +2,9 @@
 
 #include "blazing/motion.hpp"
 #include "units/units.hpp"
+#include <iostream>
 #include <memory>
+#include <ostream>
 #include <queue>
 #include <type_traits>
 
@@ -17,6 +19,7 @@ template<typename M>
 constexpr void operator|(M&& motion, Executor& executor) {
     // creates a copy of the temporary motion object and creates one owned by
     // the executor
+	std::cout << "called operator!" << std::endl;
     executor.addMotion(
       std::move(std::make_unique<std::decay_t<M>>(std::forward<M>(motion))));
 }
@@ -28,10 +31,12 @@ class RunExecutor : public Executor {
     // executes as soon as motion gets added
     void addMotion(std::unique_ptr<MotionBase> motion) override {
         while (true) {
+			std::cout << "evaluating motion!" << std::endl;
             auto result = motion->execute();
 
             // finished motion, stop
             if (result.finished) {
+				std::cout << "finished run motion!" << std::endl;
                 break;
             }
 
