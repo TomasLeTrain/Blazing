@@ -72,19 +72,16 @@ void autonomous() {}
 
 using namespace blazing;
 
-const KP_t<Length, Voltage> LKP = (1_volt / 1_in);
-const KI_t<Length, Voltage> LKI = (1_volt / 1_sec / 1_in);
-const KD_t<Length, Voltage> LKD = (1_volt * 1_sec / 1_in);
-const Length LWindup = 1_in;
-
-const KP_t<Angle, Voltage> AKP = (1_volt / 1_stDeg);
-const KI_t<Angle, Voltage> AKI = (1_volt / 1_sec / 1_stDeg);
-const KD_t<Angle, Voltage> AKD = (1_volt * 1_sec / 1_stDeg);
-const Angle AWindup = 1_stDeg;
-
-PID<Length, Voltage>
-  lateral_pid(4 * LKP, 2 * LKI, 4 * LKD, 4_in, 10_volt, 10_volt);
-PID<Angle, Voltage> angular_pid(4 * AKP, 2 * AKI, 4 * AKD, std::nullopt);
+PID<Length, Voltage> lateral_pid(4, 2, 4, 4, 10, 10, 1_sec, 1_in, 1_volt);
+PID<Angle, Voltage> angular_pid(4,
+                                2,
+                                4,
+                                std::nullopt,
+                                std::nullopt,
+                                std::nullopt,
+                                1_sec,
+                                1_stDeg,
+                                1_volt);
 
 Controllers<PIDLinearController, PIDAngularController> controllers(lateral_pid,
                                                                    angular_pid);
@@ -99,10 +96,9 @@ DifferentialDrivetrain drivetrain(&left_motors, &right_motors);
 
 PoseTracker pose_tracker;
 
-Tolerances linearTolerances(300_msec,
-                            ErrorTolerance<Length> { 1_in });
-                            // VelocityTolerance<Length> { 1_inps },
-                            // HalfCircleTolerance { 1_in });
+Tolerances linearTolerances(300_msec, ErrorTolerance<Length> { 1_in });
+// VelocityTolerance<Length> { 1_inps },
+// HalfCircleTolerance { 1_in });
 Tolerances angularTolerances(300_msec,
                              ErrorTolerance<Angle> { 3_stDeg },
                              VelocityTolerance<Angle> { 2_degps });
@@ -131,13 +127,13 @@ ChainedExecutor chain(0.3_sec);
 void opcontrol() {
     // needed for async motions to run
     async.init();
-	chain.init();
+    chain.init();
 
     std::cout << "hello world!" << std::endl;
     mb.moveTo(2_in, 3_in)
         .reverse()
-        .lateral_kD(12 * LKD)
-        .angular_kI(0.02 * AKI)
+        .lateral_kD(12 * lateral_pid.UKD)
+        .angular_kI(0.02)
         .reverse()
 
         .angularErrorTolerance(4_stDeg)
@@ -160,8 +156,8 @@ void opcontrol() {
     std::cout << "erm!" << std::endl;
 
     moveTo(controllers, chassis, 2, 3)
-        .lateral_kD(12 * LKD)
-        .angular_kI(0.02 * AKI)
+        .lateral_kD(12)
+        .angular_kI(0.02 * angular_pid.UKI)
         .reverse() |
       async;
 
@@ -176,8 +172,7 @@ void opcontrol() {
 
     std::cout << "wowskers!" << std::endl;
 
-
     mb.moveTo(2_in, 3_in) | chain;
     mb.moveTo(4_in, 3_in) | chain;
-	chain.wait();
+    chain.wait();
 }
