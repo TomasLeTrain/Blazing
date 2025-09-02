@@ -16,22 +16,34 @@ concept positionTracker = requires(Q q) {
 };
 
 template<typename Q>
+concept distanceTraveledTracker = requires(Q q) {
+    { q.getDistanceTraveled() } -> std::same_as<Length>;
+};
+
+template<typename Q>
 concept poseTracker = positionTracker<Q> && angleTracker<Q>;
 
 template<typename Q>
 concept velocityTracker = requires(Q q) {
     { q.getVelocity() } -> std::same_as<LinearVelocity>;
+    { q.getAngularVelocity() } -> std::same_as<AngularVelocity>;
 };
 
 class PoseTracker {
   public:
     PoseTracker() {}
 
-    Angle getAngle() { return 0_stDeg;}
+    Angle getAngle() {
+        return 0_stDeg;
+    }
 
-    units::V2Position getPosition() { return {2_in, 3_in}; }
+    units::V2Position getPosition() {
+        return { 2_in, 3_in };
+    }
 
-    LinearVelocity getVelocity() { return 1_inps; }
+    LinearVelocity getVelocity() {
+        return 1_inps;
+    }
 };
 
 // class PositionOnlyTracker {

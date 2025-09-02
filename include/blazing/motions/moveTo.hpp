@@ -30,8 +30,8 @@ class moveTo : public Motion<ControllersType,
     units::V2Position target;
 
     // moveTo-specific properties
-    bool reversed;
-    std::optional<Time> timeout;
+    std::optional<Time> timeout = std::nullopt;
+    bool reversed = false;
 
     std::optional<MoveToState> m_state;
 
@@ -73,11 +73,11 @@ class moveTo : public Motion<ControllersType,
             state.close = true;
         }
 
-        Angle angle_error = heading - position.angleTo(target);
+        Angle angle_error = units::constrainAngle180(heading - position.angleTo(target));
 
         if (reversed) {
             distance_error *= -1.0;
-            angle_error = (rot / 2) - angle_error;
+            angle_error = units::constrainAngle180(rot / 2 - angle_error);
         }
 
         // If the turn error exceeds 90 degrees, then the point is behind
@@ -87,7 +87,7 @@ class moveTo : public Motion<ControllersType,
         // beginning
         if (state.close && units::abs(angle_error) >= 90.0_stDeg) {
             distance_error *= -1.0;
-            angle_error = (rot / 2) - angle_error;
+            angle_error = units::constrainAngle180(rot / 2 - angle_error);
         }
 
         // update tolerances if they are included
@@ -193,14 +193,14 @@ class moveTo : public Motion<ControllersType,
     // changer methods
 
     [[nodiscard("motion won't be executed unless run or async are used!")]]
-    moveTo& reverse() {
+    auto reverse() {
         this->reversed = true;
 
         return this->getReference();
     }
 
     [[nodiscard("motion won't be executed unless run or async are used!")]]
-    moveTo& withTimeout(Time timeout) {
+    auto withTimeout(Time timeout) {
         this->timeout = timeout;
 
         return this->getReference();
