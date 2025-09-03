@@ -4,12 +4,16 @@
 #include "blazing/feedback/pid.hpp"
 #include "units/Angle.hpp"
 #include "units/units.hpp"
+#include <concepts>
+#include <type_traits>
 
 namespace blazing {
 
+struct ControllerBase {};
+
 template<typename Controller>
     requires Feedback<Controller, Length, Voltage>
-struct LinearFeedbackController {
+struct LinearFeedbackController : public ControllerBase {
     Controller linear_feedback_controller;
 
     LinearFeedbackController(Controller linear_feedback_controller)
@@ -18,7 +22,7 @@ struct LinearFeedbackController {
 
 template<typename Controller>
     requires Feedback<Controller, Angle, Voltage>
-struct AngularFeedbackController {
+struct AngularFeedbackController : public ControllerBase {
     Controller angular_feedback_controller;
 
     AngularFeedbackController(Controller angular_feedback_controller)
@@ -26,9 +30,9 @@ struct AngularFeedbackController {
 };
 
 // inherits all the properties from the controllers being used
-template<typename... ControllerTypes>
+template<std::derived_from<ControllerBase>... ControllerTypes>
 struct Controllers : public ControllerTypes... {
-    Controllers(ControllerTypes&&... controllers)
+    Controllers(ControllerTypes... controllers)
         : ControllerTypes(std::move(controllers))... {}
 };
 

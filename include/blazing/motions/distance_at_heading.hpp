@@ -7,7 +7,6 @@
 #include "units/Vector2D.hpp"
 #include "units/units.hpp"
 #include <optional>
-#include <variant>
 
 namespace blazing {
 
@@ -17,6 +16,7 @@ struct TurnToState {
     Time start_time;
     std::optional<Time> last_time;
 
+    bool linear_settled;
     bool angular_settled;
 };
 
@@ -24,20 +24,19 @@ template<typename ControllersType,
          typename DrivetrainType,
          typename TrackerType,
          typename TolerancesType>
-    requires poseTracker<TrackerType> && angularVelocityTracker<TrackerType> &&
+    requires velocityTracker<TrackerType> &&
+             distanceTraveledTracker<TrackerType> &&
              ArcadeDrivetrain<DrivetrainType>
 class turnTo : public Motion<ControllersType,
                              DrivetrainType,
                              TrackerType,
                              TolerancesType> {
   private:
-    // std::optional<units::V2Position> target_point = std::nullopt;
-    // std::optional<Angle> given_target_heading = std::nullopt;
-    std::variant<Angle, units::V2Position> target;
+    Length target_distance;
+    std::optional<Angle> given_target_heading = std::nullopt;
 
     // moveTo-specific properties
     std::optional<Time> timeout = std::nullopt;
-    bool reversed = false;
 
     std::optional<TurnToState> m_state;
 
@@ -52,6 +51,7 @@ class turnTo : public Motion<ControllersType,
                   this->tracker.getDistanceTraveled(),
                 .start_time = from_msec(pros::millis()),
                 .last_time = from_msec(pros::millis()),
+                .linear_settled = false,
                 .angular_settled = false,
             };
         }
@@ -71,11 +71,20 @@ class turnTo : public Motion<ControllersType,
 
         units::V2Position position = this->tracker.getPosition();
         Angle heading = this->tracker.getAngle();
+        Length distance_traveled = this->tracker.getDistanceTraveled();
 
+        Angle target_heading =
+          // use given target heading
+          given_target_heading
+            // or just target current angle so that the angle doesn't move at
+            // all
+            .value_or(heading);
+
+        Length linear_error =
+          (target_distance + state.initial_distance_traveled) -
+          distance_traveled;
         Angle angular_error =
-          std::holds_alternative<Angle>(target) ?
-            units::constrainAngle180(heading - std::get<Angle>(target)) :
-            position.angleTo(std::get<units::V2Position>(target));
+          units::constrainAngle180(heading - target_heading);
 
         // TODO: make it able to specify left / right direction of rotation
         // or > ?
@@ -88,11 +97,26 @@ class turnTo : public Motion<ControllersType,
         // 	angular_error = angular_error - 360;
         // }
 
-        if (reversed) {
-            angular_error = units::constrainAngle180(rot / 2 - angular_error);
-        }
+        // TODO: switch to variant for targets
 
         // update tolerances if they are included
+        if constexpr (hasLinearErrorTolerance<TolerancesType>) {
+            this->tolerances.linear.errorToleranceUpdate(linear_error);
+        }
+        if constexpr (hasLinearVelocityTolerance<TolerancesType>) {
+            this->tolerances.linear.velocityToleranceUpdate(
+              this->tracker.getVelocity());
+        }
+
+        if constexpr (hasLargeLinearErrorTolerance<TolerancesType>) {
+            this->tolerances.large_linear.errorToleranceUpdate(linear_error);
+        }
+        if constexpr (hasLargeLinearVelocityTolerance<TolerancesType>) {
+            this->tolerances.large_linear.velocityToleranceUpdate(
+              this->tracker.getVelocity());
+        }
+
+        // angular tolerances
         if constexpr (hasAngularErrorTolerance<TolerancesType>) {
             this->tolerances.angular.errorToleranceUpdate(angular_error);
         }
@@ -102,7 +126,7 @@ class turnTo : public Motion<ControllersType,
         }
 
         if constexpr (hasLargeAngularErrorTolerance<TolerancesType>) {
-            this->tolerances.large_angular.errorToleranceUpdate(angular_error);
+            this->tolerances.large_angular.errorToleranceUpdate(linear_error);
         }
         if constexpr (hasLargeAngularVelocityTolerance<TolerancesType>) {
             this->tolerances.large_angular.velocityToleranceUpdate(
@@ -110,30 +134,70 @@ class turnTo : public Motion<ControllersType,
         }
 
         state.angular_settled = false;
+        state.linear_settled = false;
 
         // check tolerances
-        if constexpr (hasAngularTolerance<TolerancesType>) {
+        if constexpr (hasLinearTolerance<TolerancesType>) {
+            bool curr_in_tolerance = this->tolerances.linear.withinTolerance();
+
             result.inSmallTolerance =
-              this->tolerances.angular.withinTolerance();
+              result.inSmallTolerance
+                .transform([curr_in_tolerance](auto inSmallTolerance) {
+                    return inSmallTolerance & curr_in_tolerance;
+                })
+                .value_or(curr_in_tolerance);
+
+            state.linear_settled |= this->tolerances.linear.finished();
+            this->tolerances.linear.reset();
+        }
+        if constexpr (hasLargeLinearTolerance<TolerancesType>) {
+            bool curr_in_tolerance =
+              this->tolerances.large_linear.withinTolerance();
+
+            result.inLargeTolerance =
+              result.inLargeTolerance
+                .transform([curr_in_tolerance](auto inLargeTolerance) {
+                    return inLargeTolerance & curr_in_tolerance;
+                })
+                .value_or(curr_in_tolerance);
+
+            state.linear_settled |= this->tolerances.large_linear.finished();
+            this->tolerances.large_linear.reset();
+        }
+        if constexpr (hasAngularTolerance<TolerancesType>) {
+            bool curr_in_tolerance = this->tolerances.angular.withinTolerance();
+
+            result.inSmallTolerance =
+              result.inSmallTolerance
+                .transform([curr_in_tolerance](auto inSmallTolerance) {
+                    return inSmallTolerance & curr_in_tolerance;
+                })
+                .value_or(curr_in_tolerance);
+
             state.angular_settled |= this->tolerances.angular.finished();
             this->tolerances.angular.reset();
         }
         if constexpr (hasLargeAngularTolerance<TolerancesType>) {
-            result.inLargeTolerance =
+            bool curr_in_tolerance =
               this->tolerances.large_angular.withinTolerance();
+
+            result.inLargeTolerance =
+              result.inLargeTolerance
+                .transform([curr_in_tolerance](auto inLargeTolerance) {
+                    return inLargeTolerance & curr_in_tolerance;
+                })
+                .value_or(curr_in_tolerance);
+
             state.angular_settled |= this->tolerances.large_angular.finished();
             this->tolerances.large_angular.reset();
         }
 
-        result.finished = state.angular_settled;
+        result.finished = state.linear_settled && state.angular_settled;
 
         // check timeout
         result.finished |=
           timeout
             .transform([state](Time timeout) -> bool {
-                std::cout << "dt "
-                          << from_msec(pros::millis()) - state.start_time
-                          << " timeout:  " << timeout << std::endl;
                 return from_msec(pros::millis()) - state.start_time > timeout;
             })
             .value_or(false);
@@ -151,7 +215,10 @@ class turnTo : public Motion<ControllersType,
                                                                0_stRad,
                                                                delta_time);
 
-        Voltage linear_output = 0_volt;
+        Voltage linear_output =
+          this->controllers.linear_feedback_controller.update(-linear_error,
+                                                              0_in,
+                                                              delta_time);
 
         this->drivetrain.moveArcade(linear_output, angular_output);
 
@@ -161,44 +228,41 @@ class turnTo : public Motion<ControllersType,
   public:
     turnTo(ControllersType controllers,
            Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
-           Length x,
-           Length y)
+           Length target_distance)
         : Motion<ControllersType, DrivetrainType, TrackerType, TolerancesType>(
             controllers,
             chassis),
-          target(units::V2Position(x, y)) {}
+          target_distance(target_distance) {}
 
     turnTo(ControllersType controllers,
            Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
-           double x,
-           double y)
-        : turnTo(controllers, chassis, from_in(x), from_in(y)) {}
+           double target_distance)
+        : turnTo(controllers, chassis, from_in(target_distance)) {}
 
     turnTo(ControllersType controllers,
            Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
+           Length target_distance,
            Angle target_heading)
         : Motion<ControllersType, DrivetrainType, TrackerType, TolerancesType>(
             controllers,
             chassis),
-          target(target_heading) {}
+          target_distance(target_distance),
+          given_target_heading(target_heading) {}
 
     turnTo(ControllersType controllers,
            Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
+           double target_distance,
            double target_heading)
-        : turnTo(controllers, chassis, from_stDeg(target_heading)) {}
+        : turnTo(controllers,
+                 chassis,
+                 from_in(target_distance),
+                 from_stDeg(target_heading)) {}
 
     turnTo& getReference() {
         return *this;
     }
 
     // changer methods
-
-    [[nodiscard("motion won't be executed unless run or async are used!")]]
-    auto reverse() {
-        this->reversed = true;
-
-        return this->getReference();
-    }
 
     [[nodiscard("motion won't be executed unless run or async are used!")]]
     auto withTimeout(Time timeout) {

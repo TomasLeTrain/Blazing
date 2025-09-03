@@ -24,10 +24,16 @@ template<typename Q>
 concept poseTracker = positionTracker<Q> && angleTracker<Q>;
 
 template<typename Q>
-concept velocityTracker = requires(Q q) {
-    { q.getVelocity() } -> std::same_as<LinearVelocity>;
+concept linearVelocityTracker = requires(Q q) {
+    { q.getLinearVelocity() } -> std::same_as<LinearVelocity>;
+};
+
+template<typename Q>
+concept angularVelocityTracker = requires(Q q) {
     { q.getAngularVelocity() } -> std::same_as<AngularVelocity>;
 };
+template<typename Q>
+concept velocityTracker = linearVelocityTracker<Q> && angularVelocityTracker<Q>;
 
 class PoseTracker {
   public:
@@ -41,9 +47,16 @@ class PoseTracker {
         return { 2_in, 3_in };
     }
 
-    LinearVelocity getVelocity() {
+    LinearVelocity getLinearVelocity() {
         return 1_inps;
     }
+
+    AngularVelocity getAngularVelocity() {
+        return 1_degps;
+    }
+	Length getDistanceTraveled() {
+		return 1_in;
+	}
 };
 
 // class PositionOnlyTracker {

@@ -110,7 +110,8 @@ class PID {
         // output = error * kP + integral * kP + derivative * kD
         Output result = error * kP + integral * kI + derivative * kD;
 
-        // apply slew
+		// TODO: not slew? max/min voltage instead
+		// TODO: actually implement slew
         if (positiveSlew.has_value() && positiveSlew.value() < result)
             result = positiveSlew.value();
         if (negativeSlew.has_value() && -negativeSlew.value() > result)

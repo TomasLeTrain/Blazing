@@ -20,7 +20,7 @@ template<typename ControllersType,
          typename DrivetrainType,
          typename TrackerType,
          typename TolerancesType>
-    requires poseTracker<TrackerType> && velocityTracker<TrackerType> &&
+    requires poseTracker<TrackerType> && linearVelocityTracker<TrackerType> &&
              ArcadeDrivetrain<DrivetrainType>
 class moveTo : public Motion<ControllersType,
                              DrivetrainType,
@@ -73,7 +73,8 @@ class moveTo : public Motion<ControllersType,
             state.close = true;
         }
 
-        Angle angle_error = units::constrainAngle180(heading - position.angleTo(target));
+        Angle angle_error =
+          units::constrainAngle180(heading - position.angleTo(target));
 
         if (reversed) {
             distance_error *= -1.0;
@@ -117,7 +118,7 @@ class moveTo : public Motion<ControllersType,
                                                                     heading);
         }
 
-		result.finished = false;
+        result.finished = false;
 
         // check tolerances
         if constexpr (hasLinearTolerance<TolerancesType>) {
