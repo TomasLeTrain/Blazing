@@ -1,6 +1,6 @@
 #pragma once
 
-#include "blazing/motion.hpp"
+#include "blazing/motions/motion.hpp"
 #include "pros/rtos.hpp"
 #include "units/units.hpp"
 #include <cstddef>

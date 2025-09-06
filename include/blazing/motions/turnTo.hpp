@@ -1,9 +1,9 @@
 #pragma once
 
-#include "blazing/controllers.hpp"
-#include "blazing/drivetrain.hpp"
-#include "blazing/motion.hpp"
-#include "blazing/tracker.hpp"
+#include "blazing/controllers/controllers.hpp"
+#include "blazing/drivetrains/drivetrain.hpp"
+#include "blazing/motions/motion.hpp"
+#include "blazing/trackers/tracker.hpp"
 #include "blazing/util.hpp"
 #include "units/Angle.hpp"
 #include "units/Vector2D.hpp"
@@ -56,7 +56,7 @@ class turnTo : public Motion<ControllersType,
                   this->tracker.getDistanceTraveled(),
                 .start_time = from_msec(pros::millis()),
                 .last_time = from_msec(pros::millis()),
-                .angular_settled = false,
+                .settled = false,
             };
         }
 

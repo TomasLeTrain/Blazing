@@ -1,8 +1,9 @@
 #pragma once
 
-#include "blazing/drivetrain.hpp"
-#include "blazing/motion.hpp"
-#include "blazing/tracker.hpp"
+#include "blazing/drivetrains/drivetrain.hpp"
+#include "blazing/motions/motion.hpp"
+#include "blazing/trackers/tracker.hpp"
+#include "blazing/tolerances.hpp"
 #include "blazing/util.hpp"
 #include "units/Angle.hpp"
 #include "units/Vector2D.hpp"
@@ -102,7 +103,7 @@ class distanceAtHeading : public Motion<ControllersType,
         }
         if constexpr (hasLinearVelocityTolerance<TolerancesType>) {
             this->tolerances.linear.velocityToleranceUpdate(
-              this->tracker.getVelocity());
+              this->tracker.getLinearVelocity());
         }
 
         if constexpr (hasLargeLinearErrorTolerance<TolerancesType>) {
@@ -110,7 +111,7 @@ class distanceAtHeading : public Motion<ControllersType,
         }
         if constexpr (hasLargeLinearVelocityTolerance<TolerancesType>) {
             this->tolerances.large_linear.velocityToleranceUpdate(
-              this->tracker.getVelocity());
+              this->tracker.getLinearVelocity());
         }
 
         // angular tolerances

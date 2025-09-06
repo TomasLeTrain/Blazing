@@ -1,11 +1,11 @@
 #pragma once
 
 #include "blazing/chassis.hpp"
-#include "blazing/drivetrain.hpp"
-#include "blazing/feedback/feedback.hpp"
-#include "blazing/motion.hpp"
+#include "blazing/drivetrains/drivetrain.hpp"
+#include "blazing/controllers/feedback/feedback.hpp"
+#include "blazing/motions/motion.hpp"
 #include "blazing/tolerances.hpp"
-#include "blazing/tracker.hpp"
+#include "blazing/trackers/tracker.hpp"
 #include "blazing/util.hpp"
 #include "units/Vector2D.hpp"
 #include <iostream>
@@ -96,7 +96,7 @@ class moveTo : public Motion<ControllersType,
         }
         if constexpr (hasLinearVelocityTolerance<TolerancesType>) {
             this->tolerances.linear.velocityToleranceUpdate(
-              this->tracker.getVelocity());
+              this->tracker.getLinearVelocity());
         }
         if constexpr (hasHalfcircleTolerance<TolerancesType>) {
             this->tolerances.linear.halfcircleToleranceUpdate(position,
@@ -109,7 +109,7 @@ class moveTo : public Motion<ControllersType,
         }
         if constexpr (hasLargeLinearVelocityTolerance<TolerancesType>) {
             this->tolerances.large_linear.velocityToleranceUpdate(
-              this->tracker.getVelocity());
+              this->tracker.getLinearVelocity());
         }
         if constexpr (hasLargeHalfcircleTolerance<TolerancesType>) {
             this->tolerances.large_linear.halfcircleToleranceUpdate(position,

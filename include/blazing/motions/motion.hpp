@@ -1,11 +1,8 @@
 #pragma once
 
 #include "blazing/chassis.hpp"
-#include "blazing/controllers.hpp"
-#include "blazing/drivetrain.hpp"
-#include "blazing/feedback/pid.hpp"
-#include "blazing/tolerances.hpp"
-#include "pros/rtos.hpp"
+#include "blazing/controllers/controllers.hpp"
+#include "blazing/drivetrains/drivetrain.hpp"
 #include "units/units.hpp"
 #include <concepts>
 #include <optional>

@@ -1,12 +1,9 @@
 #pragma once
 
 #include "units/Angle.hpp"
-#include "units/Vector2D.hpp"
 #include "units/units.hpp"
 #include <array>
-#include <numeric>
 #include <optional>
-#include <ranges>
 
 namespace blazing {
 enum class AngularDirection {
@@ -33,7 +30,7 @@ angleError(Angle target,
 template<isQuantity T, size_t size>
 inline std::array<T, size> desaturate(std::array<T, size> saturated, T max) {
 
-    T abs_compare = [](T a, T b) {
+    auto abs_compare = [](T a, T b) {
         return units::abs(a) < units::abs(b);
     };
 
@@ -43,7 +40,7 @@ inline std::array<T, size> desaturate(std::array<T, size> saturated, T max) {
         std::transform(saturated.cbegin(),
                        saturated.cend(),
                        saturated.begin(),
-                       [max](T num) {
+                       [max,largest_magnitude](T num) {
                            return num * max / largest_magnitude;
                        });
     };
