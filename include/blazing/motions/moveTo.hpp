@@ -6,6 +6,7 @@
 #include "blazing/motion.hpp"
 #include "blazing/tolerances.hpp"
 #include "blazing/tracker.hpp"
+#include "blazing/util.hpp"
 #include "units/Vector2D.hpp"
 #include <iostream>
 
@@ -21,7 +22,9 @@ template<typename ControllersType,
          typename TrackerType,
          typename TolerancesType>
     requires poseTracker<TrackerType> && linearVelocityTracker<TrackerType> &&
-             ArcadeDrivetrain<DrivetrainType>
+             ArcadeDrivetrain<DrivetrainType> &&
+             hasAngularFeedbackController<ControllersType> &&
+             hasLinearFeedbackController<ControllersType>
 class moveTo : public Motion<ControllersType,
                              DrivetrainType,
                              TrackerType,
@@ -40,8 +43,6 @@ class moveTo : public Motion<ControllersType,
     }
 
     motionExecutionResult execute() override {
-        std::cout << "getting executed!" << std::endl;
-
         if (!m_state.has_value()) {
             m_state = { .close = false,
                         .last_time = from_msec(pros::millis()),
@@ -50,8 +51,6 @@ class moveTo : public Motion<ControllersType,
 
         MoveToState& state = m_state.value();
         motionExecutionResult result;
-
-        std::cout << "inited stuff!" << std::endl;
 
         Time current_time = from_msec(pros::millis());
 
@@ -66,34 +65,34 @@ class moveTo : public Motion<ControllersType,
         units::V2Position position = this->tracker.getPosition();
         Angle heading = this->tracker.getAngle();
 
-        auto local_target = target - position;
-        Length distance_error = local_target.magnitude();
+        Length lateral_error = (target - position).magnitude();
 
-        if (units::abs(distance_error) < 4_in && !state.close) {
+        if (units::abs(lateral_error) < 4_in && !state.close) {
             state.close = true;
         }
 
-        Angle angle_error =
-          units::constrainAngle180(heading - position.angleTo(target));
+        Angle target_heading = position.angleTo(target);
 
         if (reversed) {
-            distance_error *= -1.0;
-            angle_error = units::constrainAngle180(rot / 2 - angle_error);
+            lateral_error *= -1.0;
+            target_heading = 180_stDeg - target_heading;
         }
+
+        Angle angular_error = angleError(target_heading, heading);
 
         // If the turn error exceeds 90 degrees, then the point is behind
         // the robot, so it's more efficient to travel to the point
         // backwards. only applies when the robot is close to the point so
         // that it doesn't accidently go to the point backwards at the
         // beginning
-        if (state.close && units::abs(angle_error) >= 90.0_stDeg) {
-            distance_error *= -1.0;
-            angle_error = units::constrainAngle180(rot / 2 - angle_error);
+        if (state.close && units::abs(angular_error) >= 90.0_stDeg) {
+            lateral_error *= -1.0;
+            angular_error = units::constrainAngle180(rot / 2 - angular_error);
         }
 
         // update tolerances if they are included
         if constexpr (hasLinearErrorTolerance<TolerancesType>) {
-            this->tolerances.linear.errorToleranceUpdate(distance_error);
+            this->tolerances.linear.errorToleranceUpdate(lateral_error);
         }
         if constexpr (hasLinearVelocityTolerance<TolerancesType>) {
             this->tolerances.linear.velocityToleranceUpdate(
@@ -106,7 +105,7 @@ class moveTo : public Motion<ControllersType,
         }
 
         if constexpr (hasLargeLinearErrorTolerance<TolerancesType>) {
-            this->tolerances.large_linear.errorToleranceUpdate(distance_error);
+            this->tolerances.large_linear.errorToleranceUpdate(lateral_error);
         }
         if constexpr (hasLargeLinearVelocityTolerance<TolerancesType>) {
             this->tolerances.large_linear.velocityToleranceUpdate(
@@ -137,9 +136,6 @@ class moveTo : public Motion<ControllersType,
         result.finished |=
           timeout
             .transform([state](Time timeout) -> bool {
-                std::cout << "dt "
-                          << from_msec(pros::millis()) - state.start_time
-                          << " timeout:  " << timeout << std::endl;
                 return from_msec(pros::millis()) - state.start_time > timeout;
             })
             .value_or(false);
@@ -152,15 +148,15 @@ class moveTo : public Motion<ControllersType,
         }
 
         Voltage angular_output =
-          this->controllers.angular_feedback_controller.update(-angle_error,
+          this->controllers.angular_feedback_controller.update(-angular_error,
                                                                0_stRad,
                                                                delta_time);
 
         Voltage linear_output =
-          this->controllers.linear_feedback_controller.update(-distance_error,
+          this->controllers.linear_feedback_controller.update(-lateral_error,
                                                               0.0_in,
                                                               delta_time) *
-          units::cos(angle_error);
+          units::cos(angular_error);
 
         std::cout << "calculate voltages" << std::endl;
 

@@ -177,5 +177,7 @@ void opcontrol() {
     chain.wait();
 
     turnTo(controllers, chassis, 2_stDeg) | run;
+	mb.turnTo(2_stDeg) | run;
+
     // mb.turnTo(2_stDeg);
 }

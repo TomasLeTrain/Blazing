@@ -1,8 +1,10 @@
 #pragma once
 
+#include "blazing/controllers.hpp"
 #include "blazing/drivetrain.hpp"
 #include "blazing/motion.hpp"
 #include "blazing/tracker.hpp"
+#include "blazing/util.hpp"
 #include "units/Angle.hpp"
 #include "units/Vector2D.hpp"
 #include "units/units.hpp"
@@ -17,15 +19,16 @@ struct TurnToState {
     Time start_time;
     std::optional<Time> last_time;
 
-    bool angular_settled;
+    bool settled;
 };
 
 template<typename ControllersType,
          typename DrivetrainType,
          typename TrackerType,
          typename TolerancesType>
-    requires poseTracker<TrackerType> && angularVelocityTracker<TrackerType> &&
-             ArcadeDrivetrain<DrivetrainType>
+    requires angleTracker<TrackerType> && angularVelocityTracker<TrackerType> &&
+             ArcadeDrivetrain<DrivetrainType> &&
+             hasAngularFeedbackController<ControllersType>
 class turnTo : public Motion<ControllersType,
                              DrivetrainType,
                              TrackerType,
@@ -38,6 +41,7 @@ class turnTo : public Motion<ControllersType,
     // moveTo-specific properties
     std::optional<Time> timeout = std::nullopt;
     bool reversed = false;
+    std::optional<AngularDirection> direction = std::nullopt;
 
     std::optional<TurnToState> m_state;
 
@@ -69,28 +73,26 @@ class turnTo : public Motion<ControllersType,
 
         state.last_time = current_time;
 
-        units::V2Position position = this->tracker.getPosition();
         Angle heading = this->tracker.getAngle();
 
-        Angle angular_error =
-          std::holds_alternative<Angle>(target) ?
-            units::constrainAngle180(heading - std::get<Angle>(target)) :
-            position.angleTo(std::get<units::V2Position>(target));
+        // should always get set if target is position
+        std::optional<units::V2Position> position = std::nullopt;
 
-        // TODO: make it able to specify left / right direction of rotation
-        // or > ?
-        // if(left_rotation && angular_error < 0){
-        // 	// or +?
-        // 	angular_error = angular_error - 360;
-        // }
-        // else if(right_rotation && angular_error > 0){
-        // 	// or +?
-        // 	angular_error = angular_error - 360;
-        // }
+        if constexpr (positionTracker<TrackerType>) {
+            position = this->tracker.getPosition();
+        }
+
+        Angle target_heading =
+          std::holds_alternative<Angle>(target) ?
+            std::get<Angle>(target) :
+            position.value_or(units::origin<Length>)
+              .angleTo(std::get<units::V2Position>(target));
 
         if (reversed) {
-            angular_error = units::constrainAngle180(rot / 2 - angular_error);
+            target_heading = 180_stDeg - target_heading;
         }
+
+        Angle angular_error = angleError(target_heading, heading, direction);
 
         // update tolerances if they are included
         if constexpr (hasAngularErrorTolerance<TolerancesType>) {
@@ -109,31 +111,28 @@ class turnTo : public Motion<ControllersType,
               this->tracker.getAngularVelocity());
         }
 
-        state.angular_settled = false;
+        state.settled = false;
 
         // check tolerances
         if constexpr (hasAngularTolerance<TolerancesType>) {
             result.inSmallTolerance =
               this->tolerances.angular.withinTolerance();
-            state.angular_settled |= this->tolerances.angular.finished();
+            state.settled |= this->tolerances.angular.finished();
             this->tolerances.angular.reset();
         }
         if constexpr (hasLargeAngularTolerance<TolerancesType>) {
             result.inLargeTolerance =
               this->tolerances.large_angular.withinTolerance();
-            state.angular_settled |= this->tolerances.large_angular.finished();
+            state.settled |= this->tolerances.large_angular.finished();
             this->tolerances.large_angular.reset();
         }
 
-        result.finished = state.angular_settled;
+        result.finished = state.settled;
 
         // check timeout
         result.finished |=
           timeout
             .transform([state](Time timeout) -> bool {
-                std::cout << "dt "
-                          << from_msec(pros::millis()) - state.start_time
-                          << " timeout:  " << timeout << std::endl;
                 return from_msec(pros::millis()) - state.start_time > timeout;
             })
             .value_or(false);
@@ -163,6 +162,9 @@ class turnTo : public Motion<ControllersType,
            Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
            Length x,
            Length y)
+      // requires tracker to be able to track position without making it a
+      // requirement for target heading
+        requires positionTracker<TrackerType>
         : Motion<ControllersType, DrivetrainType, TrackerType, TolerancesType>(
             controllers,
             chassis),
@@ -203,6 +205,13 @@ class turnTo : public Motion<ControllersType,
     [[nodiscard("motion won't be executed unless run or async are used!")]]
     auto withTimeout(Time timeout) {
         this->timeout = timeout;
+
+        return this->getReference();
+    }
+
+    [[nodiscard("motion won't be executed unless run or async are used!")]]
+    auto withDirection(std::optional<AngularDirection> direction) {
+        this->direction = direction;
 
         return this->getReference();
     }

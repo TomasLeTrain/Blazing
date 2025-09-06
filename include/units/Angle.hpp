@@ -372,10 +372,9 @@ inline static Angle constrainAngle360(Angle in) {
     return mod(in, rot);
 }
 
-// returns a number in the range [0, 360)
-inline static Angle constrainAngle360_2(Angle in) {
-    in = mod(in, rot);
-    return in < Angle(0) ? in + rot : in;
+// returns a number in the range [0, 2pi)
+inline static Angle constrainAngle2pi(Angle in) {
+    return mod(mod(in, rot) + rot, rot);
 }
 
 // returns a number in the range (-180, 180)

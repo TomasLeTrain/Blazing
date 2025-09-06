@@ -1,7 +1,9 @@
 #pragma once
 
+#include "blazing/util.hpp"
 #include "pros/motor_group.hpp"
 #include "units/units.hpp"
+#include <array>
 #include <concepts>
 
 namespace blazing {
@@ -76,7 +78,16 @@ class DifferentialDrivetrain : public ChainableDrivetrain {
 
     // move robot based on left and right velocities
     void moveArcade(Voltage linear_output, Voltage angular_output) {
-        // TODO: implement
+        std::array<Voltage, 2> saturated_voltages {
+            linear_output - angular_output,
+            linear_output + angular_output
+        };
+
+        // normalizes to [-1, 1]
+        auto [left_voltage, right_voltage] =
+          desaturate(saturated_voltages, 1_volt);
+
+        moveTank(left_voltage, right_voltage);
     }
 };
 

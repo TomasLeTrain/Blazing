@@ -29,6 +29,9 @@ struct AngularFeedbackController : public ControllerBase {
         : angular_feedback_controller(angular_feedback_controller) {}
 };
 
+using PIDLinearController = LinearFeedbackController<PID<Length, Voltage>>;
+using PIDAngularController = AngularFeedbackController<PID<Angle, Voltage>>;
+
 // inherits all the properties from the controllers being used
 template<std::derived_from<ControllerBase>... ControllerTypes>
 struct Controllers : public ControllerTypes... {
@@ -36,6 +39,12 @@ struct Controllers : public ControllerTypes... {
         : ControllerTypes(std::move(controllers))... {}
 };
 
-using PIDLinearController = LinearFeedbackController<PID<Length, Voltage>>;
-using PIDAngularController = AngularFeedbackController<PID<Angle, Voltage>>;
-}; // namespace blazing
+// Linear/Angular Feedback Concepts
+template<typename Controller>
+concept hasLinearFeedbackController =
+  requires(Controller controller) { controller.linear_feedback_controller; };
+
+template<typename Controller>
+concept hasAngularFeedbackController =
+  requires(Controller controller) { controller.angular_feedback_controller; };
+} // namespace blazing

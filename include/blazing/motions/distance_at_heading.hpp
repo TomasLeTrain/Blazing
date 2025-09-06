@@ -3,6 +3,7 @@
 #include "blazing/drivetrain.hpp"
 #include "blazing/motion.hpp"
 #include "blazing/tracker.hpp"
+#include "blazing/util.hpp"
 #include "units/Angle.hpp"
 #include "units/Vector2D.hpp"
 #include "units/units.hpp"
@@ -10,7 +11,7 @@
 
 namespace blazing {
 
-struct TurnToState {
+struct DistanceAtHeadingState {
     Length initial_distance_traveled;
 
     Time start_time;
@@ -26,19 +27,23 @@ template<typename ControllersType,
          typename TolerancesType>
     requires velocityTracker<TrackerType> &&
              distanceTraveledTracker<TrackerType> &&
-             ArcadeDrivetrain<DrivetrainType>
-class turnTo : public Motion<ControllersType,
-                             DrivetrainType,
-                             TrackerType,
-                             TolerancesType> {
+             ArcadeDrivetrain<DrivetrainType> &&
+             hasAngularFeedbackController<ControllersType> &&
+             hasLinearFeedbackController<ControllersType>
+class distanceAtHeading : public Motion<ControllersType,
+                                        DrivetrainType,
+                                        TrackerType,
+                                        TolerancesType> {
   private:
     Length target_distance;
     std::optional<Angle> given_target_heading = std::nullopt;
 
     // moveTo-specific properties
+    bool reversed = false;
     std::optional<Time> timeout = std::nullopt;
+    std::optional<AngularDirection> direction = std::nullopt;
 
-    std::optional<TurnToState> m_state;
+    std::optional<DistanceAtHeadingState> m_state;
 
     int getLoopDelayTime() override {
         return 10;
@@ -56,7 +61,7 @@ class turnTo : public Motion<ControllersType,
             };
         }
 
-        TurnToState& state = m_state.value();
+        DistanceAtHeadingState& state = m_state.value();
         motionExecutionResult result;
 
         Time current_time = from_msec(pros::millis());
@@ -80,24 +85,16 @@ class turnTo : public Motion<ControllersType,
             // all
             .value_or(heading);
 
+        if (reversed) {
+            target_heading = 180_stDeg - target_heading;
+            target_distance *= -1.0;
+        }
+
         Length linear_error =
           (target_distance + state.initial_distance_traveled) -
           distance_traveled;
-        Angle angular_error =
-          units::constrainAngle180(heading - target_heading);
 
-        // TODO: make it able to specify left / right direction of rotation
-        // or > ?
-        // if(left_rotation && angular_error < 0){
-        // 	// or +?
-        // 	angular_error = angular_error - 360;
-        // }
-        // else if(right_rotation && angular_error > 0){
-        // 	// or +?
-        // 	angular_error = angular_error - 360;
-        // }
-
-        // TODO: switch to variant for targets
+        Angle angular_error = angleError(target_heading, heading, direction);
 
         // update tolerances if they are included
         if constexpr (hasLinearErrorTolerance<TolerancesType>) {
@@ -226,47 +223,64 @@ class turnTo : public Motion<ControllersType,
     }
 
   public:
-    turnTo(ControllersType controllers,
-           Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
-           Length target_distance)
+    distanceAtHeading(
+      ControllersType controllers,
+      Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
+      Length target_distance)
         : Motion<ControllersType, DrivetrainType, TrackerType, TolerancesType>(
             controllers,
             chassis),
           target_distance(target_distance) {}
 
-    turnTo(ControllersType controllers,
-           Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
-           double target_distance)
-        : turnTo(controllers, chassis, from_in(target_distance)) {}
+    distanceAtHeading(
+      ControllersType controllers,
+      Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
+      double target_distance)
+        : distanceAtHeading(controllers, chassis, from_in(target_distance)) {}
 
-    turnTo(ControllersType controllers,
-           Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
-           Length target_distance,
-           Angle target_heading)
+    distanceAtHeading(
+      ControllersType controllers,
+      Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
+      Length target_distance,
+      Angle target_heading)
         : Motion<ControllersType, DrivetrainType, TrackerType, TolerancesType>(
             controllers,
             chassis),
           target_distance(target_distance),
           given_target_heading(target_heading) {}
 
-    turnTo(ControllersType controllers,
-           Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
-           double target_distance,
-           double target_heading)
-        : turnTo(controllers,
-                 chassis,
-                 from_in(target_distance),
-                 from_stDeg(target_heading)) {}
+    distanceAtHeading(
+      ControllersType controllers,
+      Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
+      double target_distance,
+      double target_heading)
+        : distanceAtHeading(controllers,
+                            chassis,
+                            from_in(target_distance),
+                            from_stDeg(target_heading)) {}
 
-    turnTo& getReference() {
+    distanceAtHeading& getReference() {
         return *this;
     }
 
     // changer methods
+    [[nodiscard("motion won't be executed unless run or async are used!")]]
+    auto reverse() {
+        this->reversed = true;
+
+        return this->getReference();
+    }
 
     [[nodiscard("motion won't be executed unless run or async are used!")]]
     auto withTimeout(Time timeout) {
         this->timeout = timeout;
+
+        return this->getReference();
+    }
+
+    [[nodiscard("motion won't be executed unless run or async are used!")]]
+    auto withDirection(std::optional<AngularDirection> direction) {
+        this->direction = direction;
 
         return this->getReference();
     }
