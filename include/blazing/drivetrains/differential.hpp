@@ -40,6 +40,7 @@ class DifferentialDrivetrain : public ChainableDrivetrain {
     }
 
     // move robot based on left and right velocities
+	// positive angular -> turns left
     void moveArcade(Voltage linear_output, Voltage angular_output) {
         std::array<Voltage, 2> saturated_voltages {
             linear_output - angular_output,

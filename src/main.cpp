@@ -1,10 +1,11 @@
 #include "main.h"
 #include "blazing/chassis.hpp"
 #include "blazing/controllers/controllers.hpp"
+#include "blazing/controllers/feedback/pid.hpp"
 #include "blazing/drivetrains/differential.hpp"
 #include "blazing/executor.hpp"
-#include "blazing/controllers/feedback/pid.hpp"
 #include "blazing/motion_builder.hpp"
+#include "blazing/motions/distance_at_heading.hpp"
 #include "blazing/motions/moveTo.hpp"
 #include "pros/motor_group.hpp"
 #include <iostream>
@@ -178,6 +179,10 @@ void opcontrol() {
 
     turnTo(controllers, chassis, 2_stDeg) | run;
     mb.turnTo(2_stDeg) | run;
+
+    distanceAtHeading(controllers, chassis, 0_in, 2_stDeg) | run;
+    distanceAtHeading(controllers, chassis, 10_in) | run;
+    mb.distanceAtHeading(10_in) | run;
 
     // mb.turnTo(2_stDeg);
 }

@@ -124,7 +124,7 @@ class distanceAtHeading : public Motion<ControllersType,
         }
 
         if constexpr (hasLargeAngularErrorTolerance<TolerancesType>) {
-            this->tolerances.large_angular.errorToleranceUpdate(linear_error);
+            this->tolerances.large_angular.errorToleranceUpdate(angular_error);
         }
         if constexpr (hasLargeAngularVelocityTolerance<TolerancesType>) {
             this->tolerances.large_angular.velocityToleranceUpdate(
