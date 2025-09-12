@@ -3,6 +3,7 @@
 #include "blazing/controllers/controllers.hpp"
 #include "blazing/drivetrains/drivetrain.hpp"
 #include "blazing/motions/motion.hpp"
+#include "blazing/tolerances.hpp"
 #include "blazing/trackers/tracker.hpp"
 #include "blazing/util.hpp"
 #include "units/Angle.hpp"
@@ -38,7 +39,7 @@ class turnTo : public Motion<ControllersType,
     // std::optional<Angle> given_target_heading = std::nullopt;
     std::variant<Angle, units::V2Position> target;
 
-    // moveTo-specific properties
+    // turnTo-specific properties
     std::optional<Time> timeout = std::nullopt;
     bool reversed = false;
     std::optional<AngularDirection> direction = std::nullopt;
@@ -73,26 +74,33 @@ class turnTo : public Motion<ControllersType,
 
         state.last_time = current_time;
 
-        Angle heading = this->tracker.getAngle();
+        const Angle heading = [this] {
+            const Angle heading = this->tracker.getAngle();
+            return reversed ? reverseAngle(heading) : heading;
+        }();
 
-        // should always get set if target is position
-        std::optional<units::V2Position> position = std::nullopt;
+        // defalts to std::nullopt if tracker does not implements getPosition
+        const std::optional<units::V2Position> position = [this] {
+            if constexpr (positionTracker<TrackerType>)
+                return this->tracker.getPosition();
+            else
+                return std::nullopt;
+        }();
 
-        if constexpr (positionTracker<TrackerType>) {
-            position = this->tracker.getPosition();
+        if (std::holds_alternative<units::V2Position>(target) &&
+            !position.has_value()) {
+            // should not be possible
+            printf("invalid configuration! target is point but tracker doesn't "
+                   "track position!\n");
         }
 
-        Angle target_heading =
+        const Angle target_heading =
           std::holds_alternative<Angle>(target) ?
             std::get<Angle>(target) :
-            position.value_or(units::origin<Length>)
-              .angleTo(std::get<units::V2Position>(target));
+            position.value().angleTo(std::get<units::V2Position>(target));
 
-        if (reversed) {
-            target_heading = 180_stDeg - target_heading;
-        }
-
-        Angle angular_error = angleError(target_heading, heading, direction);
+        const Angle angular_error =
+          angleError(target_heading, heading, direction);
 
         // update tolerances if they are included
         if constexpr (hasAngularErrorTolerance<TolerancesType>) {

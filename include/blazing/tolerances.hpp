@@ -7,7 +7,7 @@
 
 namespace blazing {
 
-class Tolerance {
+class ToleranceBase {
   protected:
     std::optional<bool> in_tolerance = std::nullopt;
 
@@ -21,7 +21,7 @@ class Tolerance {
 };
 
 template<typename T>
-class ErrorTolerance : virtual Tolerance {
+class ErrorTolerance : virtual ToleranceBase {
   private:
     std::optional<T> error_tolerance = std::nullopt;
 
@@ -44,7 +44,7 @@ class ErrorTolerance : virtual Tolerance {
 };
 
 template<typename T>
-class VelocityTolerance : virtual Tolerance {
+class VelocityTolerance : virtual ToleranceBase {
   private:
     std::optional<Divided<T, Time>> velocity_tolerance = std::nullopt;
 
@@ -68,9 +68,10 @@ class VelocityTolerance : virtual Tolerance {
     }
 };
 
-class HalfCircleTolerance : virtual Tolerance {
+class HalfCircleTolerance : virtual ToleranceBase {
   private:
     std::optional<Length> radius_tolerance = std::nullopt;
+	std::optional<bool> prev_side = std::nullopt;
 
   public:
     HalfCircleTolerance(Length radius_tolerance)
@@ -83,13 +84,18 @@ class HalfCircleTolerance : virtual Tolerance {
     void halfcircleToleranceUpdate(units::V2Position pose,
                                    units::V2Position target,
                                    Angle theta) {
-        bool curr_tolerance_active =
+        bool side =
           radius_tolerance
             .transform([pose, target, theta](Length tolerance) -> bool {
-                return (pose.y - target.y) * -units::cos(theta) >=
-                       units::sin(theta) * (pose.x - target.y) + tolerance;
+                return (pose.y - target.y) * -units::sin(theta) >=
+                       units::cos(theta) * (pose.x - target.y) + tolerance;
             })
             .value_or(false);
+
+
+		if(prev_side == std::nullopt) prev_side = side;
+        bool curr_tolerance_active = side != *prev_side;
+		prev_side = side;
 
         update_in_tolerance(curr_tolerance_active);
     }
@@ -97,8 +103,8 @@ class HalfCircleTolerance : virtual Tolerance {
 
 // allows inheriting all the functions from the tolerances
 template<typename... ToleranceTypes>
-    requires(std::is_base_of_v<Tolerance, ToleranceTypes> && ...)
-class Tolerances : virtual Tolerance,
+    requires(std::is_base_of_v<ToleranceBase, ToleranceTypes> && ...)
+class Tolerances : virtual ToleranceBase,
                    public ToleranceTypes... {
   private:
     std::optional<Time> tolerance_timestamp = std::nullopt;

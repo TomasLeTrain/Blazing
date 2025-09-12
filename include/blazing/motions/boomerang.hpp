@@ -8,14 +8,17 @@
 #include "blazing/trackers/tracker.hpp"
 #include "blazing/util.hpp"
 #include "units/Angle.hpp"
+#include "units/Pose.hpp"
 #include "units/Vector2D.hpp"
 #include <iostream>
 
 namespace blazing {
 struct MoveToState {
-    bool close;
     std::optional<Time> last_time;
     Time start_time;
+
+    bool close;
+    units::V2FPosition prev_position;
 };
 
 template<typename ControllersType,
@@ -26,18 +29,18 @@ template<typename ControllersType,
              ArcadeDrivetrain<DrivetrainType> &&
              hasAngularFeedbackController<ControllersType> &&
              hasLinearFeedbackController<ControllersType>
-class moveTo : public Motion<ControllersType,
-                             DrivetrainType,
-                             TrackerType,
-                             TolerancesType> {
+class boomerang : public Motion<ControllersType,
+                                DrivetrainType,
+                                TrackerType,
+                                TolerancesType> {
   private:
-    units::V2Position target;
+    units::Pose target;
 
-    // moveTo-specific properties
+    // boomerang-specific properties
     std::optional<Time> timeout = std::nullopt;
     bool reversed = false;
+    double lead = 0.5;
     Length close_threshold = 4_in;
-    bool overturn = false;
 
     std::optional<MoveToState> m_state;
 
@@ -47,9 +50,10 @@ class moveTo : public Motion<ControllersType,
 
     motionExecutionResult execute() override {
         if (!m_state.has_value()) {
-            m_state = { .close = false,
-                        .last_time = from_msec(pros::millis()),
-                        .start_time = from_msec(pros::millis()) };
+            m_state = { .last_time = from_msec(pros::millis()),
+                        .start_time = from_msec(pros::millis()),
+                        .close = false,
+                        .prev_position = this->tracker.getPosition() };
         }
 
         MoveToState& state = m_state.value();
@@ -66,19 +70,32 @@ class moveTo : public Motion<ControllersType,
         state.last_time = current_time;
 
         const units::V2Position position = this->tracker.getPosition();
+
         const Angle heading = [this] {
             const Angle heading = this->tracker.getAngle();
             return reversed ? reverseAngle(heading) : heading;
         }();
 
-        Length linear_error =
-          (target - position).magnitude() * (reversed ? -1.0 : 1.0);
+        const Length pose_target_distance = position.distanceTo(target);
 
-        if (units::abs(linear_error) < close_threshold && !state.close) {
+        // when close gets activated it switches to move to point behavior
+
+        if (units::abs(pose_target_distance) < close_threshold &&
+            !state.close) {
             state.close = true;
         }
 
-        Angle target_heading = position.angleTo(target);
+        const units::V2Position carrot =
+          state.close ?
+            target :
+            target - units::V2Position::fromPolar(target.orientation,
+                                                  pose_target_distance * lead);
+
+        const Angle target_heading =
+          state.close ? target.orientation : position.angleTo(carrot);
+
+        Length linear_error =
+          position.distanceTo(carrot) * (reversed ? -1.0 : 1.0);
 
         Angle angular_error = angleError(target_heading, heading);
 
@@ -145,7 +162,6 @@ class moveTo : public Motion<ControllersType,
             return result;
         }
 
-        // calculate outputs
         Voltage angular_output =
           this->controllers.angular_feedback_controller.update(-angular_error,
                                                                0_stRad,
@@ -157,55 +173,39 @@ class moveTo : public Motion<ControllersType,
                                                               delta_time) *
           units::cos(angular_error);
 
-        Voltage max_output = 1_volt;
-
-        // apply min voltage constraints
-		linear_output =
-		  units::sgn(linear_output) *
-		  units::max(units::abs(linear_output), units::abs(minLinearSpeed));
-		angular_output =
-		  units::sgn(angular_output) *
-		  units::max(units::abs(angular_output), units::abs(minAngularSpeed));
-
-        Voltage overturn_value =
-          units::abs(linear_output) + units::abs(angular_output) - max_output;
-
-        if (overturn_value > 0_volt && overturn) {
-            linear_output -= overturn_value * units::sgn(linear_output);
-        }
-
-        // apply max voltage constraints
-		linear_output =
-		  units::sgn(linear_output) *
-		  units::min(units::abs(linear_output), units::abs(maxLinearSpeed));
-		angular_output =
-		  units::sgn(angular_output) *
-		  units::min(units::abs(angular_output), units::abs(maxAngularSpeed));
-
-        // apply slew
-
         this->drivetrain.moveArcade(linear_output, angular_output);
 
         return result;
     }
 
   public:
-    moveTo(ControllersType controllers,
-           Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
-           Length x,
-           Length y)
+    boomerang(ControllersType controllers,
+              Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
+              units::Pose pose)
         : Motion<ControllersType, DrivetrainType, TrackerType, TolerancesType>(
             controllers,
             chassis),
-          target(x, y) {}
+          target(pose) {}
 
-    moveTo(ControllersType controllers,
-           Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
-           double x,
-           double y)
-        : moveTo(controllers, chassis, from_in(x), from_in(y)) {}
+    boomerang(ControllersType controllers,
+              Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
+              Length x,
+              Length y,
+              Angle heading)
+        : boomerang(controllers, chassis, { x, y, heading }) {}
 
-    moveTo& getReference() {
+    boomerang(ControllersType controllers,
+              Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
+              double x,
+              double y,
+              double heading)
+        : boomerang(controllers,
+                    chassis,
+                    from_in(x),
+                    from_in(y),
+                    from_stDeg(heading)) {}
+
+    boomerang& getReference() {
         return *this;
     }
 
@@ -214,12 +214,6 @@ class moveTo : public Motion<ControllersType,
     [[nodiscard("motion won't be executed unless run or async are used!")]]
     auto reverse() {
         this->reversed = true;
-
-        return this->getReference();
-    }
-
-    auto withOverturn() {
-        this->overturn = true;
 
         return this->getReference();
     }

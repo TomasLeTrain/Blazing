@@ -27,6 +27,11 @@ angleError(Angle target,
         return error > 0_stRot ? error - rot : error;
 }
 
+// returns opposite angle, in the range [0,2pi)
+inline Angle reverseAngle(Angle angle) {
+    return units::constrainAngle2pi(angle + 180_stDeg);
+}
+
 template<isQuantity T, size_t size>
 inline std::array<T, size> desaturate(std::array<T, size> saturated, T max) {
 
@@ -40,7 +45,7 @@ inline std::array<T, size> desaturate(std::array<T, size> saturated, T max) {
         std::transform(saturated.cbegin(),
                        saturated.cend(),
                        saturated.begin(),
-                       [max,largest_magnitude](T num) {
+                       [max, largest_magnitude](T num) {
                            return num * max / largest_magnitude;
                        });
     };

@@ -84,11 +84,8 @@ PID<Angle, Voltage> angular_pid(4,
                                 1_stDeg,
                                 1_volt);
 
-Controllers<PIDLinearController, PIDAngularController> controllers(lateral_pid,
-                                                                   angular_pid);
-
-// TODO: make sure a motion won't run at the same time as another one
-// could be implemented by using mutexes on the drivetrain
+Controllers controllers { PIDLinearController(lateral_pid),
+                          PIDAngularController(angular_pid) };
 
 pros::MotorGroup left_motors({ 1 });
 pros::MotorGroup right_motors({ 2 });

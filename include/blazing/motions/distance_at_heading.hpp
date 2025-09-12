@@ -2,8 +2,8 @@
 
 #include "blazing/drivetrains/drivetrain.hpp"
 #include "blazing/motions/motion.hpp"
-#include "blazing/trackers/tracker.hpp"
 #include "blazing/tolerances.hpp"
+#include "blazing/trackers/tracker.hpp"
 #include "blazing/util.hpp"
 #include "units/Angle.hpp"
 #include "units/Vector2D.hpp"
@@ -39,7 +39,7 @@ class distanceAtHeading : public Motion<ControllersType,
     Length target_distance;
     std::optional<Angle> given_target_heading = std::nullopt;
 
-    // moveTo-specific properties
+    // distanceAtHeading-specific properties
     bool reversed = false;
     std::optional<Time> timeout = std::nullopt;
     std::optional<AngularDirection> direction = std::nullopt;
@@ -75,9 +75,11 @@ class distanceAtHeading : public Motion<ControllersType,
 
         state.last_time = current_time;
 
-        units::V2Position position = this->tracker.getPosition();
-        Angle heading = this->tracker.getAngle();
         Length distance_traveled = this->tracker.getDistanceTraveled();
+        const Angle heading = [this] {
+            const Angle heading = this->tracker.getAngle();
+            return reversed ? reverseAngle(heading) : heading;
+        }();
 
         Angle target_heading =
           // use given target heading
@@ -86,10 +88,7 @@ class distanceAtHeading : public Motion<ControllersType,
             // all
             .value_or(heading);
 
-        if (reversed) {
-            target_heading = 180_stDeg - target_heading;
-            target_distance *= -1.0;
-        }
+        if (reversed) target_distance *= -1.0;
 
         Length linear_error =
           (target_distance + state.initial_distance_traveled) -

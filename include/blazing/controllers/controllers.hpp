@@ -8,11 +8,14 @@
 
 namespace blazing {
 
-struct ControllerBase {};
+class ControllerBase {
+    int foo;
+};
 
 template<typename Controller>
     requires Feedback<Controller, Length, Voltage>
-struct LinearFeedbackController : public ControllerBase {
+class LinearFeedbackController : virtual ControllerBase {
+  public:
     Controller linear_feedback_controller;
 
     LinearFeedbackController(Controller linear_feedback_controller)
@@ -21,7 +24,8 @@ struct LinearFeedbackController : public ControllerBase {
 
 template<typename Controller>
     requires Feedback<Controller, Angle, Voltage>
-struct AngularFeedbackController : public ControllerBase {
+class AngularFeedbackController : virtual ControllerBase {
+  public:
     Controller angular_feedback_controller;
 
     AngularFeedbackController(Controller angular_feedback_controller)
@@ -32,9 +36,13 @@ using PIDLinearController = LinearFeedbackController<PID<Length, Voltage>>;
 using PIDAngularController = AngularFeedbackController<PID<Angle, Voltage>>;
 
 // inherits all the properties from the controllers being used
-template<std::derived_from<ControllerBase>... ControllerTypes>
-struct Controllers : public ControllerTypes... {
-    Controllers(ControllerTypes... controllers)
+template<typename... ControllerTypes>
+    requires(std::is_base_of_v<ControllerBase, ControllerTypes> && ...)
+class Controllers : virtual ControllerBase,
+                    public ControllerTypes... {
+  public:
+    // foo fixes automatic template resolution somehow?
+    Controllers(ControllerTypes&&... controllers)
         : ControllerTypes(std::move(controllers))... {}
 };
 
