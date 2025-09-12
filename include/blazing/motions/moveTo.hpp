@@ -2,6 +2,8 @@
 
 #include "blazing/chassis.hpp"
 #include "blazing/controllers/feedback/feedback.hpp"
+#include "blazing/controllers/slew.hpp"
+#include "blazing/controllers/voltage_clamp.hpp"
 #include "blazing/drivetrains/drivetrain.hpp"
 #include "blazing/motions/motion.hpp"
 #include "blazing/tolerances.hpp"
@@ -160,13 +162,18 @@ class moveTo : public Motion<ControllersType,
         Voltage max_output = 1_volt;
 
         // apply min voltage constraints
-		linear_output =
-		  units::sgn(linear_output) *
-		  units::max(units::abs(linear_output), units::abs(minLinearSpeed));
-		angular_output =
-		  units::sgn(angular_output) *
-		  units::max(units::abs(angular_output), units::abs(minAngularSpeed));
+        if constexpr (hasLinearVoltageClampController<ControllersType>) {
+            linear_output =
+              this->controllers.linear_voltage_clamp_controller.applyMin(
+                linear_output);
+        }
+        if constexpr (hasAngularVoltageClampController<ControllersType>) {
+            angular_output =
+              this->controllers.angular_voltage_clamp_controller.applyMin(
+                angular_output);
+        }
 
+		// apply overturn
         Voltage overturn_value =
           units::abs(linear_output) + units::abs(angular_output) - max_output;
 
@@ -175,14 +182,28 @@ class moveTo : public Motion<ControllersType,
         }
 
         // apply max voltage constraints
-		linear_output =
-		  units::sgn(linear_output) *
-		  units::min(units::abs(linear_output), units::abs(maxLinearSpeed));
-		angular_output =
-		  units::sgn(angular_output) *
-		  units::min(units::abs(angular_output), units::abs(maxAngularSpeed));
+        if constexpr (hasLinearVoltageClampController<ControllersType>) {
+            linear_output =
+              this->controllers.linear_voltage_clamp_controller.applyMax(
+                linear_output);
+        }
+        if constexpr (hasAngularVoltageClampController<ControllersType>) {
+            angular_output =
+              this->controllers.angular_voltage_clamp_controller.applyMax(
+                angular_output);
+        }
 
         // apply slew
+        if constexpr (hasLinearSlewController<ControllersType>) {
+            linear_output =
+              this->controllers.linear_slew_controller.apply(linear_output,
+                                                             delta_time);
+        }
+        if constexpr (hasAngularSlewController<ControllersType>) {
+            angular_output =
+              this->controllers.angular_slew_controller.apply(angular_output,
+                                                              delta_time);
+        }
 
         this->drivetrain.moveArcade(linear_output, angular_output);
 

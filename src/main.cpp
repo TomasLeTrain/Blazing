@@ -3,15 +3,18 @@
 #include "blazing/controllers/controllers.hpp"
 #include "blazing/controllers/feedback/pid.hpp"
 #include "blazing/controllers/slew.hpp"
-#include "blazing/controllers/voltage_constraints.hpp"
+#include "blazing/controllers/voltage_clamp.hpp"
 #include "blazing/drivetrains/differential.hpp"
 #include "blazing/executor.hpp"
 #include "blazing/motion_builder.hpp"
 #include "blazing/motions/distance_at_heading.hpp"
 #include "blazing/motions/moveTo.hpp"
+#include "blazing/motions/turnTo.hpp"
 #include "pros/motor_group.hpp"
+#include <cstdio>
 #include <iostream>
 #include <ostream>
+#include <span>
 
 /**
  * A callback function for LLEMU's center button.
@@ -99,21 +102,21 @@ DifferentialDrivetrain drivetrain(&left_motors, &right_motors);
 PoseTracker pose_tracker;
 
 Tolerances linearTolerances(300_msec,
-                            ErrorTolerance<Length> { 1_in },
-                            VelocityTolerance<Length> { 1_inps },
+                            ErrorTolerance { 1_in },
+                            VelocityTolerance { 1_inps },
                             HalfCircleTolerance { 1_in });
 
 Tolerances angularTolerances(300_msec,
-                             ErrorTolerance<Angle> { 3_stDeg },
-                             VelocityTolerance<Angle> { 2_degps });
+                             ErrorTolerance { 3_stDeg },
+                             VelocityTolerance { 2_degps });
 
 Tolerances largeLinearTolerances(10_msec,
-                                 ErrorTolerance<Length> { 10_in },
-                                 VelocityTolerance<Length> { 10_inps },
+                                 ErrorTolerance { 10_in },
+                                 VelocityTolerance { 10_inps },
                                  HalfCircleTolerance { 10_in });
 Tolerances largeAngularTolerances(10_msec,
-                                  ErrorTolerance<Angle> { 6_stDeg },
-                                  VelocityTolerance<Angle> { 4_degps });
+                                  ErrorTolerance { 6_stDeg },
+                                  VelocityTolerance { 4_degps });
 
 DefaultTolerances tolerances(linearTolerances,
                              angularTolerances,

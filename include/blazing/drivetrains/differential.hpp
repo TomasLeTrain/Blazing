@@ -32,11 +32,13 @@ class DifferentialDrivetrain : public ChainableDrivetrain {
 
     // move robot based on left and right velocities
     void moveTank(Voltage left_voltage, Voltage right_voltage) {
-        if (left_motors != nullptr && right_motors != nullptr && enabled) {
-            left_motors->move_voltage(12 * to_Mvolt(left_voltage));
-            right_motors->move_voltage(12 * to_Mvolt(right_voltage));
-        }
         voltages = { left_voltage, right_voltage };
+        if (!enabled) return;
+
+        if (left_motors != nullptr && right_motors != nullptr) {
+            left_motors->move_voltage(to_Mvolt(12 * left_voltage));
+            right_motors->move_voltage(to_Mvolt(12 * right_voltage));
+        }
     }
 
     // move robot based on left and right velocities
@@ -48,7 +50,7 @@ class DifferentialDrivetrain : public ChainableDrivetrain {
         };
 
         // normalizes voltages to [-1, 1]
-        auto [left_voltage, right_voltage] =
+		auto [left_voltage, right_voltage] =
           desaturate(saturated_voltages, 1_volt);
 
         moveTank(left_voltage, right_voltage);

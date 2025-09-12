@@ -69,32 +69,6 @@ class Motion : public MotionBase {
           tracker(chassis.tracker),
           tolerances(chassis.tolerances) {}
 
-    // Motion(ControllersType controllers,
-    //        DrivetrainType drivetrain,
-    //        TrackerType tracker,
-    //        TolerancesType tolerances)
-    //     : controllers(controllers),
-    //       drivetrain(drivetrain),
-    //       tracker(tracker),
-    //       tolerances(tolerances) {}
-
-    // waits until finishes
-    //  void run() {
-    //      while (true) {
-    //          auto result = this->execute();
-    // if(result.finished) break;
-    //          pros::delay(getLoopDelayTime());
-    //      }
-    //  };
-    //
-    //  // runs async
-    //  void async() {
-    //      // spawn a task to run this in
-    //      pros::Task([this]() {
-    //          this->run();
-    //      });
-    //  };
-
     // attempt to override chain functions
     bool setEnabledDrivetrain(bool enabled) override {
         if constexpr (MotionChainableDrivetrain<DrivetrainType>) {
@@ -228,19 +202,10 @@ class Motion : public MotionBase {
         return self.getReference();
     }
 
-    motionChangerT lateral_positiveSlew(this Self&& self, T positiveSlew)
+    motionChangerT lateral_maxVoltage(this Self&& self, T maxVoltage)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
-        self.controllers.linear_feedback_controller.set_positiveSlew(
-          positiveSlew);
-        return self.getReference();
-    }
-
-    motionChangerT lateral_negativeSlew(this Self&& self, T negativeSlew)
-        requires std::derived_from<ControllersType, PIDLinearController>
-    {
-        self.controllers.linear_feedback_controller.set_negativeSlew(
-          negativeSlew);
+        self.controllers.linear_feedback_controller.set_maxVoltage(maxVoltage);
         return self.getReference();
     }
 
@@ -274,19 +239,10 @@ class Motion : public MotionBase {
         return self.getReference();
     }
 
-    motionChangerT angular_positiveSlew(this Self&& self, T positiveSlew)
+    motionChangerT angular_maxVoltage(this Self&& self, T maxVoltage)
         requires std::derived_from<ControllersType, PIDAngularController>
     {
-        self.controllers.angular_feedback_controller.set_positiveSlew(
-          positiveSlew);
-        return self.getReference();
-    }
-
-    motionChangerT angular_negativeSlew(this Self&& self, T negativeSlew)
-        requires std::derived_from<ControllersType, PIDAngularController>
-    {
-        self.controllers.angular_feedback_controller.set_negativeSlew(
-          negativeSlew);
+        self.controllers.angular_feedback_controller.set_maxVoltage(maxVoltage);
         return self.getReference();
     }
 };

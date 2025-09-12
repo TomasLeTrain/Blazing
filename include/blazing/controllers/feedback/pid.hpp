@@ -54,7 +54,7 @@ class PID {
         double kI,
         double kD,
         std::optional<double> windupRange = std::nullopt,
-        std::optional<double> positiveSlew = std::nullopt,
+        std::optional<double> maxVoltage = std::nullopt,
         Time timeUnits = 1_sec,
         Input inputUnits = Input(1),
         Output outputUnits = Output(1))
@@ -65,11 +65,11 @@ class PID {
           kI(kI * UKI),
           kD(kD * UKD),
           windupRange(
-            windupRange.transform([inputUnits](auto windupRange) -> Input {
+            windupRange.transform([inputUnits](double windupRange) -> Input {
                 return windupRange * inputUnits;
             })),
           maxVoltage(
-            maxVoltage.transform([outputUnits](auto maxVoltage) -> Output {
+            maxVoltage.transform([outputUnits](double maxVoltage) -> Output {
                 return maxVoltage * outputUnits;
             })) {}
 
@@ -126,12 +126,8 @@ class PID {
         return windupRange;
     }
 
-    std::optional<Output> get_positiveSlew() {
+    std::optional<Output> get_maxVoltage() {
         return maxVoltage;
-    }
-
-    std::optional<Output> get_negativeSlew() {
-        return minVoltage;
     }
 
     void set_kP(KP_t<Input, Output> kP) {
@@ -154,10 +150,6 @@ class PID {
         this->maxVoltage = positiveSlew;
     }
 
-    void set_negativeSlew(std::optional<Output> negativeSlew) {
-        this->minVoltage = negativeSlew;
-    }
-
     // double versions
     void set_kP(double kP) {
         this->kP = kP * UKP;
@@ -178,17 +170,10 @@ class PID {
           });
     }
 
-    void set_positiveSlew(std::optional<double> positiveSlew) {
-        this->maxVoltage = positiveSlew.transform(
-          [outputUnits = this->outputUnits](auto positiveSlew) -> Output {
-              return positiveSlew * outputUnits;
-          });
-    }
-
-    void set_negativeSlew(std::optional<double> negativeSlew) {
-        this->minVoltage = negativeSlew.transform(
-          [outputUnits = this->outputUnits](auto negativeSlew) -> Output {
-              return negativeSlew * outputUnits;
+    void set_maxVoltage(std::optional<double> maxVoltage) {
+        this->maxVoltage = maxVoltage.transform(
+          [outputUnits = this->outputUnits](auto maxVoltage) -> Output {
+              return maxVoltage * outputUnits;
           });
     }
 };

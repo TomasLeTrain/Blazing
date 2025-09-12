@@ -1,5 +1,3 @@
-#pragma once
-
 #include "blazing/utils.hpp"
 
 namespace blazing {
@@ -44,5 +42,10 @@ std::array<T, size> desaturate(std::array<T, size> saturated, T max) {
 
     return saturated;
 }
+
+// explicit instantiation to avoid linking errors
+// TODO: move desaturate to header file to avoid having to do this
+template std::array<Voltage, 2>
+desaturate<Voltage, 2>(std::array<Voltage, 2> saturated, Voltage max);
 
 } // namespace blazing

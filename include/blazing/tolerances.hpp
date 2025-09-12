@@ -46,20 +46,20 @@ class ErrorTolerance : virtual ToleranceBase {
 template<typename T>
 class VelocityTolerance : virtual ToleranceBase {
   private:
-    std::optional<Divided<T, Time>> velocity_tolerance = std::nullopt;
+    std::optional<Divided<T,Time>> velocity_tolerance = std::nullopt;
 
   public:
-    VelocityTolerance(Divided<T, Time> velocity_tolerance)
+    VelocityTolerance(Divided<T,Time> velocity_tolerance)
         : velocity_tolerance(velocity_tolerance) {}
 
-    void setVelocityTolerance(Divided<T, Time> velocity_tolerance) {
+    void setVelocityTolerance(Divided<T,Time> velocity_tolerance) {
         this->velocity_tolerance = velocity_tolerance;
     }
 
-    void velocityToleranceUpdate(Divided<T, Time> velocity) {
+    void velocityToleranceUpdate(Divided<T,Time> velocity) {
         bool curr_tolerance_active =
           velocity_tolerance
-            .transform([velocity](Divided<T, Time> tolerance) -> bool {
+            .transform([velocity](Divided<T,Time> tolerance) -> bool {
                 return units::abs(velocity) < tolerance;
             })
             .value_or(false);
@@ -67,6 +67,10 @@ class VelocityTolerance : virtual ToleranceBase {
         update_in_tolerance(curr_tolerance_active);
     }
 };
+
+// deduction guide to allow passing in velocity directly to resolve to vel * time
+template <typename T>
+VelocityTolerance(T) -> VelocityTolerance<Multiplied<T,Time>>;
 
 class HalfCircleTolerance : virtual ToleranceBase {
   private:
