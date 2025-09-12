@@ -1,20 +1,12 @@
 #pragma once
 
-#include "units/Angle.hpp"
-#include "units/units.hpp"
-#include <array>
-#include <optional>
+#include "blazing/utils.hpp"
 
 namespace blazing {
-enum class AngularDirection {
-    LEFT,
-    RIGHT
-};
 
-inline Angle
-angleError(Angle target,
-           Angle heading,
-           std::optional<AngularDirection> direction = std::nullopt) {
+Angle angleError(Angle target,
+                 Angle heading,
+                 std::optional<AngularDirection> direction) {
     Angle error = units::constrainAngle180(target - heading);
 
     if (!direction)
@@ -28,12 +20,12 @@ angleError(Angle target,
 }
 
 // returns opposite angle, in the range [0,2pi)
-inline Angle reverseAngle(Angle angle) {
+Angle reverseAngle(Angle angle) {
     return units::constrainAngle2pi(angle + 180_stDeg);
 }
 
 template<isQuantity T, size_t size>
-inline std::array<T, size> desaturate(std::array<T, size> saturated, T max) {
+std::array<T, size> desaturate(std::array<T, size> saturated, T max) {
 
     auto abs_compare = [](T a, T b) {
         return units::abs(a) < units::abs(b);

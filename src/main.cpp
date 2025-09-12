@@ -2,6 +2,8 @@
 #include "blazing/chassis.hpp"
 #include "blazing/controllers/controllers.hpp"
 #include "blazing/controllers/feedback/pid.hpp"
+#include "blazing/controllers/slew.hpp"
+#include "blazing/controllers/voltage_constraints.hpp"
 #include "blazing/drivetrains/differential.hpp"
 #include "blazing/executor.hpp"
 #include "blazing/motion_builder.hpp"
@@ -73,19 +75,21 @@ void autonomous() {}
 
 using namespace blazing;
 
-PID<Length, Voltage> lateral_pid(4, 2, 4, 4, 10, 10, 1_sec, 1_in, 1_volt);
-PID<Angle, Voltage> angular_pid(4,
-                                2,
-                                4,
-                                std::nullopt,
-                                std::nullopt,
-                                std::nullopt,
-                                1_sec,
-                                1_stDeg,
-                                1_volt);
+PID<Length, Voltage> lateral_pid(4, 2, 4, 4, 0.9, 1_sec, 1_in, 1_volt);
+PID<Angle, Voltage>
+  angular_pid(4, 2, 4, std::nullopt, std::nullopt, 1_sec, 1_stDeg, 1_volt);
 
-Controllers controllers { PIDLinearController(lateral_pid),
-                          PIDAngularController(angular_pid) };
+Controllers controllers {
+    // pid controllers
+    PIDLinearController(lateral_pid),
+    PIDAngularController(angular_pid),
+    // slew controllers
+    LinearSlewController(0.5_volt, 0.5_volt),
+    AngularSlewController(0.8_volt, 0.9_volt),
+    // min/max voltage controllers
+    LinearVoltageClampController(0.9_volt),
+    AngularVoltageClampController(0.8_volt),
+};
 
 pros::MotorGroup left_motors({ 1 });
 pros::MotorGroup right_motors({ 2 });
@@ -94,9 +98,11 @@ DifferentialDrivetrain drivetrain(&left_motors, &right_motors);
 
 PoseTracker pose_tracker;
 
-Tolerances linearTolerances(300_msec, ErrorTolerance<Length> { 1_in });
-// VelocityTolerance<Length> { 1_inps },
-// HalfCircleTolerance { 1_in });
+Tolerances linearTolerances(300_msec,
+                            ErrorTolerance<Length> { 1_in },
+                            VelocityTolerance<Length> { 1_inps },
+                            HalfCircleTolerance { 1_in });
+
 Tolerances angularTolerances(300_msec,
                              ErrorTolerance<Angle> { 3_stDeg },
                              VelocityTolerance<Angle> { 2_degps });
@@ -129,7 +135,6 @@ void opcontrol() {
 
     std::cout << "hello world!" << std::endl;
     mb.moveTo(2_in, 3_in)
-        .reverse()
         .lateral_kD(12 * lateral_pid.UKD)
         .angular_kI(0.02)
         .reverse()
@@ -139,10 +144,10 @@ void opcontrol() {
         .largeLinearErrorTolerance(4_in)
         .largeAngularErrorTolerance(4_stDeg)
 
-        .angularVelocityTolerance(4_stDeg / 1_sec)
-        // .linearVelocityTolerance(4_in / 1_sec)
-        .largeLinearVelocityTolerance(4_in / 1_sec)
-        .largeAngularVelocityTolerance(4_stDeg / 1_sec)
+        .angularVelocityTolerance(4_degps)
+        .linearVelocityTolerance(4_inps)
+        .largeLinearVelocityTolerance(4_inps)
+        .largeAngularVelocityTolerance(4_degps)
 
         .linearToleranceDuration(500_msec)
         .angularToleranceDuration(700_msec)

@@ -22,13 +22,13 @@ class PID {
 
     std::optional<Input> windupRange;
 
-    std::optional<Output> positiveSlew;
-    std::optional<Output> negativeSlew;
+    std::optional<Output> maxVoltage;
 
     Input previousError = Input(0);
     Multiplied<Input, Time> integral = Multiplied<Input, Time>(0);
 
     std::optional<Time> previousTime = std::nullopt;
+
   public:
     // units used to convert doubles (since specyfing the units every time can
     // become annoying)
@@ -43,21 +43,18 @@ class PID {
         KI_t<Input, Output> kI,
         KD_t<Input, Output> kD,
         std::optional<Input> windupRange = std::nullopt,
-        std::optional<Output> positiveSlew = std::nullopt,
-        std::optional<Output> negativeSlew = std::nullopt)
+        std::optional<Output> maxVoltage = std::nullopt)
         : kP(kP),
           kI(kI),
           kD(kD),
           windupRange(windupRange),
-          positiveSlew(positiveSlew),
-          negativeSlew(negativeSlew) {}
+          maxVoltage(maxVoltage) {}
 
     PID(double kP,
         double kI,
         double kD,
         std::optional<double> windupRange = std::nullopt,
         std::optional<double> positiveSlew = std::nullopt,
-        std::optional<double> negativeSlew = std::nullopt,
         Time timeUnits = 1_sec,
         Input inputUnits = Input(1),
         Output outputUnits = Output(1))
@@ -71,13 +68,9 @@ class PID {
             windupRange.transform([inputUnits](auto windupRange) -> Input {
                 return windupRange * inputUnits;
             })),
-          positiveSlew(
-            positiveSlew.transform([outputUnits](auto positiveSlew) -> Output {
-                return positiveSlew * outputUnits;
-            })),
-          negativeSlew(
-            negativeSlew.transform([outputUnits](auto negativeSlew) -> Output {
-                return negativeSlew * outputUnits;
+          maxVoltage(
+            maxVoltage.transform([outputUnits](auto maxVoltage) -> Output {
+                return maxVoltage * outputUnits;
             })) {}
 
     void reset() {
@@ -110,12 +103,9 @@ class PID {
         // output = error * kP + integral * kP + derivative * kD
         Output result = error * kP + integral * kI + derivative * kD;
 
-		// TODO: not slew? max/min voltage instead
-		// TODO: actually implement slew
-        if (positiveSlew.has_value() && positiveSlew.value() < result)
-            result = positiveSlew.value();
-        if (negativeSlew.has_value() && -negativeSlew.value() > result)
-            result = -negativeSlew.value();
+        result = units::clamp(result,
+                              -maxVoltage.value_or(100_volt),
+                              maxVoltage.value_or(100_volt));
 
         return result;
     }
@@ -137,11 +127,11 @@ class PID {
     }
 
     std::optional<Output> get_positiveSlew() {
-        return positiveSlew;
+        return maxVoltage;
     }
 
     std::optional<Output> get_negativeSlew() {
-        return negativeSlew;
+        return minVoltage;
     }
 
     void set_kP(KP_t<Input, Output> kP) {
@@ -161,11 +151,11 @@ class PID {
     }
 
     void set_positiveSlew(std::optional<Output> positiveSlew) {
-        this->positiveSlew = positiveSlew;
+        this->maxVoltage = positiveSlew;
     }
 
     void set_negativeSlew(std::optional<Output> negativeSlew) {
-        this->negativeSlew = negativeSlew;
+        this->minVoltage = negativeSlew;
     }
 
     // double versions
@@ -189,14 +179,14 @@ class PID {
     }
 
     void set_positiveSlew(std::optional<double> positiveSlew) {
-        this->positiveSlew = positiveSlew.transform(
+        this->maxVoltage = positiveSlew.transform(
           [outputUnits = this->outputUnits](auto positiveSlew) -> Output {
               return positiveSlew * outputUnits;
           });
     }
 
     void set_negativeSlew(std::optional<double> negativeSlew) {
-        this->negativeSlew = negativeSlew.transform(
+        this->minVoltage = negativeSlew.transform(
           [outputUnits = this->outputUnits](auto negativeSlew) -> Output {
               return negativeSlew * outputUnits;
           });

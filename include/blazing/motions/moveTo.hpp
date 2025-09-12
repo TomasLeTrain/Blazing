@@ -6,7 +6,7 @@
 #include "blazing/motions/motion.hpp"
 #include "blazing/tolerances.hpp"
 #include "blazing/trackers/tracker.hpp"
-#include "blazing/util.hpp"
+#include "blazing/utils.hpp"
 #include "units/Angle.hpp"
 #include "units/Vector2D.hpp"
 #include <iostream>

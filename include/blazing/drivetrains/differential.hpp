@@ -1,7 +1,7 @@
 #pragma once
 
 #include "blazing/drivetrains/drivetrain.hpp"
-#include "blazing/util.hpp"
+#include "blazing/utils.hpp"
 #include "pros/motor_group.hpp"
 #include "units/units.hpp"
 #include <array>
