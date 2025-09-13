@@ -13,7 +13,7 @@
 namespace blazing {
 
 struct DistanceAtHeadingState {
-    Length initial_distance_traveled;
+    Length initial_forward_travel;
 
     Time start_time;
     std::optional<Time> last_time;
@@ -27,7 +27,7 @@ template<typename ControllersType,
          typename TrackerType,
          typename TolerancesType>
     requires velocityTracker<TrackerType> &&
-             distanceTraveledTracker<TrackerType> &&
+             forwardTravelTracker<TrackerType> &&
              ArcadeDrivetrain<DrivetrainType> &&
              hasAngularFeedbackController<ControllersType> &&
              hasLinearFeedbackController<ControllersType>
@@ -53,8 +53,8 @@ class distanceAtHeading : public Motion<ControllersType,
     motionExecutionResult execute() override {
         if (!m_state.has_value()) {
             m_state = {
-                .initial_distance_traveled =
-                  this->tracker.getDistanceTraveled(),
+                .initial_forward_travel =
+                  this->tracker.getForwardTravel(),
                 .start_time = from_msec(pros::millis()),
                 .last_time = from_msec(pros::millis()),
                 .linear_settled = false,
@@ -75,7 +75,7 @@ class distanceAtHeading : public Motion<ControllersType,
 
         state.last_time = current_time;
 
-        Length distance_traveled = this->tracker.getDistanceTraveled();
+        Length forward_travel = this->tracker.getForwardTravel();
         const Angle heading = [this] {
             const Angle heading = this->tracker.getAngle();
             return reversed ? reverseAngle(heading) : heading;
@@ -91,8 +91,8 @@ class distanceAtHeading : public Motion<ControllersType,
         if (reversed) target_distance *= -1.0;
 
         Length linear_error =
-          (target_distance + state.initial_distance_traveled) -
-          distance_traveled;
+          (target_distance + state.initial_forward_travel) -
+          forward_travel;
 
         Angle angular_error = angleError(target_heading, heading, direction);
 

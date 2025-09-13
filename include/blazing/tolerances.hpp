@@ -13,7 +13,7 @@ class ToleranceBase {
 
     void update_in_tolerance(bool tolerance) {
         if (in_tolerance.has_value()) {
-            in_tolerance = in_tolerance && tolerance;
+            in_tolerance = in_tolerance.value() && tolerance;
         } else {
             in_tolerance = tolerance;
         }
@@ -39,6 +39,8 @@ class ErrorTolerance : virtual ToleranceBase {
                                            return units::abs(error) < tolerance;
                                        })
                                        .value_or(false);
+        std::cout << "[tol]err: " << to_stDeg(error) << " " << curr_tolerance_active
+                  << std::endl;
         update_in_tolerance(curr_tolerance_active);
     }
 };
@@ -46,36 +48,39 @@ class ErrorTolerance : virtual ToleranceBase {
 template<typename T>
 class VelocityTolerance : virtual ToleranceBase {
   private:
-    std::optional<Divided<T,Time>> velocity_tolerance = std::nullopt;
+    std::optional<Divided<T, Time>> velocity_tolerance = std::nullopt;
 
   public:
-    VelocityTolerance(Divided<T,Time> velocity_tolerance)
+    VelocityTolerance(Divided<T, Time> velocity_tolerance)
         : velocity_tolerance(velocity_tolerance) {}
 
-    void setVelocityTolerance(Divided<T,Time> velocity_tolerance) {
+    void setVelocityTolerance(Divided<T, Time> velocity_tolerance) {
         this->velocity_tolerance = velocity_tolerance;
     }
 
-    void velocityToleranceUpdate(Divided<T,Time> velocity) {
+    void velocityToleranceUpdate(Divided<T, Time> velocity) {
         bool curr_tolerance_active =
           velocity_tolerance
-            .transform([velocity](Divided<T,Time> tolerance) -> bool {
+            .transform([velocity](Divided<T, Time> tolerance) -> bool {
                 return units::abs(velocity) < tolerance;
             })
             .value_or(false);
+        std::cout << "[tol]vel: " << to_degps(velocity) << " "
+                  << curr_tolerance_active << std::endl;
 
         update_in_tolerance(curr_tolerance_active);
     }
 };
 
-// deduction guide to allow passing in velocity directly to resolve to vel * time
-template <typename T>
-VelocityTolerance(T) -> VelocityTolerance<Multiplied<T,Time>>;
+// deduction guide to allow passing in velocity directly to resolve to vel *
+// time
+template<typename T>
+VelocityTolerance(T) -> VelocityTolerance<Multiplied<T, Time>>;
 
 class HalfCircleTolerance : virtual ToleranceBase {
   private:
     std::optional<Length> radius_tolerance = std::nullopt;
-	std::optional<bool> prev_side = std::nullopt;
+    std::optional<bool> prev_side = std::nullopt;
 
   public:
     HalfCircleTolerance(Length radius_tolerance)
@@ -96,10 +101,9 @@ class HalfCircleTolerance : virtual ToleranceBase {
             })
             .value_or(false);
 
-
-		if(prev_side == std::nullopt) prev_side = side;
+        if (prev_side == std::nullopt) prev_side = side;
         bool curr_tolerance_active = side != *prev_side;
-		prev_side = side;
+        prev_side = side;
 
         update_in_tolerance(curr_tolerance_active);
     }
@@ -124,6 +128,8 @@ class Tolerances : virtual ToleranceBase,
     }
 
     bool withinTolerance() {
+        std::cout << "[tol]: " << in_tolerance.has_value() << " "
+                  << in_tolerance.value_or(false) << std::endl;
         return in_tolerance.value_or(false);
     }
 
@@ -131,20 +137,20 @@ class Tolerances : virtual ToleranceBase,
     bool finished() {
         if (withinTolerance()) {
             // set timestamp if it doesn't have one
-            if (!tolerance_timestamp.has_value()) {
+            if (!tolerance_timestamp) {
                 tolerance_timestamp = from_msec(pros::millis());
             }
             if (duration
-                  .transform(
-                    [timestamp = *this->tolerance_timestamp](Time time) -> bool {
-                        return from_msec(pros::millis()) - timestamp > time;
-                    })
+                  .transform([timestamp =
+                                *this->tolerance_timestamp](Time time) -> bool {
+                      return from_msec(pros::millis()) - timestamp > time;
+                  })
                   .value_or(false)) {
                 std::cout << "tolerance was triggered!" << std::endl;
                 tolerance_timestamp = std::nullopt;
                 return true;
             }
-        } else if (tolerance_timestamp.has_value()) {
+        } else if (tolerance_timestamp) {
             // reset tolerance value
             tolerance_timestamp = std::nullopt;
         }

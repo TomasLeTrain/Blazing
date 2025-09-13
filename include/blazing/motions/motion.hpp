@@ -36,15 +36,15 @@ class MotionBase {
     // functions meant to be used for chaining motions
     virtual bool setEnabledDrivetrain(bool enabled) {
         return false;
-    };
+    }
 
     virtual std::optional<std::vector<Voltage>> getVoltagesDrivetrain() {
         return std::nullopt;
-    };
+    }
 
-    virtual bool setVoltagesDrivetrain(std::vector<Voltage> voltages) {
+    virtual bool moveVoltagesDrivetrain(std::vector<Voltage> voltages) {
         return false;
-    };
+    }
 
     virtual ~MotionBase() = default;
 };
@@ -56,7 +56,7 @@ template<typename ControllersType,
 class Motion : public MotionBase {
   protected:
     DrivetrainType drivetrain;
-    TrackerType tracker;
+    TrackerType& tracker;
     TolerancesType tolerances;
 
     ControllersType controllers;
@@ -71,7 +71,9 @@ class Motion : public MotionBase {
 
     // attempt to override chain functions
     bool setEnabledDrivetrain(bool enabled) override {
+        std::cout << "enabled called\n";
         if constexpr (MotionChainableDrivetrain<DrivetrainType>) {
+            std::cout << "enabled good\n";
             drivetrain.setEnabled(enabled);
             return true;
         }
@@ -79,15 +81,19 @@ class Motion : public MotionBase {
     };
 
     std::optional<std::vector<Voltage>> getVoltagesDrivetrain() override {
+        std::cout << "get volts called\n";
         if constexpr (MotionChainableDrivetrain<DrivetrainType>) {
+            std::cout << "get volts good\n";
             return drivetrain.getVoltages();
         }
         return std::nullopt;
     };
 
-    bool setVoltagesDrivetrain(std::vector<Voltage> voltages) override {
+    bool moveVoltagesDrivetrain(std::vector<Voltage> voltages) override {
+		std::cout << "set volts called\n";
         if constexpr (MotionChainableDrivetrain<DrivetrainType>) {
-            drivetrain.setVoltages(voltages);
+            std::cout << "set volts good\n";
+            drivetrain.moveVoltages(voltages);
             return true;
         }
         return false;

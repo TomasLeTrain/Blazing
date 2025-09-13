@@ -21,7 +21,7 @@ class DifferentialDrivetrain : public ChainableDrivetrain {
         : left_motors(left_motors),
           right_motors(right_motors) {}
 
-    void moveVoltage(std::vector<Voltage> voltages) override {
+    void moveVoltages(std::vector<Voltage> voltages) override {
         // if voltages are invalid then the .at should throw an error
         moveTank(voltages.at(0), voltages.at(1));
     }
@@ -36,22 +36,35 @@ class DifferentialDrivetrain : public ChainableDrivetrain {
         if (!enabled) return;
 
         if (left_motors != nullptr && right_motors != nullptr) {
-            left_motors->move_voltage(to_Mvolt(12 * left_voltage));
-            right_motors->move_voltage(to_Mvolt(12 * right_voltage));
+
+            // std::cout << "[diff] volts: " << to_mvolt(12 * left_voltage)
+            //           << " " << to_mvolt(12 * right_voltage) << std::endl;
+
+            left_motors->move_voltage(to_mvolt(12 * left_voltage));
+            right_motors->move_voltage(to_mvolt(12 * right_voltage));
         }
     }
 
     // move robot based on left and right velocities
     // positive angular -> turns left
     void moveArcade(Voltage linear_output, Voltage angular_output) {
+        // std::cout << "[differential] arcade lin/ang: " << linear_output << " "
+        //           << angular_output << std::endl;
+
         std::array<Voltage, 2> saturated_voltages {
             linear_output - angular_output,
             linear_output + angular_output
         };
 
+        // std::cout << "[differential] saturated: " << saturated_voltages.at(0)
+        //           << " " << saturated_voltages.at(1) << std::endl;
+
         // normalizes voltages to [-1, 1]
-		auto [left_voltage, right_voltage] =
+        auto [left_voltage, right_voltage] =
           desaturate(saturated_voltages, 1_volt);
+
+        // std::cout << "[differential] desaturated: " << left_voltage << " "
+        //           << right_voltage << std::endl;
 
         moveTank(left_voltage, right_voltage);
     }

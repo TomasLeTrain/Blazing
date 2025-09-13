@@ -27,7 +27,9 @@ struct AngularFeedbackController : virtual ControllerBase {
     Controller angular_feedback_controller;
 
     AngularFeedbackController(Controller angular_feedback_controller)
-        : angular_feedback_controller(angular_feedback_controller) {}
+        : angular_feedback_controller(angular_feedback_controller) {
+		std::cout << "controller constructor called" << std::endl;
+	}
 };
 
 using PIDLinearController = LinearFeedbackController<PID<Length, Voltage>>;
@@ -40,7 +42,9 @@ struct Controllers : virtual ControllerBase,
                      public ControllerTypes... {
   public:
     Controllers(ControllerTypes&&... controllers)
-        : ControllerTypes(std::move(controllers))... {}
+        : ControllerTypes(std::move(controllers))... {
+		std::cout << "controllers constructor called" << std::endl;
+	}
 };
 
 // Linear/Angular Feedback Concepts

@@ -24,7 +24,7 @@ concept MotionChainableDrivetrain =
   requires(Q q, std::vector<Voltage> voltages, bool enabled) {
       { q.getEnabled() } -> std::same_as<bool>;
       { q.getVoltages() } -> std::same_as<std::vector<Voltage>>;
-      q.setVoltages(voltages);
+      q.moveVoltages(voltages);
       q.setEnabled(enabled);
   };
 
@@ -41,7 +41,7 @@ class ChainableDrivetrain {
         return enabled;
     }
 
-    virtual void moveVoltage(std::vector<Voltage> voltages) = 0;
+    virtual void moveVoltages(std::vector<Voltage> voltages) = 0;
     virtual std::vector<Voltage> getVoltages() = 0;
 };
 

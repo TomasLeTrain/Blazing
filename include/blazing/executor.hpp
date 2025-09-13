@@ -155,10 +155,11 @@ class ChainedExecutor : public Executor {
         // run motion logic
         auto result = current_motion->execute();
 
-		// starts fusing if any tolerance gets hit
+        // starts fusing if any tolerance gets hit
         if ((result.inSmallTolerance || result.inLargeTolerance) &&
-            !fuse_start_time.has_value()) {
+            !fuse_start_time) {
             fuse_start_time = from_msec(pros::millis());
+            std::cout << "start fusing!" << std::endl;
         }
 
         // get current voltages
@@ -167,7 +168,9 @@ class ChainedExecutor : public Executor {
 
         bool fusing_finished = false;
 
-        if (motions.size() >= 2 && fuse_start_time.has_value() &&
+		std::cout << "cant fuse: " << disabled_result << std::endl;
+
+        if (motions.size() >= 2 && fuse_start_time &&
             // makes sure we can actually disable the drivetrain
             disabled_result) {
             std::unique_ptr<MotionBase>& next_motion = *next(motions.begin());
@@ -184,7 +187,7 @@ class ChainedExecutor : public Executor {
             std::optional<std::vector<Voltage>> next_voltages =
               next_motion->getVoltagesDrivetrain();
 
-            if (current_voltages.has_value() && next_voltages.has_value() &&
+            if (current_voltages && next_voltages &&
                 current_voltages->size() == next_voltages->size()) {
 
                 std::vector<Voltage> fused_voltages(current_voltages->size());
@@ -193,6 +196,7 @@ class ChainedExecutor : public Executor {
                   from_msec(pros::millis()) - *fuse_start_time;
                 double normalized_time =
                   units::clamp(elapsed_time / fusing_time, 0.0, 1.0);
+				std::cout << "fusing " << normalized_time << std::endl;
 
                 for (size_t i = 0; i < current_voltages->size(); i++) {
                     // fuses between voltages with a simple lerp function
@@ -203,20 +207,22 @@ class ChainedExecutor : public Executor {
 
                 // move drivetrain based on these fused voltages
                 current_motion->setEnabledDrivetrain(true);
-                current_motion->setVoltagesDrivetrain(fused_voltages);
+                current_motion->moveVoltagesDrivetrain(fused_voltages);
 
                 // if we have spent enough time fusing, then just finish the
                 // previous motion
                 fusing_finished = elapsed_time > fusing_time;
             } else if (current_voltages.has_value()) {
                 // couldn't get the next voltages, just use the current ones
+                current_motion->setEnabledDrivetrain(true);
                 bool set_voltage_result =
-                  current_motion->setVoltagesDrivetrain(*current_voltages);
+                  current_motion->moveVoltagesDrivetrain(*current_voltages);
             } // else can't do anything since we don't know the voltages
         } else {
             // perform everything as usual
-            if (disabled_result && current_voltages.has_value()) {
-                current_motion->setVoltagesDrivetrain(*current_voltages);
+            if (disabled_result && current_voltages) {
+                current_motion->setEnabledDrivetrain(true);
+                current_motion->moveVoltagesDrivetrain(*current_voltages);
             }
             // else the drivetrain was either never disabled or we don't know
             // the voltages to use either way we don't do anything
@@ -227,6 +233,7 @@ class ChainedExecutor : public Executor {
 
         if (result.finished || fusing_finished) {
             // remove motion from queue, need to take the mutex again
+			std::cout << "finished motion " << fusing_finished << std::endl;
             mutex.take();
             motions.pop_front();
             mutex.give();

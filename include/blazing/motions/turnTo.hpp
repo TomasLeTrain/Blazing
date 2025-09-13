@@ -53,8 +53,7 @@ class turnTo : public Motion<ControllersType,
     motionExecutionResult execute() override {
         if (!m_state.has_value()) {
             m_state = {
-                .initial_distance_traveled =
-                  this->tracker.getDistanceTraveled(),
+                .initial_distance_traveled = this->tracker.getForwardTravel(),
                 .start_time = from_msec(pros::millis()),
                 .last_time = from_msec(pros::millis()),
                 .settled = false,
@@ -74,10 +73,12 @@ class turnTo : public Motion<ControllersType,
 
         state.last_time = current_time;
 
-        const Angle heading = [this] {
+        const Angle heading = [this]() -> Angle {
             const Angle heading = this->tracker.getAngle();
-            return reversed ? reverseAngle(heading) : heading;
+			// std::cout << "turnToHeading: " << heading  << std::endl;
+             return reversed ? reverseAngle(heading) : heading;
         }();
+		// std::cout << "turnToHeading: " << heading  << std::endl;
 
         // defalts to std::nullopt if tracker does not implements getPosition
         const std::optional<units::V2Position> position = [this] {
@@ -101,6 +102,9 @@ class turnTo : public Motion<ControllersType,
 
         const Angle angular_error =
           angleError(target_heading, heading, direction);
+
+        // std::cout << "turnTo: err angular/vel: " << angular_error << " "
+        //           << this->tracker.getAngularVelocity() << std::endl;
 
         // update tolerances if they are included
         if constexpr (hasAngularErrorTolerance<TolerancesType>) {

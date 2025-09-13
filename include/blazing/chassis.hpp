@@ -10,7 +10,7 @@ struct Chassis {
 	using tolerancesType = TolerancesType;
 
     DrivetrainType drivetrain;
-    TrackerType tracker;
+    TrackerType& tracker;
     TolerancesType tolerances;
 };
 } // namespace blazing
