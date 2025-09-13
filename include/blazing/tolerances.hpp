@@ -39,8 +39,8 @@ class ErrorTolerance : virtual ToleranceBase {
                                            return units::abs(error) < tolerance;
                                        })
                                        .value_or(false);
-        std::cout << "[tol]err: " << to_stDeg(error) << " " << curr_tolerance_active
-                  << std::endl;
+        // std::cout << "[tol]err: " << error << " " << curr_tolerance_active
+        //           << std::endl;
         update_in_tolerance(curr_tolerance_active);
     }
 };
@@ -65,8 +65,8 @@ class VelocityTolerance : virtual ToleranceBase {
                 return units::abs(velocity) < tolerance;
             })
             .value_or(false);
-        std::cout << "[tol]vel: " << to_degps(velocity) << " "
-                  << curr_tolerance_active << std::endl;
+        // std::cout << "[tol]vel: " << velocity << " "
+        //           << curr_tolerance_active << std::endl;
 
         update_in_tolerance(curr_tolerance_active);
     }
@@ -128,8 +128,8 @@ class Tolerances : virtual ToleranceBase,
     }
 
     bool withinTolerance() {
-        std::cout << "[tol]: " << in_tolerance.has_value() << " "
-                  << in_tolerance.value_or(false) << std::endl;
+        // std::cout << "[tol]: " << in_tolerance.has_value() << " "
+        //           << in_tolerance.value_or(false) << std::endl;
         return in_tolerance.value_or(false);
     }
 

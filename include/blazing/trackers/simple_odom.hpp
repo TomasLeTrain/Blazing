@@ -67,6 +67,7 @@ class SimpleOdomTracker {
     }
 
     void setPose(units::Pose new_pose) {
+        imu->set_rotation(to_cDeg(new_pose.orientation));
         pose = new_pose;
     }
 
@@ -86,10 +87,10 @@ class SimpleOdomTracker {
             double count = 0;
             for (auto position : motors->get_raw_position_all(NULL)) {
                 // number of rotations
-                Number rotations =
-                  (final_rpm * static_cast<double>(position)) / (3600_rpm * 50);
-                res += rotations * wheel_diameter;
-                count++;
+                Number rotations = (final_rpm * static_cast<double>(position)) /
+                                   (3600_rpm * 50.0);
+                res += rotations * (wheel_diameter * M_PI);
+                count += 1.0;
             }
             return res / count;
         };
@@ -124,14 +125,11 @@ class SimpleOdomTracker {
         last_heading = heading;
 
         // update pose
-        auto change_vector =
-          units::V2Position::fromPolar(heading, average_distance);
+        units::V2Position change_vector = {
+            average_distance * units::cos(heading),
+            average_distance * units::sin(heading)
+        };
 
-        units::Pose new_pose = { change_vector.x, change_vector.y, heading };
-
-        // std::cout << "set? " << new_pose.orientation << std::endl;
-
-        pose = new_pose;
-        // std::cout << "set2? " << pose.orientation << std::endl;
+        pose = { pose + change_vector, heading };
     }
 };

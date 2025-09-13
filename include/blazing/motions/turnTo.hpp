@@ -1,6 +1,7 @@
 #pragma once
 
 #include "blazing/controllers/controllers.hpp"
+#include "blazing/controllers/slew.hpp"
 #include "blazing/drivetrains/drivetrain.hpp"
 #include "blazing/motions/motion.hpp"
 #include "blazing/tolerances.hpp"
@@ -21,6 +22,8 @@ struct TurnToState {
     std::optional<Time> last_time;
 
     bool settled;
+    bool settling;
+    std::optional<Angle> prev_directionless_error;
 };
 
 template<typename ControllersType,
@@ -52,12 +55,13 @@ class turnTo : public Motion<ControllersType,
 
     motionExecutionResult execute() override {
         if (!m_state.has_value()) {
-            m_state = {
-                .initial_distance_traveled = this->tracker.getForwardTravel(),
-                .start_time = from_msec(pros::millis()),
-                .last_time = from_msec(pros::millis()),
-                .settled = false,
-            };
+            m_state = { .initial_distance_traveled =
+                          this->tracker.getForwardTravel(),
+                        .start_time = from_msec(pros::millis()),
+                        .last_time = from_msec(pros::millis()),
+                        .settled = false,
+                        .settling = false,
+                        .prev_directionless_error = std::nullopt };
         }
 
         TurnToState& state = m_state.value();
@@ -73,12 +77,12 @@ class turnTo : public Motion<ControllersType,
 
         state.last_time = current_time;
 
-        const Angle heading = [this]() -> Angle {
+        const Angle heading = [&] -> Angle {
             const Angle heading = this->tracker.getAngle();
-			// std::cout << "turnToHeading: " << heading  << std::endl;
-             return reversed ? reverseAngle(heading) : heading;
+            // std::cout << "turnToHeading: " << heading  << std::endl;
+            return reversed ? reverseAngle(heading) : heading;
         }();
-		// std::cout << "turnToHeading: " << heading  << std::endl;
+        // std::cout << "turnToHeading: " << heading  << std::endl;
 
         // defalts to std::nullopt if tracker does not implements getPosition
         const std::optional<units::V2Position> position = [this] {
@@ -95,13 +99,28 @@ class turnTo : public Motion<ControllersType,
                    "track position!\n");
         }
 
-        const Angle target_heading =
-          std::holds_alternative<Angle>(target) ?
-            std::get<Angle>(target) :
-            position.value().angleTo(std::get<units::V2Position>(target));
+        const Angle angular_error = [&] -> Angle {
+            const Angle target_heading =
+              std::holds_alternative<Angle>(target) ?
+                std::get<Angle>(target) :
+                position.value().angleTo(std::get<units::V2Position>(target));
 
-        const Angle angular_error =
-          angleError(target_heading, heading, direction);
+            const Angle directionless_error =
+              angleError(target_heading, heading);
+
+            // check for sign change in directionless error, if so then settling
+            if (!state.settling && state.prev_directionless_error &&
+                units::sgn(directionless_error) !=
+                  units::sgn(*state.prev_directionless_error)) {
+                state.settling = true;
+            }
+
+            state.prev_directionless_error = directionless_error;
+
+            return state.settling ?
+                     directionless_error :
+                     angleError(target_heading, heading, direction);
+        }();
 
         // std::cout << "turnTo: err angular/vel: " << angular_error << " "
         //           << this->tracker.getAngularVelocity() << std::endl;
@@ -163,6 +182,15 @@ class turnTo : public Motion<ControllersType,
                                                                delta_time);
 
         Voltage linear_output = 0_volt;
+
+        // apply slew
+        if constexpr (hasAngularSlewController<ControllersType>) {
+            std::cout << "slew  " << angular_output << std::endl;
+            angular_output =
+              this->controllers.angular_slew_controller.apply(angular_output,
+                                                              delta_time);
+            std::cout << "ahh  " << angular_output << std::endl;
+        }
 
         this->drivetrain.moveArcade(linear_output, angular_output);
 

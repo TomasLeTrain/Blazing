@@ -18,6 +18,7 @@ struct MoveToState {
     bool close;
     std::optional<Time> last_time;
     Time start_time;
+    std::optional<Angle> locked_heading;
 };
 
 template<typename ControllersType,
@@ -51,7 +52,8 @@ class moveTo : public Motion<ControllersType,
         if (!m_state.has_value()) {
             m_state = { .close = false,
                         .last_time = from_msec(pros::millis()),
-                        .start_time = from_msec(pros::millis()) };
+                        .start_time = from_msec(pros::millis()),
+                        .locked_heading = std::nullopt };
         }
 
         MoveToState& state = m_state.value();
@@ -68,7 +70,7 @@ class moveTo : public Motion<ControllersType,
         state.last_time = current_time;
 
         const units::V2Position position = this->tracker.getPosition();
-        const Angle heading = [this] {
+        const Angle heading = [&] -> Angle {
             const Angle heading = this->tracker.getAngle();
             return reversed ? reverseAngle(heading) : heading;
         }();
@@ -76,19 +78,29 @@ class moveTo : public Motion<ControllersType,
         Length linear_error =
           (target - position).magnitude() * (reversed ? -1.0 : 1.0);
 
+        Angle position_target_heading = position.angleTo(target);
+
         if (units::abs(linear_error) < close_threshold && !state.close) {
+            state.locked_heading = position_target_heading;
             state.close = true;
         }
 
-        Angle target_heading = position.angleTo(target);
+        // switches to locked heading when close
+        Angle target_heading = state.locked_heading ? *state.locked_heading :
+                                                      position_target_heading;
+
+        // used to determine sign and cosine scaling of linear output
+        Angle position_target_error =
+          angleError(position_target_heading, heading);
 
         Angle angular_error = angleError(target_heading, heading);
 
-        if (state.close && units::abs(angular_error) >= 90.0_stDeg) {
-            linear_error *= -1.0;
-            angular_error =
-              units::constrainAngle180(reverseAngle(angular_error));
-        }
+        // used for cosine scaling and applying correct sign for linear
+        // error/output
+        Number lin_multiplier = units::cos(position_target_error);
+
+        // applies sign component here so that sign of error is accurate
+        linear_error *= units::sgn(lin_multiplier);
 
         // update tolerances if they are included
         if constexpr (hasLinearErrorTolerance<TolerancesType>) {
@@ -156,10 +168,20 @@ class moveTo : public Motion<ControllersType,
         Voltage linear_output =
           this->controllers.linear_feedback_controller.update(-linear_error,
                                                               0.0_in,
-                                                              delta_time) *
-          units::cos(angular_error);
+                                                              delta_time);
 
-        Voltage max_output = 1_volt;
+        // sign was already applied to error, only applies cosine scaling
+        // component
+        linear_output *= units::abs(lin_multiplier);
+
+        // here the robot would attempt to move backwards, when instead the
+        // robot should turn around until it should start moving towards the
+        // target
+        // the reason that this is done to linear_output and not linear_error is
+        // because that would trigger error tolerances
+        if (!state.close && lin_multiplier < 0) {
+            linear_output = 0_volt;
+        }
 
         // apply min voltage constraints
         if constexpr (hasLinearVoltageClampController<ControllersType>) {
@@ -173,7 +195,9 @@ class moveTo : public Motion<ControllersType,
                 angular_output);
         }
 
-		// apply overturn
+        Voltage max_output = 1_volt;
+
+        // apply overturn
         Voltage overturn_value =
           units::abs(linear_output) + units::abs(angular_output) - max_output;
 

@@ -11,6 +11,7 @@
 #include "blazing/motions/moveTo.hpp"
 #include "blazing/motions/turnTo.hpp"
 #include "blazing/trackers/simple_odom.hpp"
+#include "blazing/utils.hpp"
 #include "pros/motor_group.hpp"
 #include <cstdio>
 #include <iostream>
@@ -71,16 +72,16 @@ pros::Imu imu(1);
 
 using namespace blazing;
 
-PID<Length, Voltage> lateral_pid(1,
+PID<Length, Voltage> lateral_pid(6,
                                  0,
-                                 0,
+                                 3,
                                  std::nullopt,
                                  std::nullopt,
                                  50_msec,
                                  1_in,
                                  (1.0 / 127.0) * volt);
 
-PID<Angle, Voltage> angular_pid(3,
+PID<Angle, Voltage> angular_pid(2.8,
                                 0.0,
                                 5,
                                 std::nullopt,
@@ -94,11 +95,14 @@ Controllers controllers {
     PIDLinearController(lateral_pid),
     PIDAngularController(angular_pid),
     // slew controllers
-    LinearSlewController(0.5_volt, 0.5_volt),
-    AngularSlewController(0.8_volt, 0.9_volt),
-    // min/max voltage controllers
-    LinearVoltageClampController(0.9_volt),
-    AngularVoltageClampController(0.8_volt),
+
+    LinearSlewController(0.3_volt),
+
+    AngularSlewController(0.4_volt),
+
+    // // min/max voltage controllers
+    // LinearVoltageClampController(0.9_volt),
+    // AngularVoltageClampController(0.8_volt),
 };
 
 DifferentialDrivetrain drivetrain(&left_motors, &right_motors);
@@ -114,19 +118,19 @@ SimpleOdomTracker pose_tracker(&left_motors,
                                wheel_diameter,
                                final_rpm);
 
-Tolerances linearTolerances(300_msec,
-                            ErrorTolerance { 1_in },
-                            VelocityTolerance { 1_inps },
-                            HalfCircleTolerance { 1_in });
+Tolerances linearTolerances(200_msec,
+                            ErrorTolerance { 3_in },
+                            VelocityTolerance { 10_inps });
+                            // HalfCircleTolerance { 1_in });
 
-Tolerances angularTolerances(200_msec,
+Tolerances angularTolerances(150_msec,
                              ErrorTolerance { 3_stDeg },
-                             VelocityTolerance { 20_degps });
+                             VelocityTolerance { 30_degps });
 
-Tolerances largeLinearTolerances(10_msec,
+Tolerances largeLinearTolerances(400_msec,
                                  ErrorTolerance { 10_in },
-                                 VelocityTolerance { 10_inps },
-                                 HalfCircleTolerance { 10_in });
+                                 VelocityTolerance { 20_inps });
+                                 // HalfCircleTolerance { 10_in });
 
 Tolerances largeAngularTolerances(1_sec,
                                   ErrorTolerance { 5_stDeg },
@@ -151,8 +155,7 @@ void initialize() {
 
     pros::lcd::register_btn1_cb(on_center_button);
 
-	imu.reset(true);
-
+    imu.reset(true);
 }
 
 void opcontrol() {
@@ -169,11 +172,29 @@ void opcontrol() {
 
     pros::delay(100);
 
-    pose_tracker.setPose({ 0_in, 0_in, 0_stDeg });
-	imu.set_rotation(90);
+    // pose_tracker.setPose({ 0_in, 0_in, 90_stDeg });
 
-    mb.turnTo(90_stDeg) | chain;
-    mb.turnTo(180_stDeg) | chain;
+		//   while (true) {
+		//       auto position = pose_tracker.getPosition();
+		//       auto angle = pose_tracker.getAngle();
+		//       std::cout << "x: " << position.x << ", y: " << position.y
+		//                 << ", theta: " << angle << std::endl;
+		// pros::delay(50);
+		//   }
+
+    // mb.turnTo(90_stDeg) | run;
+    // mb.moveTo(0,24)  | run;
+    // mb.moveTo(-24,24)  | run;
+
+    // mb.moveTo(24,48)  | run;
+
+    pose_tracker.setPose({ 0_in, 0_in, 0_stDeg });
+    mb.turnTo(90_stDeg) | run;
+    mb.moveTo(-24,24).withOverturn()  | run;
+    mb.moveTo(24,48).withOverturn()  | run;
+
+    // mb.turnTo(-90_stDeg) | run;
+    // mb.turnTo(160_stDeg) | run;
 
     // mb.turnTo(90_stDeg).withTimeout(10_sec) | run;
     // mb.turnTo(90_stDeg).withTimeout(1_sec) | run;

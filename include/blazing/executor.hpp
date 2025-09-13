@@ -28,7 +28,7 @@ template<typename M>
 constexpr void operator|(M&& motion, Executor& executor) {
     // creates a copy of the temporary motion object and creates one owned by
     // the executor
-    std::cout << "called operator!" << std::endl;
+    // std::cout << "called operator!" << std::endl;
     executor.addMotion(
       std::move(std::make_unique<std::decay_t<M>>(std::forward<M>(motion))));
 }
@@ -40,7 +40,7 @@ class RunExecutor : public Executor {
     // executes as soon as motion gets added
     void addMotion(std::unique_ptr<MotionBase> motion) override {
         while (true) {
-            std::cout << "evaluating motion!" << std::endl;
+            // std::cout << "evaluating motion!" << std::endl;
             auto result = motion->execute();
 
             // finished motion, stop
@@ -212,7 +212,7 @@ class ChainedExecutor : public Executor {
                 // if we have spent enough time fusing, then just finish the
                 // previous motion
                 fusing_finished = elapsed_time > fusing_time;
-            } else if (current_voltages.has_value()) {
+            } else if (current_voltages) {
                 // couldn't get the next voltages, just use the current ones
                 current_motion->setEnabledDrivetrain(true);
                 bool set_voltage_result =

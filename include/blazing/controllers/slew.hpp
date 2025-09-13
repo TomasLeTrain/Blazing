@@ -31,26 +31,31 @@ class SlewController {
     // output should be signed, indicating its direction of travel
     Voltage apply(Voltage output, Time delta_time) {
         if (!last_output) {
-            last_output = output;
-            return output;
+            // last_output = output;
+            last_output = 0_volt;
+            // return output;
         }
 
         auto output_vel = (output - *last_output) / delta_time;
 
         bool accelerating = units::sgn(output) == units::sgn(output_vel);
+		std::cout << "accel " << output << " " << output_vel << " " << *accel_slew << std::endl;
 
         if (decel_slew && !accelerating) {
             output_vel = units::sgn(output_vel) *
                          units::min(units::abs(output_vel), *decel_slew);
         }
         if (accel_slew && accelerating) {
+			std::cout << "tfff " << output_vel << std::endl;
             output_vel = units::sgn(output_vel) *
                          units::min(units::abs(output_vel), *accel_slew);
+			std::cout << "tfff2 " << output_vel << std::endl;
         }
 
         Voltage adjusted_output = *last_output + output_vel * delta_time;
 
-        return output;
+		last_output = adjusted_output;
+        return adjusted_output;
     }
 };
 

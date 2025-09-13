@@ -76,7 +76,7 @@ class distanceAtHeading : public Motion<ControllersType,
         state.last_time = current_time;
 
         Length forward_travel = this->tracker.getForwardTravel();
-        const Angle heading = [this] {
+        const Angle heading = [&] {
             const Angle heading = this->tracker.getAngle();
             return reversed ? reverseAngle(heading) : heading;
         }();
