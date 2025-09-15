@@ -16,9 +16,9 @@ using KD_t = Divided<Multiplied<Output, Time>, Input>;
 template<typename Input, typename Output>
 class PID {
   private:
-    KP_t<Input, Output> kP = KP_t<Input, Output>(49);
-    KI_t<Input, Output> kI = KI_t<Input, Output>(59);
-    KD_t<Input, Output> kD = KD_t<Input, Output>(69);
+    KP_t<Input, Output> kP;
+    KI_t<Input, Output> kI;
+    KD_t<Input, Output> kD;
 
     std::optional<Input> windupRange;
 

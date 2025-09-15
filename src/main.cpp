@@ -101,8 +101,8 @@ Controllers controllers {
     AngularSlewController(0.4_volt),
 
     // // min/max voltage controllers
-    // LinearVoltageClampController(0.9_volt),
-    // AngularVoltageClampController(0.8_volt),
+    LinearVoltageClampController(1.0_volt),
+    AngularVoltageClampController(1.0_volt),
 };
 
 DifferentialDrivetrain drivetrain(&left_motors, &right_motors);
@@ -121,20 +121,23 @@ SimpleOdomTracker pose_tracker(&left_motors,
 Tolerances linearTolerances(200_msec,
                             ErrorTolerance { 3_in },
                             VelocityTolerance { 10_inps });
-                            // HalfCircleTolerance { 1_in });
+// HalfCircleTolerance { 1_in });
 
 Tolerances angularTolerances(150_msec,
                              ErrorTolerance { 3_stDeg },
                              VelocityTolerance { 30_degps });
 
-Tolerances largeLinearTolerances(400_msec,
-                                 ErrorTolerance { 10_in },
-                                 VelocityTolerance { 20_inps });
-                                 // HalfCircleTolerance { 10_in });
+Tolerances largeLinearTolerances(500_msec,
+                                 // ErrorTolerance { 6_in },
+                                 ErrorTolerance { 14_in },
+                                 VelocityTolerance { 50_inps });
+// HalfCircleTolerance { 10_in });
 
 Tolerances largeAngularTolerances(1_sec,
-                                  ErrorTolerance { 5_stDeg },
-                                  VelocityTolerance { 40_degps });
+                                  // ErrorTolerance { 5_stDeg },
+                                  // VelocityTolerance { 40_degps });
+                                  ErrorTolerance { 30_stDeg },
+                                  VelocityTolerance { 1000_degps });
 
 DefaultTolerances tolerances(linearTolerances,
                              angularTolerances,
@@ -174,24 +177,40 @@ void opcontrol() {
 
     // pose_tracker.setPose({ 0_in, 0_in, 90_stDeg });
 
-		//   while (true) {
-		//       auto position = pose_tracker.getPosition();
-		//       auto angle = pose_tracker.getAngle();
-		//       std::cout << "x: " << position.x << ", y: " << position.y
-		//                 << ", theta: " << angle << std::endl;
-		// pros::delay(50);
-		//   }
+    //   while (true) {
+    //       auto position = pose_tracker.getPosition();
+    //       auto angle = pose_tracker.getAngle();
+    //       std::cout << "x: " << position.x << ", y: " << position.y
+    //                 << ", theta: " << angle << std::endl;
+    // pros::delay(50);
+    //   }
 
     // mb.turnTo(90_stDeg) | run;
     // mb.moveTo(0,24)  | run;
     // mb.moveTo(-24,24)  | run;
 
     // mb.moveTo(24,48)  | run;
+    //
+    // pose_tracker.setPose({ 0_in, 0_in, 0_stDeg });
+    // // mb.turnTo(90_stDeg) | run;
+    // // mb.moveTo(-24, 24) | run;
+    // // mb.moveTo(24, 48) | run;
+    //
+    // // mb.turnTo(90_stDeg) | async;
+    // mb.turnTo(180_stDeg) | chain;
+    //
+    // mb.moveTo(-24, 0) | chain;
+    // mb.moveTo(-24, 48) | chain;
+    // mb.moveTo(24, 48) | chain;
+    // mb.moveTo(24, 0) | chain;
+    // mb.moveTo(0, 0) | chain;
+    //
+    // mb.turnTo(0_stDeg) | chain;
 
-    pose_tracker.setPose({ 0_in, 0_in, 0_stDeg });
-    mb.turnTo(90_stDeg) | run;
-    mb.moveTo(-24,24).withOverturn()  | run;
-    mb.moveTo(24,48).withOverturn()  | run;
+    pose_tracker.setPose({ 12_in, -12_in, 135_stDeg });
+	
+    mb.moveTo(20,-20).reverse() | chain;
+    mb.moveTo(24,24) | chain;
 
     // mb.turnTo(-90_stDeg) | run;
     // mb.turnTo(160_stDeg) | run;

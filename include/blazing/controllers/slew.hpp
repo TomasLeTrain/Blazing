@@ -36,25 +36,28 @@ class SlewController {
             // return output;
         }
 
-        auto output_vel = (output - *last_output) / delta_time;
+        auto output_vel = delta_time.internal() == 0 ?
+                            0.0_volt / sec :
+                            (output - *last_output) / delta_time;
 
         bool accelerating = units::sgn(output) == units::sgn(output_vel);
-		std::cout << "accel " << output << " " << output_vel << " " << *accel_slew << std::endl;
+        std::cout << "accel " << output << " " << output_vel << " "
+                  << *accel_slew << std::endl;
 
         if (decel_slew && !accelerating) {
             output_vel = units::sgn(output_vel) *
                          units::min(units::abs(output_vel), *decel_slew);
         }
         if (accel_slew && accelerating) {
-			std::cout << "tfff " << output_vel << std::endl;
+            std::cout << "tfff " << output_vel << std::endl;
             output_vel = units::sgn(output_vel) *
                          units::min(units::abs(output_vel), *accel_slew);
-			std::cout << "tfff2 " << output_vel << std::endl;
+            std::cout << "tfff2 " << output_vel << std::endl;
         }
 
         Voltage adjusted_output = *last_output + output_vel * delta_time;
 
-		last_output = adjusted_output;
+        last_output = adjusted_output;
         return adjusted_output;
     }
 };

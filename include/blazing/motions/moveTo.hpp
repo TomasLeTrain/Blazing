@@ -95,12 +95,34 @@ class moveTo : public Motion<ControllersType,
 
         Angle angular_error = angleError(target_heading, heading);
 
+        auto angle_func = [](Angle angle) -> double {
+            // return units::cos(angle);
+
+            angle = units::abs(units::constrainAngle360(angle));
+
+            // defined on the range [0,pi/2]
+            auto func = [](double x) -> double {
+                if (x < 1.224747) {
+                    return 1.0 - 2.0 * (x * x) + 1.08866 * (x * x * x);
+                }
+                return 0.00001;
+            };
+
+            if (angle <= rot / 2.0) {
+                return func(angle.internal());
+            } else {
+                return -func(M_PI - angle.internal());
+            }
+        };
+
         // used for cosine scaling and applying correct sign for linear
         // error/output
-        Number lin_multiplier = units::cos(position_target_error);
+        Number lin_multiplier = angle_func(position_target_error);
 
         // applies sign component here so that sign of error is accurate
-        linear_error *= units::sgn(lin_multiplier);
+        linear_error *= units::sgn(lin_multiplier) == 0 ?
+                          Number(1.0) :
+                          units::sgn(lin_multiplier);
 
         // update tolerances if they are included
         if constexpr (hasLinearErrorTolerance<TolerancesType>) {

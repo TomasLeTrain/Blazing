@@ -166,23 +166,6 @@ class Tolerances : virtual ToleranceBase,
     }
 };
 
-template<typename LinearTolerances, typename AngularTolerances>
-struct LinearAndAngularTolerances {
-    LinearTolerances linear;
-    AngularTolerances angular;
-};
-
-template<typename LinearTolerances,
-         typename AngularTolerances,
-         typename LargeLinearTolerances,
-         typename LargeAngularTolerances>
-struct DefaultTolerances {
-    LinearTolerances linear;
-    AngularTolerances angular;
-    LargeLinearTolerances large_linear;
-    LargeAngularTolerances large_angular;
-};
-
 // tolerance concepts
 template<typename TolerancesType>
 concept hasLinearTolerance =
@@ -271,4 +254,113 @@ concept hasLargeHalfcircleTolerance = requires(TolerancesType tolerances,
     tolerances.large_linear.setHalfcircleTolerance(tolerance);
     tolerances.large_linear.halfcircleToleranceUpdate(pose, target, theta);
 };
+
+struct TolerancesGroup {
+    // updates
+    virtual void linearErrorToleranceUpdate(Length error);
+    virtual void linearVelocityToleranceUpdate(LinearVelocity velocity);
+    virtual void linearHalfcircleToleranceUpdate(units::V2Position pose,
+                                                 units::V2Position target,
+                                                 Angle theta);
+
+    virtual void angularErrorToleranceUpdate(Angle error);
+    virtual void angularVelocityToleranceUpdate(AngularVelocity velocity);
+};
+
+template<typename LinearTolerances, typename AngularTolerances>
+struct LinearAndAngularTolerances : public TolerancesGroup {
+    LinearTolerances linear;
+    AngularTolerances angular;
+
+    void linearErrorToleranceUpdate(Length error) override {
+        if constexpr (hasLinearErrorTolerance<LinearAndAngularTolerances>) {
+            linear.errorToleranceUpdate(error);
+        }
+    }
+
+    void linearVelocityToleranceUpdate(LinearVelocity velocity) override {
+        if constexpr (hasLinearVelocityTolerance<LinearAndAngularTolerances>) {
+            linear.velocityToleranceUpdate(velocity);
+        }
+    };
+
+    void linearHalfcircleToleranceUpdate(units::V2Position pose,
+                                         units::V2Position target,
+                                         Angle theta) override {
+        if constexpr (hasHalfcircleTolerance<LinearAndAngularTolerances>) {
+            linear.halfcircleToleranceUpdate(pose, target, theta);
+        }
+    }
+
+    void angularErrorToleranceUpdate(Angle error) override {
+        if constexpr (hasAngularVelocityTolerance<LinearAndAngularTolerances>) {
+            angular.velocityToleranceUpdate(error);
+        }
+    }
+
+    void angularVelocityToleranceUpdate(AngularVelocity velocity) override {
+        if constexpr (hasAngularVelocityTolerance<LinearAndAngularTolerances>) {
+            angular.errorToleranceUpdate(velocity);
+        }
+    }
+};
+
+template<typename LinearTolerances,
+         typename AngularTolerances,
+         typename LargeLinearTolerances,
+         typename LargeAngularTolerances>
+struct DefaultTolerances : public TolerancesGroup {
+    LinearTolerances linear;
+    AngularTolerances angular;
+    LargeLinearTolerances large_linear;
+    LargeAngularTolerances large_angular;
+
+    void linearErrorToleranceUpdate(Length error) override {
+        if constexpr (hasLinearErrorTolerance<DefaultTolerances>) {
+            linear.errorToleranceUpdate(error);
+        }
+        if constexpr (hasLargeLinearErrorTolerance<DefaultTolerances>) {
+            large_linear.errorToleranceUpdate(error);
+        }
+    }
+
+    void linearVelocityToleranceUpdate(LinearVelocity velocity) override {
+        if constexpr (hasLinearVelocityTolerance<DefaultTolerances>) {
+            linear.velocityToleranceUpdate(velocity);
+        }
+        if constexpr (hasLargeLinearVelocityTolerance<DefaultTolerances>) {
+            large_linear.velocityToleranceUpdate(velocity);
+        }
+    };
+
+    void linearHalfcircleToleranceUpdate(units::V2Position pose,
+                                         units::V2Position target,
+                                         Angle theta) override {
+        if constexpr (hasHalfcircleTolerance<DefaultTolerances>) {
+            linear.halfcircleToleranceUpdate(pose, target, theta);
+        }
+        if constexpr (hasLargeHalfcircleTolerance<DefaultTolerances>) {
+            large_linear.halfcircleToleranceUpdate(pose, target, theta);
+        }
+    }
+
+    void angularErrorToleranceUpdate(Angle error) override {
+        if constexpr (hasAngularVelocityTolerance<DefaultTolerances>) {
+            angular.velocityToleranceUpdate(error);
+        }
+        if constexpr (hasLargeAngularVelocityTolerance<DefaultTolerances>) {
+            large_angular.velocityToleranceUpdate(error);
+        }
+    }
+
+    void angularVelocityToleranceUpdate(AngularVelocity velocity) override {
+        if constexpr (hasAngularVelocityTolerance<DefaultTolerances>) {
+            angular.errorToleranceUpdate(velocity);
+        }
+        if constexpr (hasLargeAngularVelocityTolerance<DefaultTolerances>) {
+            large_angular.errorToleranceUpdate(velocity);
+        }
+    }
+};
+
 } // namespace blazing

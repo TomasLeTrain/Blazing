@@ -156,7 +156,8 @@ class ChainedExecutor : public Executor {
         auto result = current_motion->execute();
 
         // starts fusing if any tolerance gets hit
-        if ((result.inSmallTolerance || result.inLargeTolerance) &&
+        if ((result.inSmallTolerance.value_or(false) ||
+             result.inLargeTolerance.value_or(false)) &&
             !fuse_start_time) {
             fuse_start_time = from_msec(pros::millis());
             std::cout << "start fusing!" << std::endl;
@@ -168,7 +169,7 @@ class ChainedExecutor : public Executor {
 
         bool fusing_finished = false;
 
-		std::cout << "cant fuse: " << disabled_result << std::endl;
+        std::cout << "cant fuse: " << disabled_result << std::endl;
 
         if (motions.size() >= 2 && fuse_start_time &&
             // makes sure we can actually disable the drivetrain
@@ -196,7 +197,7 @@ class ChainedExecutor : public Executor {
                   from_msec(pros::millis()) - *fuse_start_time;
                 double normalized_time =
                   units::clamp(elapsed_time / fusing_time, 0.0, 1.0);
-				std::cout << "fusing " << normalized_time << std::endl;
+                std::cout << "fusing " << normalized_time << std::endl;
 
                 for (size_t i = 0; i < current_voltages->size(); i++) {
                     // fuses between voltages with a simple lerp function
@@ -233,7 +234,7 @@ class ChainedExecutor : public Executor {
 
         if (result.finished || fusing_finished) {
             // remove motion from queue, need to take the mutex again
-			std::cout << "finished motion " << fusing_finished << std::endl;
+            std::cout << "finished motion " << fusing_finished << std::endl;
             mutex.take();
             motions.pop_front();
             mutex.give();
