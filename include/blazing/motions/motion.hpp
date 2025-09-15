@@ -3,6 +3,7 @@
 #include "blazing/chassis.hpp"
 #include "blazing/controllers/controllers.hpp"
 #include "blazing/drivetrains/drivetrain.hpp"
+#include "blazing/tolerances.hpp"
 #include "units/units.hpp"
 #include <concepts>
 #include <optional>
@@ -53,13 +54,15 @@ template<typename ControllersType,
          typename DrivetrainType,
          typename TrackerType,
          typename TolerancesType>
+    requires std::derived_from<TolerancesType, TolerancesGroup>
 class Motion : public MotionBase {
   protected:
-    DrivetrainType drivetrain;
-    TrackerType& tracker;
+    // these are assumed to have no issues being copied
     TolerancesType tolerances;
-
     ControllersType controllers;
+
+    TrackerType& tracker;
+    DrivetrainType& drivetrain;
 
   public:
     Motion(ControllersType controllers,
@@ -90,7 +93,7 @@ class Motion : public MotionBase {
     };
 
     bool moveVoltagesDrivetrain(std::vector<Voltage> voltages) override {
-		std::cout << "set volts called\n";
+        std::cout << "set volts called\n";
         if constexpr (MotionChainableDrivetrain<DrivetrainType>) {
             std::cout << "set volts good\n";
             drivetrain.moveVoltages(voltages);

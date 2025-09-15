@@ -53,8 +53,7 @@ class distanceAtHeading : public Motion<ControllersType,
     motionExecutionResult execute() override {
         if (!m_state.has_value()) {
             m_state = {
-                .initial_forward_travel =
-                  this->tracker.getForwardTravel(),
+                .initial_forward_travel = this->tracker.getForwardTravel(),
                 .start_time = from_msec(pros::millis()),
                 .last_time = from_msec(pros::millis()),
                 .linear_settled = false,
@@ -91,45 +90,28 @@ class distanceAtHeading : public Motion<ControllersType,
         if (reversed) target_distance *= -1.0;
 
         Length linear_error =
-          (target_distance + state.initial_forward_travel) -
-          forward_travel;
+          (target_distance + state.initial_forward_travel) - forward_travel;
 
         Angle angular_error = angleError(target_heading, heading, direction);
 
-        // update tolerances if they are included
-        if constexpr (hasLinearErrorTolerance<TolerancesType>) {
-            this->tolerances.linear.errorToleranceUpdate(linear_error);
-        }
-        if constexpr (hasLinearVelocityTolerance<TolerancesType>) {
-            this->tolerances.linear.velocityToleranceUpdate(
-              this->tracker.getLinearVelocity());
-        }
-
-        if constexpr (hasLargeLinearErrorTolerance<TolerancesType>) {
-            this->tolerances.large_linear.errorToleranceUpdate(linear_error);
-        }
-        if constexpr (hasLargeLinearVelocityTolerance<TolerancesType>) {
-            this->tolerances.large_linear.velocityToleranceUpdate(
-              this->tracker.getLinearVelocity());
-        }
+        // linear tolerances
+        this->tolerances.linearErrorToleranceUpdate(linear_error);
+        this->tolerances.linearVelocityToleranceUpdate(
+          this->tracker.getLinearVelocity());
 
         // angular tolerances
-        if constexpr (hasAngularErrorTolerance<TolerancesType>) {
-            this->tolerances.angular.errorToleranceUpdate(angular_error);
-        }
-        if constexpr (hasAngularVelocityTolerance<TolerancesType>) {
-            this->tolerances.angular.velocityToleranceUpdate(
-              this->tracker.getAngularVelocity());
-        }
+        this->tolerances.angularErrorToleranceUpdate(angular_error);
+        this->tolerances.angularVelocityToleranceUpdate(
+          this->tracker.getAngularVelocity());
 
-        if constexpr (hasLargeAngularErrorTolerance<TolerancesType>) {
-            this->tolerances.large_angular.errorToleranceUpdate(angular_error);
-        }
-        if constexpr (hasLargeAngularVelocityTolerance<TolerancesType>) {
-            this->tolerances.large_angular.velocityToleranceUpdate(
-              this->tracker.getAngularVelocity());
-        }
+        auto updateTolerance = [](std::optional<bool>& tolerance,
+                                  bool curr_in_tolerance) {
+            // if tolerance exists then it gets anded with curr_in_tolerance
+            // else it gets set to curr_in_tolerance
+            tolerance = tolerance.value_or(true) && curr_in_tolerance;
+        };
 
+		// get set to true if either normal/large tolerances are finished
         state.angular_settled = false;
         state.linear_settled = false;
 
@@ -137,56 +119,32 @@ class distanceAtHeading : public Motion<ControllersType,
         if constexpr (hasLinearTolerance<TolerancesType>) {
             bool curr_in_tolerance = this->tolerances.linear.withinTolerance();
 
-            result.inSmallTolerance =
-              result.inSmallTolerance
-                .transform([curr_in_tolerance](auto inSmallTolerance) {
-                    return inSmallTolerance & curr_in_tolerance;
-                })
-                .value_or(curr_in_tolerance);
+            updateTolerance(result.inSmallTolerance, curr_in_tolerance);
 
             state.linear_settled |= this->tolerances.linear.finished();
-            this->tolerances.linear.reset();
         }
         if constexpr (hasLargeLinearTolerance<TolerancesType>) {
             bool curr_in_tolerance =
               this->tolerances.large_linear.withinTolerance();
 
-            result.inLargeTolerance =
-              result.inLargeTolerance
-                .transform([curr_in_tolerance](auto inLargeTolerance) {
-                    return inLargeTolerance & curr_in_tolerance;
-                })
-                .value_or(curr_in_tolerance);
+            updateTolerance(result.inLargeTolerance, curr_in_tolerance);
 
             state.linear_settled |= this->tolerances.large_linear.finished();
-            this->tolerances.large_linear.reset();
         }
         if constexpr (hasAngularTolerance<TolerancesType>) {
             bool curr_in_tolerance = this->tolerances.angular.withinTolerance();
 
-            result.inSmallTolerance =
-              result.inSmallTolerance
-                .transform([curr_in_tolerance](auto inSmallTolerance) {
-                    return inSmallTolerance & curr_in_tolerance;
-                })
-                .value_or(curr_in_tolerance);
+            updateTolerance(result.inSmallTolerance, curr_in_tolerance);
 
             state.angular_settled |= this->tolerances.angular.finished();
-            this->tolerances.angular.reset();
         }
         if constexpr (hasLargeAngularTolerance<TolerancesType>) {
             bool curr_in_tolerance =
               this->tolerances.large_angular.withinTolerance();
 
-            result.inLargeTolerance =
-              result.inLargeTolerance
-                .transform([curr_in_tolerance](auto inLargeTolerance) {
-                    return inLargeTolerance & curr_in_tolerance;
-                })
-                .value_or(curr_in_tolerance);
+            updateTolerance(result.inLargeTolerance, curr_in_tolerance);
 
             state.angular_settled |= this->tolerances.large_angular.finished();
-            this->tolerances.large_angular.reset();
         }
 
         result.finished = state.linear_settled && state.angular_settled;

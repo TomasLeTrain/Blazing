@@ -117,6 +117,7 @@ class Tolerances : virtual ToleranceBase,
   private:
     std::optional<Time> tolerance_timestamp = std::nullopt;
     std::optional<Time> duration = std::nullopt;
+    bool tolerance_finished = false;
 
   public:
     Tolerances(Time duration, ToleranceTypes&&... bases)
@@ -136,6 +137,12 @@ class Tolerances : virtual ToleranceBase,
     // assumes each tolerance check has been performed
     bool finished() {
         if (withinTolerance()) {
+			in_tolerance = std::nullopt;
+
+            // already triggered tolerance, return true forever
+            // however if we get out of tolerance this gets reset
+            if (tolerance_finished) return true;
+
             // set timestamp if it doesn't have one
             if (!tolerance_timestamp) {
                 tolerance_timestamp = from_msec(pros::millis());
@@ -146,23 +153,20 @@ class Tolerances : virtual ToleranceBase,
                       return from_msec(pros::millis()) - timestamp > time;
                   })
                   .value_or(false)) {
-                std::cout << "tolerance was triggered!" << std::endl;
-                tolerance_timestamp = std::nullopt;
+                // tolerance_timestamp = std::nullopt;
+                tolerance_finished = true;
                 return true;
             }
         } else if (tolerance_timestamp) {
-            // reset tolerance value
+            // not in tolerance, reset
             tolerance_timestamp = std::nullopt;
         }
 
-        return false;
-    }
-
-    // if not called then withinTolerance will always remain on after becoming
-    // true once
-    void reset() {
         // reset in_tolerance
+        tolerance_finished = false;
         in_tolerance = std::nullopt;
+
+        return false;
     }
 };
 
@@ -236,41 +240,49 @@ concept hasLargeAngularVelocityTolerance =
   };
 
 template<typename TolerancesType>
-concept hasHalfcircleTolerance = requires(TolerancesType tolerances,
-                                          Length tolerance,
-                                          units::V2Position pose,
-                                          units::V2Position target,
-                                          Angle theta) {
+concept hasLinearHalfcircleTolerance = requires(TolerancesType tolerances,
+                                                Length tolerance,
+                                                units::V2Position pose,
+                                                units::V2Position target,
+                                                Angle theta) {
     tolerances.linear.setHalfcircleTolerance(tolerance);
     tolerances.linear.halfcircleToleranceUpdate(pose, target, theta);
 };
 
 template<typename TolerancesType>
-concept hasLargeHalfcircleTolerance = requires(TolerancesType tolerances,
-                                               Length tolerance,
-                                               units::V2Position pose,
-                                               units::V2Position target,
-                                               Angle theta) {
+concept hasLargeLinearHalfcircleTolerance = requires(TolerancesType tolerances,
+                                                     Length tolerance,
+                                                     units::V2Position pose,
+                                                     units::V2Position target,
+                                                     Angle theta) {
     tolerances.large_linear.setHalfcircleTolerance(tolerance);
     tolerances.large_linear.halfcircleToleranceUpdate(pose, target, theta);
 };
 
 struct TolerancesGroup {
     // updates
-    virtual void linearErrorToleranceUpdate(Length error);
-    virtual void linearVelocityToleranceUpdate(LinearVelocity velocity);
+    virtual void linearErrorToleranceUpdate(Length error) {}
+
+    virtual void linearVelocityToleranceUpdate(LinearVelocity velocity) {}
+
     virtual void linearHalfcircleToleranceUpdate(units::V2Position pose,
                                                  units::V2Position target,
-                                                 Angle theta);
+                                                 Angle theta) {}
 
-    virtual void angularErrorToleranceUpdate(Angle error);
-    virtual void angularVelocityToleranceUpdate(AngularVelocity velocity);
+    virtual void angularErrorToleranceUpdate(Angle error) {}
+
+    virtual void angularVelocityToleranceUpdate(AngularVelocity velocity) {}
 };
 
 template<typename LinearTolerances, typename AngularTolerances>
 struct LinearAndAngularTolerances : public TolerancesGroup {
     LinearTolerances linear;
     AngularTolerances angular;
+
+    LinearAndAngularTolerances(LinearTolerances linear,
+                               AngularTolerances angular)
+        : linear(linear),
+          angular(angular) {}
 
     void linearErrorToleranceUpdate(Length error) override {
         if constexpr (hasLinearErrorTolerance<LinearAndAngularTolerances>) {
@@ -287,20 +299,21 @@ struct LinearAndAngularTolerances : public TolerancesGroup {
     void linearHalfcircleToleranceUpdate(units::V2Position pose,
                                          units::V2Position target,
                                          Angle theta) override {
-        if constexpr (hasHalfcircleTolerance<LinearAndAngularTolerances>) {
+        if constexpr (hasLinearHalfcircleTolerance<
+                        LinearAndAngularTolerances>) {
             linear.halfcircleToleranceUpdate(pose, target, theta);
         }
     }
 
     void angularErrorToleranceUpdate(Angle error) override {
-        if constexpr (hasAngularVelocityTolerance<LinearAndAngularTolerances>) {
-            angular.velocityToleranceUpdate(error);
+        if constexpr (hasAngularErrorTolerance<LinearAndAngularTolerances>) {
+            angular.errorToleranceUpdate(error);
         }
     }
 
     void angularVelocityToleranceUpdate(AngularVelocity velocity) override {
         if constexpr (hasAngularVelocityTolerance<LinearAndAngularTolerances>) {
-            angular.errorToleranceUpdate(velocity);
+            angular.velocityToleranceUpdate(velocity);
         }
     }
 };
@@ -314,6 +327,15 @@ struct DefaultTolerances : public TolerancesGroup {
     AngularTolerances angular;
     LargeLinearTolerances large_linear;
     LargeAngularTolerances large_angular;
+
+    DefaultTolerances(LinearTolerances linear,
+                      AngularTolerances angular,
+                      LargeLinearTolerances large_linear,
+                      LargeAngularTolerances large_angular)
+        : linear(linear),
+          angular(angular),
+          large_linear(large_linear),
+          large_angular(large_angular) {}
 
     void linearErrorToleranceUpdate(Length error) override {
         if constexpr (hasLinearErrorTolerance<DefaultTolerances>) {
@@ -336,29 +358,29 @@ struct DefaultTolerances : public TolerancesGroup {
     void linearHalfcircleToleranceUpdate(units::V2Position pose,
                                          units::V2Position target,
                                          Angle theta) override {
-        if constexpr (hasHalfcircleTolerance<DefaultTolerances>) {
+        if constexpr (hasLinearHalfcircleTolerance<DefaultTolerances>) {
             linear.halfcircleToleranceUpdate(pose, target, theta);
         }
-        if constexpr (hasLargeHalfcircleTolerance<DefaultTolerances>) {
+        if constexpr (hasLargeLinearHalfcircleTolerance<DefaultTolerances>) {
             large_linear.halfcircleToleranceUpdate(pose, target, theta);
         }
     }
 
     void angularErrorToleranceUpdate(Angle error) override {
-        if constexpr (hasAngularVelocityTolerance<DefaultTolerances>) {
-            angular.velocityToleranceUpdate(error);
+        if constexpr (hasAngularErrorTolerance<DefaultTolerances>) {
+            angular.errorToleranceUpdate(error);
         }
-        if constexpr (hasLargeAngularVelocityTolerance<DefaultTolerances>) {
-            large_angular.velocityToleranceUpdate(error);
+        if constexpr (hasLargeAngularErrorTolerance<DefaultTolerances>) {
+            large_angular.errorToleranceUpdate(error);
         }
     }
 
     void angularVelocityToleranceUpdate(AngularVelocity velocity) override {
         if constexpr (hasAngularVelocityTolerance<DefaultTolerances>) {
-            angular.errorToleranceUpdate(velocity);
+            angular.velocityToleranceUpdate(velocity);
         }
         if constexpr (hasLargeAngularVelocityTolerance<DefaultTolerances>) {
-            large_angular.errorToleranceUpdate(velocity);
+            large_angular.velocityToleranceUpdate(velocity);
         }
     }
 };

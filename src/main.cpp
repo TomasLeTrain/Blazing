@@ -208,9 +208,9 @@ void opcontrol() {
     // mb.turnTo(0_stDeg) | chain;
 
     pose_tracker.setPose({ 12_in, -12_in, 135_stDeg });
-	
-    mb.moveTo(20,-20).reverse() | chain;
-    mb.moveTo(24,24) | chain;
+
+    mb.moveTo(20, -20).reverse() | chain;
+    mb.moveTo(24, 24) | chain;
 
     // mb.turnTo(-90_stDeg) | run;
     // mb.turnTo(160_stDeg) | run;

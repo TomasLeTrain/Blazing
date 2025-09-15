@@ -103,6 +103,7 @@ class moveTo : public Motion<ControllersType,
             // defined on the range [0,pi/2]
             auto func = [](double x) -> double {
                 if (x < 1.224747) {
+					// simple polynomial that delays linear output
                     return 1.0 - 2.0 * (x * x) + 1.08866 * (x * x * x);
                 }
                 return 0.00001;
@@ -120,36 +121,17 @@ class moveTo : public Motion<ControllersType,
         Number lin_multiplier = angle_func(position_target_error);
 
         // applies sign component here so that sign of error is accurate
+		// NOTE: sgn can be zero, which can set linear error to zero as well!
         linear_error *= units::sgn(lin_multiplier) == 0 ?
                           Number(1.0) :
                           units::sgn(lin_multiplier);
 
-        // update tolerances if they are included
-        if constexpr (hasLinearErrorTolerance<TolerancesType>) {
-            this->tolerances.linear.errorToleranceUpdate(linear_error);
-        }
-        if constexpr (hasLinearVelocityTolerance<TolerancesType>) {
-            this->tolerances.linear.velocityToleranceUpdate(
-              this->tracker.getLinearVelocity());
-        }
-        if constexpr (hasHalfcircleTolerance<TolerancesType>) {
-            this->tolerances.linear.halfcircleToleranceUpdate(position,
-                                                              target,
-                                                              heading);
-        }
-
-        if constexpr (hasLargeLinearErrorTolerance<TolerancesType>) {
-            this->tolerances.large_linear.errorToleranceUpdate(linear_error);
-        }
-        if constexpr (hasLargeLinearVelocityTolerance<TolerancesType>) {
-            this->tolerances.large_linear.velocityToleranceUpdate(
-              this->tracker.getLinearVelocity());
-        }
-        if constexpr (hasLargeHalfcircleTolerance<TolerancesType>) {
-            this->tolerances.large_linear.halfcircleToleranceUpdate(position,
-                                                                    target,
-                                                                    heading);
-        }
+        this->tolerances.linearErrorToleranceUpdate(linear_error);
+        this->tolerances.linearVelocityToleranceUpdate(
+          this->tracker.getLinearVelocity());
+        this->tolerances.linearHalfcircleToleranceUpdate(position,
+                                                         target,
+                                                         heading);
 
         result.finished = false;
 
@@ -157,13 +139,11 @@ class moveTo : public Motion<ControllersType,
         if constexpr (hasLinearTolerance<TolerancesType>) {
             result.inSmallTolerance = this->tolerances.linear.withinTolerance();
             result.finished |= this->tolerances.linear.finished();
-            this->tolerances.linear.reset();
         }
         if constexpr (hasLargeLinearTolerance<TolerancesType>) {
             result.inLargeTolerance =
               this->tolerances.large_linear.withinTolerance();
             result.finished |= this->tolerances.large_linear.finished();
-            this->tolerances.large_linear.reset();
         }
 
         // check timeout

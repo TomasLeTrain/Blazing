@@ -106,31 +106,12 @@ class boomerang : public Motion<ControllersType,
         }
 
         // update tolerances if they are included
-        if constexpr (hasLinearErrorTolerance<TolerancesType>) {
-            this->tolerances.linear.errorToleranceUpdate(linear_error);
-        }
-        if constexpr (hasLinearVelocityTolerance<TolerancesType>) {
-            this->tolerances.linear.velocityToleranceUpdate(
-              this->tracker.getLinearVelocity());
-        }
-        if constexpr (hasHalfcircleTolerance<TolerancesType>) {
-            this->tolerances.linear.halfcircleToleranceUpdate(position,
-                                                              target,
-                                                              heading);
-        }
-
-        if constexpr (hasLargeLinearErrorTolerance<TolerancesType>) {
-            this->tolerances.large_linear.errorToleranceUpdate(linear_error);
-        }
-        if constexpr (hasLargeLinearVelocityTolerance<TolerancesType>) {
-            this->tolerances.large_linear.velocityToleranceUpdate(
-              this->tracker.getLinearVelocity());
-        }
-        if constexpr (hasLargeHalfcircleTolerance<TolerancesType>) {
-            this->tolerances.large_linear.halfcircleToleranceUpdate(position,
-                                                                    target,
-                                                                    heading);
-        }
+        this->tolerances.linearErrorToleranceUpdate(linear_error);
+        this->tolerances.linearVelocityToleranceUpdate(
+          this->tracker.getLinearVelocity());
+        this->tolerances.linearHalfcircleToleranceUpdate(position,
+                                                         target,
+                                                         heading);
 
         result.finished = false;
 
@@ -138,13 +119,11 @@ class boomerang : public Motion<ControllersType,
         if constexpr (hasLinearTolerance<TolerancesType>) {
             result.inSmallTolerance = this->tolerances.linear.withinTolerance();
             result.finished |= this->tolerances.linear.finished();
-            this->tolerances.linear.reset();
         }
         if constexpr (hasLargeLinearTolerance<TolerancesType>) {
             result.inLargeTolerance =
               this->tolerances.large_linear.withinTolerance();
             result.finished |= this->tolerances.large_linear.finished();
-            this->tolerances.large_linear.reset();
         }
 
         // check timeout

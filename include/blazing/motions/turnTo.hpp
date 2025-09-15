@@ -125,22 +125,10 @@ class turnTo : public Motion<ControllersType,
         // std::cout << "turnTo: err angular/vel: " << angular_error << " "
         //           << this->tracker.getAngularVelocity() << std::endl;
 
-        // update tolerances if they are included
-        if constexpr (hasAngularErrorTolerance<TolerancesType>) {
-            this->tolerances.angular.errorToleranceUpdate(angular_error);
-        }
-        if constexpr (hasAngularVelocityTolerance<TolerancesType>) {
-            this->tolerances.angular.velocityToleranceUpdate(
-              this->tracker.getAngularVelocity());
-        }
-
-        if constexpr (hasLargeAngularErrorTolerance<TolerancesType>) {
-            this->tolerances.large_angular.errorToleranceUpdate(angular_error);
-        }
-        if constexpr (hasLargeAngularVelocityTolerance<TolerancesType>) {
-            this->tolerances.large_angular.velocityToleranceUpdate(
-              this->tracker.getAngularVelocity());
-        }
+        // update tolerances
+        this->tolerances.angularErrorToleranceUpdate(angular_error);
+        this->tolerances.angularVelocityToleranceUpdate(
+          this->tracker.getAngularVelocity());
 
         state.settled = false;
 
@@ -149,13 +137,11 @@ class turnTo : public Motion<ControllersType,
             result.inSmallTolerance =
               this->tolerances.angular.withinTolerance();
             state.settled |= this->tolerances.angular.finished();
-            this->tolerances.angular.reset();
         }
         if constexpr (hasLargeAngularTolerance<TolerancesType>) {
             result.inLargeTolerance =
               this->tolerances.large_angular.withinTolerance();
             state.settled |= this->tolerances.large_angular.finished();
-            this->tolerances.large_angular.reset();
         }
 
         result.finished = state.settled;
