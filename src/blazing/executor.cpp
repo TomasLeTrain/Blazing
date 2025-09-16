@@ -87,7 +87,7 @@ void AsyncExecutor::runUntil(std::function<bool()> condition) {
     while (!condition()) {
         pros::delay(20);
     }
-	exitAll();
+    exitAll();
 }
 
 // -- Chained methods
@@ -163,8 +163,15 @@ void ChainedExecutor::update() {
             std::vector<Voltage> fused_voltages(current_voltages->size());
 
             Time elapsed_time = from_msec(pros::millis()) - *fuse_start_time;
+
+            // use custom chain time from next motion if specified
+            Time fusing_duration = next_motion->getChainTime() ?
+                                     *next_motion->getChainTime() :
+                                     fusing_time;
+
             double normalized_time =
-              units::clamp(elapsed_time / fusing_time, 0.0, 1.0);
+              units::clamp(elapsed_time / fusing_duration, 0.0, 1.0);
+
             std::cout << "fusing " << normalized_time << std::endl;
 
             for (size_t i = 0; i < current_voltages->size(); i++) {
@@ -245,6 +252,6 @@ void ChainedExecutor::runUntil(std::function<bool()> condition) {
     while (!condition()) {
         pros::delay(20);
     }
-	exitAll();
+    exitAll();
 }
 } // namespace blazing

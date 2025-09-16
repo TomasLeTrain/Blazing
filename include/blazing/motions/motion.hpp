@@ -110,15 +110,12 @@ class Motion : public MotionBase {
         return chain_time;
     };
 
-    // the current api allows all the change functions to be specified here
-    // without having to repeat them for every motion
-
-    // tolerance duration changers
-
     motionChanger setChainTime(this Self&& self, Time chain_time) {
-        chain_time = chain_time;
+        self.chain_time = chain_time;
         return self.getReference();
     };
+
+    // tolerance duration changers
 
     motionChanger linearToleranceDuration(this Self&& self, Time duration) {
         self.tolerances.linear.setDuration(duration);

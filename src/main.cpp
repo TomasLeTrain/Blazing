@@ -148,18 +148,20 @@ auto chain_lerp = [](Voltage a, Voltage b, double t) -> Voltage {
 };
 
 auto angular_linear_func = [](Angle angle) -> double {
+    // reduces the domain to [0,pi]
     angle = units::abs(units::constrainAngle180(angle));
 
     // defined on the range [0,pi/2]
     auto func = [](double x) -> double {
         if (x < 1.224747) {
-            // simple polynomial that delays linear output
+            // simple polynomial that delays linear output until angle error is
+            // small
             return 1.0 - 2.0 * (x * x) + 1.08866 * (x * x * x);
         }
         return 0.00001;
     };
 
-    // makes this function apply on the range [-pi,pi]
+    // makes this function apply on the range [0,pi]
     if (angle <= rot / 2.0) {
         return func(angle.internal());
     } else {
@@ -210,86 +212,11 @@ void opcontrol() {
     // pros::delay(50);
     //   }
 
-    // mb.turnTo(90_stDeg) | run;
-    // mb.moveTo(0,24)  | run;
-    // mb.moveTo(-24,24)  | run;
-
-    // mb.moveTo(24,48)  | run;
-    //
-    // pose_tracker.setPose({ 0_in, 0_in, 0_stDeg });
-    // // mb.turnTo(90_stDeg) | run;
-    // // mb.moveTo(-24, 24) | run;
-    // // mb.moveTo(24, 48) | run;
-    //
-    // // mb.turnTo(90_stDeg) | async;
-    // mb.turnTo(180_stDeg) | chain;
-    //
-    // mb.moveTo(-24, 0) | chain;
-    // mb.moveTo(-24, 48) | chain;
-    // mb.moveTo(24, 48) | chain;
-    // mb.moveTo(24, 0) | chain;
-    // mb.moveTo(0, 0) | chain;
-    //
-    // mb.turnTo(0_stDeg) | chain;
-
     pose_tracker.setPose({ 12_in, -12_in, 135_stDeg });
 
+    mb.moveTo(20, -20).setChainTime(10_msec) | run;
     mb.moveTo(20, -20) | run;
 
     mb.moveTo(20, -20) | chain;
     mb.moveTo(24, 24) | chain;
-
-    // mb.turnTo(-90_stDeg) | run;
-    // mb.turnTo(160_stDeg) | run;
-
-    // mb.turnTo(90_stDeg).withTimeout(10_sec) | run;
-    // mb.turnTo(90_stDeg).withTimeout(1_sec) | run;
-
-    // mb.moveTo(2_in, 3_in)
-    //     .lateral_kD(12 * lateral_pid.UKD)
-    //     .angular_kI(0.02)
-    //     .reverse()
-    //
-    //     .angularErrorTolerance(4_stDeg)
-    //     .linearErrorTolerance(4_in)
-    //     .largeLinearErrorTolerance(4_in)
-    //     .largeAngularErrorTolerance(4_stDeg)
-    //
-    //     .angularVelocityTolerance(4_degps)
-    //     .linearVelocityTolerance(4_inps)
-    //     .largeLinearVelocityTolerance(4_inps)
-    //     .largeAngularVelocityTolerance(4_degps)
-    //
-    //     .linearToleranceDuration(500_msec)
-    //     .angularToleranceDuration(700_msec)
-    //     .largeLinearToleranceDuration(400_msec)
-    //     .largeAngularToleranceDuration(700_msec)
-    //     .withTimeout(2_sec) |
-    //   run;
-    //
-    // std::cout << "erm!" << std::endl;
-    //
-    // moveTo(controllers, chassis, 2, 3)
-    //     .lateral_kD(12)
-    //     .angular_kI(0.02 * angular_pid.UKI)
-    //     .reverse() |
-    //   async;
-    //
-    // moveTo(controllers, chassis, 2, 3).reverse() | async;
-    //
-    // // wait until all async movements are done
-    // async.wait();
-    //
-    // mb.moveTo(2_in, 3_in) | chain;
-    // mb.moveTo(4_in, 3_in) | chain;
-    // chain.wait();
-    //
-    // turnTo(controllers, chassis, 2_stDeg) | run;
-    // mb.turnTo(2_stDeg) | run;
-    //
-    // distanceAtHeading(controllers, chassis, 0_in, 2_stDeg) | run;
-    // distanceAtHeading(controllers, chassis, 10_in) | run;
-    // mb.distanceAtHeading(10_in) | run;
-    //
-    // mb.turnTo(2_stDeg);
 }
