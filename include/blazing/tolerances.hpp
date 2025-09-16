@@ -137,7 +137,7 @@ class Tolerances : virtual ToleranceBase,
     // assumes each tolerance check has been performed
     bool finished() {
         if (withinTolerance()) {
-			in_tolerance = std::nullopt;
+            in_tolerance = std::nullopt;
 
             // already triggered tolerance, return true forever
             // however if we get out of tolerance this gets reset
@@ -272,6 +272,8 @@ struct TolerancesGroup {
     virtual void angularErrorToleranceUpdate(Angle error) {}
 
     virtual void angularVelocityToleranceUpdate(AngularVelocity velocity) {}
+
+    virtual ~TolerancesGroup() = default;
 };
 
 template<typename LinearTolerances, typename AngularTolerances>

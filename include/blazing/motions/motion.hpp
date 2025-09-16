@@ -12,15 +12,13 @@
 namespace blazing {
 
 // used to make the motion changer methods more readable
-#define motionChanger                                                  \
-    template<typename Self>                                            \
-    [[nodiscard(                                                       \
-      "motion won't be executed unless run or async are used!")]] auto
+#define motionChanger                                                          \
+    template<typename Self>                                                    \
+    [[nodiscard("motion won't be executed unless an executor is used!")]] auto
 
-#define motionChangerT                                                 \
-    template<typename Self, typename T>                                \
-    [[nodiscard(                                                       \
-      "motion won't be executed unless run or async are used!")]] auto
+#define motionChangerT                                                         \
+    template<typename Self, typename T>                                        \
+    [[nodiscard("motion won't be executed unless an executor is used!")]] auto
 
 struct motionExecutionResult {
     std::optional<bool> inLargeTolerance = false;
@@ -47,6 +45,10 @@ class MotionBase {
         return false;
     }
 
+    virtual std::optional<Time> getChainTime() {
+        return std::nullopt;
+    }
+
     virtual ~MotionBase() = default;
 };
 
@@ -63,6 +65,8 @@ class Motion : public MotionBase {
 
     TrackerType& tracker;
     DrivetrainType& drivetrain;
+
+    std::optional<Time> chain_time;
 
   public:
     Motion(ControllersType controllers,
@@ -102,10 +106,20 @@ class Motion : public MotionBase {
         return false;
     };
 
+    std::optional<Time> getChainTime() override {
+        return chain_time;
+    };
+
     // the current api allows all the change functions to be specified here
     // without having to repeat them for every motion
 
     // tolerance duration changers
+
+    motionChanger setChainTime(this Self&& self, Time chain_time) {
+        chain_time = chain_time;
+        return self.getReference();
+    };
+
     motionChanger linearToleranceDuration(this Self&& self, Time duration) {
         self.tolerances.linear.setDuration(duration);
         return self.getReference();
@@ -178,6 +192,11 @@ class Motion : public MotionBase {
 
     motionChanger halfcircleTolerance(this Self&& self, Length tolerance) {
         self.tolerances.linear.setHalfcircleTolerance(tolerance);
+        return self.getReference();
+    }
+
+    motionChanger largeHalfcircleTolerance(this Self&& self, Length tolerance) {
+        self.tolerances.large_linear.setHalfcircleTolerance(tolerance);
         return self.getReference();
     }
 

@@ -42,6 +42,12 @@ class boomerang : public Motion<ControllersType,
     double lead = 0.5;
     Length close_threshold = 4_in;
 
+    // defaults to cosine of angle
+    std::function<double(Angle)> angular_linear_func =
+      [](Angle angle) -> double {
+        return units::cos(angle);
+    };
+
     std::optional<MoveToState> m_state;
 
     int getLoopDelayTime() override {
@@ -91,6 +97,8 @@ class boomerang : public Motion<ControllersType,
             target - units::V2Position::fromPolar(target.orientation,
                                                   pose_target_distance * lead);
 
+        Angle position_carrot_heading = position.angleTo(carrot);
+
         const Angle target_heading =
           state.close ? target.orientation : position.angleTo(carrot);
 
@@ -99,11 +107,18 @@ class boomerang : public Motion<ControllersType,
 
         Angle angular_error = angleError(target_heading, heading);
 
-        if (state.close && units::abs(angular_error) >= 90.0_stDeg) {
-            linear_error *= -1.0;
-            angular_error =
-              units::constrainAngle180(reverseAngle(angular_error));
-        }
+        Angle position_carrot_error =
+          angleError(position_carrot_heading, heading);
+
+        // used for cosine scaling and applying correct sign for linear
+        // error/output
+        Number lin_multiplier = angular_linear_func(position_carrot_error);
+
+        // applies sign component here so that sign of error is accurate
+        // NOTE: sgn can be zero, which can set linear error to zero as well!
+        linear_error *= units::sgn(lin_multiplier) == 0 ?
+                          Number(1.0) :
+                          units::sgn(lin_multiplier);
 
         // update tolerances if they are included
         this->tolerances.linearErrorToleranceUpdate(linear_error);
@@ -149,8 +164,20 @@ class boomerang : public Motion<ControllersType,
         Voltage linear_output =
           this->controllers.linear_feedback_controller.update(-linear_error,
                                                               0.0_in,
-                                                              delta_time) *
-          units::cos(angular_error);
+                                                              delta_time);
+
+        // sign was already applied to error, only applies cosine scaling
+        // component
+        linear_output *= units::abs(lin_multiplier);
+
+        // here the robot would attempt to move backwards, when instead the
+        // robot should turn around until it should start moving towards the
+        // target
+        // the reason that this is done to linear_output and not linear_error is
+        // because that would trigger error tolerances
+        if (!state.close && lin_multiplier < 0) {
+            linear_output = 0_volt;
+        }
 
         this->drivetrain.moveArcade(linear_output, angular_output);
 
@@ -190,19 +217,33 @@ class boomerang : public Motion<ControllersType,
 
     // changer methods
 
-    [[nodiscard("motion won't be executed unless run or async are used!")]]
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
     auto reverse() {
         this->reversed = true;
 
         return this->getReference();
     }
 
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
     auto closeThreshold(Length threshold) {
         this->close_threshold = threshold;
         return this->getReference();
     }
 
-    [[nodiscard("motion won't be executed unless run or async are used!")]]
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
+    auto withLead(double lead) {
+        this->lead = lead;
+        return this->getReference();
+    }
+
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
+    auto customAngularLinearFunc(
+      std::function<double(Angle)> custom_angular_linear_func) {
+        angular_linear_func = custom_angular_linear_func;
+        return this->getReference();
+    }
+
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
     auto withTimeout(Time timeout) {
         this->timeout = timeout;
 

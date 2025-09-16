@@ -20,15 +20,13 @@ class Executor {
     virtual ~Executor() = default;
 };
 
-// TODO: might be able to fuse the functionality of the executors into one, but
-// is that better? (probably since async and chained commands would not have an
-// opportunity to run at the same time)
+// TODO: figure out a way to keep the motions from running at the same (maybe
+// passing a motion mutex)
 
 template<typename M>
 constexpr void operator|(M&& motion, Executor& executor) {
     // creates a copy of the temporary motion object and creates one owned by
     // the executor
-    // std::cout << "called operator!" << std::endl;
     executor.addMotion(
       std::move(std::make_unique<std::decay_t<M>>(std::forward<M>(motion))));
 }
@@ -38,20 +36,7 @@ class RunExecutor : public Executor {
     RunExecutor() {}
 
     // executes as soon as motion gets added
-    void addMotion(std::unique_ptr<MotionBase> motion) override {
-        while (true) {
-            // std::cout << "evaluating motion!" << std::endl;
-            auto result = motion->execute();
-
-            // finished motion, stop
-            if (result.finished) {
-                std::cout << "finished run motion!" << std::endl;
-                break;
-            }
-
-            pros::delay(motion->getLoopDelayTime());
-        }
-    }
+    void addMotion(std::unique_ptr<MotionBase> motion) override;
 };
 
 class AsyncExecutor : public Executor {
@@ -65,54 +50,29 @@ class AsyncExecutor : public Executor {
     AsyncExecutor() {}
 
     // executes as soon as motion gets added
-    void addMotion(std::unique_ptr<MotionBase> motion) override {
-        // wait until the queue is available
-        std::lock_guard lock(mutex);
-        motions.push(std::move(motion));
-    }
+    void addMotion(std::unique_ptr<MotionBase> motion) override;
 
-    void update() {
-        if (motions.empty()) {
-            // delay until a new motion is available
-            pros::delay(20);
-            return;
-        }
-        // there is a motion to perform
-        mutex.take();
-
-        std::unique_ptr<MotionBase>& current_motion = motions.front();
-        auto result = current_motion->execute();
-
-        mutex.give();
-
-        if (result.finished) {
-            // remove motion from queue, need to take the mutex again
-            mutex.take();
-            motions.pop();
-            mutex.give();
-
-            pros::delay(10);
-        } else {
-            pros::delay(current_motion->getLoopDelayTime());
-        }
-    }
+    void update();
 
     // start the async task
-    void init() {
-        pros::Task([this_ptr = this]() {
-            // breaks if the executor gets deleted for any reason
-            while (this_ptr != nullptr) {
-                this_ptr->update();
-            }
-        });
-    }
+    void init();
 
     // blocks until all the motions in the queue have finished
-    void wait() {
-        while (!motions.empty()) {
-            pros::delay(20);
-        }
-    }
+    void wait();
+
+    // moves on to the next motion immediately
+    void exitCurrent();
+
+    // clears all motions that were gonna be executed from queue
+    void exitAll();
+
+    // waits until the function returns true, after which it exists all queued
+    // motions
+    void runUntil(std::function<bool()> condition);
+};
+
+struct ChainOptions {
+    std::optional<Time> fuse_start_time = std::nullopt;
 };
 
 // similar to the async executor, however instead of immediately going from one
@@ -124,143 +84,40 @@ class ChainedExecutor : public Executor {
     std::optional<Time> fuse_start_time = std::nullopt;
     Time fusing_time;
 
+    std::function<Voltage(Voltage, Voltage, double)> chain_interpolation =
+      [](Voltage a, Voltage b, double t) {
+          return (1 - t) * a + t * b;
+      };
+
   protected:
     pros::Mutex mutex;
 
   public:
-    ChainedExecutor(Time fusing_time)
-        : fusing_time(fusing_time) {}
+    ChainedExecutor(Time fusing_time);
+
+    ChainedExecutor(Time fusing_time,
+                    std::function<Voltage(Voltage, Voltage, double)>
+                      custom_chain_interpolation);
 
     // executes as soon as motion gets added
-    void addMotion(std::unique_ptr<MotionBase> motion) override {
-        // wait until the queue is available
-        std::lock_guard lock(mutex);
-        motions.push_back(std::move(motion));
-    }
+    void addMotion(std::unique_ptr<MotionBase> motion) override;
 
-    void update() {
-        if (motions.empty()) {
-            // delay until a new motion is available
-            pros::delay(20);
-            return;
-        }
-        // there is a motion to perform
-        mutex.take();
-
-        std::unique_ptr<MotionBase>& current_motion = motions.front();
-
-        // attempt to disable the drivetrain
-        bool disabled_result = current_motion->setEnabledDrivetrain(false);
-
-        // run motion logic
-        auto result = current_motion->execute();
-
-        // starts fusing if any tolerance gets hit
-        if ((result.inSmallTolerance.value_or(false) ||
-             result.inLargeTolerance.value_or(false)) &&
-            !fuse_start_time) {
-            fuse_start_time = from_msec(pros::millis());
-            std::cout << "start fusing!" << std::endl;
-        }
-
-        // get current voltages
-        std::optional<std::vector<Voltage>> current_voltages =
-          current_motion->getVoltagesDrivetrain();
-
-        bool fusing_finished = false;
-
-        std::cout << "cant fuse: " << disabled_result << std::endl;
-
-        if (motions.size() >= 2 && fuse_start_time &&
-            // makes sure we can actually disable the drivetrain
-            disabled_result) {
-            std::unique_ptr<MotionBase>& next_motion = *next(motions.begin());
-
-            // NOTE: we must disable the next motion as well since it likely has
-            // a different drivetrain (motions tend to have own all the objects
-            // including the drivetrains)
-            next_motion->setEnabledDrivetrain(false);
-
-            // compute next motion
-            next_motion->execute();
-
-            // get its voltages
-            std::optional<std::vector<Voltage>> next_voltages =
-              next_motion->getVoltagesDrivetrain();
-
-            if (current_voltages && next_voltages &&
-                current_voltages->size() == next_voltages->size()) {
-
-                std::vector<Voltage> fused_voltages(current_voltages->size());
-
-                Time elapsed_time =
-                  from_msec(pros::millis()) - *fuse_start_time;
-                double normalized_time =
-                  units::clamp(elapsed_time / fusing_time, 0.0, 1.0);
-                std::cout << "fusing " << normalized_time << std::endl;
-
-                for (size_t i = 0; i < current_voltages->size(); i++) {
-                    // fuses between voltages with a simple lerp function
-                    fused_voltages[i] =
-                      (1 - normalized_time) * current_voltages->at(i) +
-                      normalized_time * next_voltages->at(i);
-                }
-
-                // move drivetrain based on these fused voltages
-                current_motion->setEnabledDrivetrain(true);
-                current_motion->moveVoltagesDrivetrain(fused_voltages);
-
-                // if we have spent enough time fusing, then just finish the
-                // previous motion
-                fusing_finished = elapsed_time > fusing_time;
-            } else if (current_voltages) {
-                // couldn't get the next voltages, just use the current ones
-                current_motion->setEnabledDrivetrain(true);
-                bool set_voltage_result =
-                  current_motion->moveVoltagesDrivetrain(*current_voltages);
-            } // else can't do anything since we don't know the voltages
-        } else {
-            // perform everything as usual
-            if (disabled_result && current_voltages) {
-                current_motion->setEnabledDrivetrain(true);
-                current_motion->moveVoltagesDrivetrain(*current_voltages);
-            }
-            // else the drivetrain was either never disabled or we don't know
-            // the voltages to use either way we don't do anything
-        }
-
-        // not using the queue anymore
-        mutex.give();
-
-        if (result.finished || fusing_finished) {
-            // remove motion from queue, need to take the mutex again
-            std::cout << "finished motion " << fusing_finished << std::endl;
-            mutex.take();
-            motions.pop_front();
-            mutex.give();
-            fuse_start_time = std::nullopt;
-
-            pros::delay(10);
-        } else {
-            pros::delay(current_motion->getLoopDelayTime());
-        }
-    }
+    void update();
 
     // start the async task
-    void init() {
-        pros::Task([this_ptr = this]() {
-            // breaks if the executor gets deleted for any reason
-            while (this_ptr != nullptr) {
-                this_ptr->update();
-            }
-        });
-    }
+    void init();
 
     // blocks until all the motions in the queue have finished
-    void wait() {
-        while (!motions.empty()) {
-            pros::delay(20);
-        }
-    }
+    void wait();
+
+    // exit current motion, moves onto next motion immediately
+    void exitCurrent();
+
+    // exits all motions that were gonna be executed from queue
+    void exitAll();
+
+    // waits until the function returns true, after which it exists all queued
+    // motions
+    void runUntil(std::function<bool()> condition);
 };
 } // namespace blazing

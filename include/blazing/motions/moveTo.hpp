@@ -11,6 +11,7 @@
 #include "blazing/utils.hpp"
 #include "units/Angle.hpp"
 #include "units/Vector2D.hpp"
+#include <functional>
 #include <iostream>
 
 namespace blazing {
@@ -41,6 +42,14 @@ class moveTo : public Motion<ControllersType,
     bool reversed = false;
     Length close_threshold = 4_in;
     bool overturn = false;
+
+    Voltage max_overturn_output = 1_volt;
+
+    // defaults to cosine of angle
+    std::function<double(Angle)> angular_linear_func =
+      [](Angle angle) -> double {
+        return units::cos(angle);
+    };
 
     std::optional<MoveToState> m_state;
 
@@ -95,33 +104,12 @@ class moveTo : public Motion<ControllersType,
 
         Angle angular_error = angleError(target_heading, heading);
 
-        auto angle_func = [](Angle angle) -> double {
-            // return units::cos(angle);
-
-            angle = units::abs(units::constrainAngle360(angle));
-
-            // defined on the range [0,pi/2]
-            auto func = [](double x) -> double {
-                if (x < 1.224747) {
-					// simple polynomial that delays linear output
-                    return 1.0 - 2.0 * (x * x) + 1.08866 * (x * x * x);
-                }
-                return 0.00001;
-            };
-
-            if (angle <= rot / 2.0) {
-                return func(angle.internal());
-            } else {
-                return -func(M_PI - angle.internal());
-            }
-        };
-
         // used for cosine scaling and applying correct sign for linear
         // error/output
-        Number lin_multiplier = angle_func(position_target_error);
+        Number lin_multiplier = angular_linear_func(position_target_error);
 
         // applies sign component here so that sign of error is accurate
-		// NOTE: sgn can be zero, which can set linear error to zero as well!
+        // NOTE: sgn can be zero, which can set linear error to zero as well!
         linear_error *= units::sgn(lin_multiplier) == 0 ?
                           Number(1.0) :
                           units::sgn(lin_multiplier);
@@ -197,11 +185,10 @@ class moveTo : public Motion<ControllersType,
                 angular_output);
         }
 
-        Voltage max_output = 1_volt;
-
         // apply overturn
-        Voltage overturn_value =
-          units::abs(linear_output) + units::abs(angular_output) - max_output;
+        Voltage overturn_value = units::abs(linear_output) +
+                                 units::abs(angular_output) -
+                                 max_overturn_output;
 
         if (overturn_value > 0_volt && overturn) {
             linear_output -= overturn_value * units::sgn(linear_output);
@@ -237,6 +224,7 @@ class moveTo : public Motion<ControllersType,
     }
 
   public:
+    [[nodiscard("motion won't be executed unless run or async are used!")]]
     moveTo(ControllersType controllers,
            Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
            Length x,
@@ -246,6 +234,7 @@ class moveTo : public Motion<ControllersType,
             chassis),
           target(x, y) {}
 
+    [[nodiscard("motion won't be executed unless run or async are used!")]]
     moveTo(ControllersType controllers,
            Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
            double x,
@@ -258,25 +247,35 @@ class moveTo : public Motion<ControllersType,
 
     // changer methods
 
-    [[nodiscard("motion won't be executed unless run or async are used!")]]
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
     auto reverse() {
         this->reversed = true;
 
         return this->getReference();
     }
 
-    auto withOverturn() {
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
+    auto withOverturn(Voltage max_overturn_output = 1_volt) {
         this->overturn = true;
+        this->max_overturn_output = max_overturn_output;
 
         return this->getReference();
     }
 
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
     auto closeThreshold(Length threshold) {
         this->close_threshold = threshold;
         return this->getReference();
     }
 
-    [[nodiscard("motion won't be executed unless run or async are used!")]]
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
+    auto customAngularLinearFunc(
+      std::function<double(Angle)> custom_angular_linear_func) {
+        angular_linear_func = custom_angular_linear_func;
+        return this->getReference();
+    }
+
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
     auto withTimeout(Time timeout) {
         this->timeout = timeout;
 

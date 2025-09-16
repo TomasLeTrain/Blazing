@@ -222,21 +222,21 @@ class distanceAtHeading : public Motion<ControllersType,
     }
 
     // changer methods
-    [[nodiscard("motion won't be executed unless run or async are used!")]]
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
     auto reverse() {
         this->reversed = true;
 
         return this->getReference();
     }
 
-    [[nodiscard("motion won't be executed unless run or async are used!")]]
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
     auto withTimeout(Time timeout) {
         this->timeout = timeout;
 
         return this->getReference();
     }
 
-    [[nodiscard("motion won't be executed unless run or async are used!")]]
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
     auto withDirection(std::optional<AngularDirection> direction) {
         this->direction = direction;
 

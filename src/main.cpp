@@ -72,20 +72,14 @@ pros::Imu imu(1);
 
 using namespace blazing;
 
-PID<Length, Voltage> lateral_pid(6,
-                                 0,
-                                 3,
-                                 std::nullopt,
-                                 std::nullopt,
-                                 50_msec,
-                                 1_in,
-                                 (1.0 / 127.0) * volt);
+PID<Length, Voltage>
+  lateral_pid(6, 0, 3, std::nullopt, 1, 50_msec, 1_in, (1.0 / 127.0) * volt);
 
 PID<Angle, Voltage> angular_pid(2.8,
                                 0.0,
                                 5,
                                 std::nullopt,
-                                std::nullopt,
+                                1,
                                 50_msec,
                                 (1_stDeg),
                                 (1.0 / 127.0) * volt);
@@ -146,11 +140,36 @@ DefaultTolerances tolerances(linearTolerances,
 
 Chassis chassis(drivetrain, pose_tracker, tolerances);
 
-MotionBuilder mb(chassis, controllers);
-
 RunExecutor run;
 AsyncExecutor async;
-ChainedExecutor chain(300_msec);
+
+auto chain_lerp = [](Voltage a, Voltage b, double t) -> Voltage {
+    return (1 - t) * a + t * b;
+};
+
+auto angular_linear_func = [](Angle angle) -> double {
+    angle = units::abs(units::constrainAngle180(angle));
+
+    // defined on the range [0,pi/2]
+    auto func = [](double x) -> double {
+        if (x < 1.224747) {
+            // simple polynomial that delays linear output
+            return 1.0 - 2.0 * (x * x) + 1.08866 * (x * x * x);
+        }
+        return 0.00001;
+    };
+
+    // makes this function apply on the range [-pi,pi]
+    if (angle <= rot / 2.0) {
+        return func(angle.internal());
+    } else {
+        return -func(M_PI - angle.internal());
+    }
+};
+
+MotionBuilder mb(chassis, controllers);
+
+ChainedExecutor chain(300_msec, chain_lerp);
 
 void initialize() {
     pros::lcd::initialize();
@@ -162,7 +181,7 @@ void initialize() {
 }
 
 void opcontrol() {
-    // needed for async motions to run
+    // needed for async/chain motions to run
     async.init();
     chain.init();
 
@@ -171,6 +190,12 @@ void opcontrol() {
             pose_tracker.update();
             pros::delay(10);
         }
+    });
+
+    // change all moveTo movements to use custom angularLinear function and go
+    // in reverse
+    mb.setMoveToModifier([=](auto moveTo) {
+        return moveTo.customAngularLinearFunc(angular_linear_func).reverse();
     });
 
     pros::delay(100);
@@ -209,7 +234,9 @@ void opcontrol() {
 
     pose_tracker.setPose({ 12_in, -12_in, 135_stDeg });
 
-    mb.moveTo(20, -20).reverse() | chain;
+    mb.moveTo(20, -20) | run;
+
+    mb.moveTo(20, -20) | chain;
     mb.moveTo(24, 24) | chain;
 
     // mb.turnTo(-90_stDeg) | run;
