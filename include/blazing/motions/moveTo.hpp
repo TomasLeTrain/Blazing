@@ -68,15 +68,7 @@ class moveTo : public Motion<ControllersType,
         MoveToState& state = m_state.value();
         motionExecutionResult result;
 
-        Time current_time = from_msec(pros::millis());
-
-        Time delta_time = state.last_time
-                            .transform([current_time](Time last_time) -> Time {
-                                return current_time - last_time;
-                            })
-                            .value_or(0.0_sec);
-
-        state.last_time = current_time;
+		Time delta_time = getDeltaTime(state.last_time);
 
         const units::V2Position position = this->tracker.getPosition();
         const Angle heading = [&] -> Angle {
@@ -110,9 +102,7 @@ class moveTo : public Motion<ControllersType,
 
         // applies sign component here so that sign of error is accurate
         // NOTE: sgn can be zero, which can set linear error to zero as well!
-        linear_error *= units::sgn(lin_multiplier) == 0 ?
-                          Number(1.0) :
-                          units::sgn(lin_multiplier);
+        linear_error *= signed_sgn(lin_multiplier);
 
         this->tolerances.linearErrorToleranceUpdate(linear_error);
         this->tolerances.linearVelocityToleranceUpdate(
@@ -168,7 +158,8 @@ class moveTo : public Motion<ControllersType,
         // robot should turn around until it should start moving towards the
         // target
         // the reason that this is done to linear_output and not linear_error is
-        // because that would trigger error tolerances
+        // because otherwise linear_error would be zero and tolerances would
+        // trigger
         if (!state.close && lin_multiplier < 0) {
             linear_output = 0_volt;
         }

@@ -93,12 +93,12 @@ void AsyncExecutor::runUntil(std::function<bool()> condition) {
 // -- Chained methods
 
 ChainedExecutor::ChainedExecutor(Time fusing_time)
-    : fusing_time(fusing_time) {}
+    : default_fusing_duration(fusing_time) {}
 
 ChainedExecutor::ChainedExecutor(
-  Time fusing_time,
+  Time default_fuse_duration,
   std::function<Voltage(Voltage, Voltage, double)> custom_chain_interpolation)
-    : fusing_time(fusing_time),
+    : default_fusing_duration(default_fuse_duration),
       chain_interpolation(custom_chain_interpolation) {}
 
 // executes as soon as motion gets added
@@ -165,9 +165,8 @@ void ChainedExecutor::update() {
             Time elapsed_time = from_msec(pros::millis()) - *fuse_start_time;
 
             // use custom chain time from next motion if specified
-            Time fusing_duration = next_motion->getChainTime() ?
-                                     *next_motion->getChainTime() :
-                                     fusing_time;
+            Time fusing_duration =
+              next_motion->getChainTime().value_or(default_fusing_duration);
 
             double normalized_time =
               units::clamp(elapsed_time / fusing_duration, 0.0, 1.0);
@@ -187,21 +186,16 @@ void ChainedExecutor::update() {
 
             // if we have spent enough time fusing, then just finish the
             // previous motion
-            fusing_finished = elapsed_time > fusing_time;
-        } else if (current_voltages) {
-            // couldn't get the next voltages, just use the current ones
-            current_motion->setEnabledDrivetrain(true);
-            bool set_voltage_result =
-              current_motion->moveVoltagesDrivetrain(*current_voltages);
-        } // else can't do anything since we don't know the voltages
-    } else {
-        // perform everything as usual
-        if (disabled_result && current_voltages) {
+            fusing_finished = elapsed_time > fusing_duration;
+        } else {
+            // mismatch in drivetrains, just perform the current one as usual
             current_motion->setEnabledDrivetrain(true);
             current_motion->moveVoltagesDrivetrain(*current_voltages);
         }
-        // else the drivetrain was either never disabled or we don't
-        // know the voltages to use either way we don't do anything
+    } else {
+        // perform everything current motion normally
+        current_motion->setEnabledDrivetrain(true);
+        current_motion->moveVoltagesDrivetrain(*current_voltages);
     }
 
     // not using the queue anymore

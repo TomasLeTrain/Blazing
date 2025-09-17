@@ -82,7 +82,7 @@ class ChainedExecutor : public Executor {
   private:
     std::list<std::unique_ptr<MotionBase>> motions;
     std::optional<Time> fuse_start_time = std::nullopt;
-    Time fusing_time;
+    Time default_fusing_duration;
 
     std::function<Voltage(Voltage, Voltage, double)> chain_interpolation =
       [](Voltage a, Voltage b, double t) {
@@ -95,7 +95,7 @@ class ChainedExecutor : public Executor {
   public:
     ChainedExecutor(Time fusing_time);
 
-    ChainedExecutor(Time fusing_time,
+    ChainedExecutor(Time default_fuse_duration,
                     std::function<Voltage(Voltage, Voltage, double)>
                       custom_chain_interpolation);
 

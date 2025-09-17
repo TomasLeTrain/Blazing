@@ -13,7 +13,7 @@
 #include <iostream>
 
 namespace blazing {
-struct MoveToState {
+struct BoomerangState {
     std::optional<Time> last_time;
     Time start_time;
 
@@ -48,7 +48,7 @@ class boomerang : public Motion<ControllersType,
         return units::cos(angle);
     };
 
-    std::optional<MoveToState> m_state;
+    std::optional<BoomerangState> m_state;
 
     int getLoopDelayTime() override {
         return 10;
@@ -62,18 +62,10 @@ class boomerang : public Motion<ControllersType,
                         .prev_position = this->tracker.getPosition() };
         }
 
-        MoveToState& state = m_state.value();
+        BoomerangState& state = m_state.value();
         motionExecutionResult result;
 
-        Time current_time = from_msec(pros::millis());
-
-        Time delta_time = state.last_time
-                            .transform([current_time](Time last_time) -> Time {
-                                return current_time - last_time;
-                            })
-                            .value_or(0.0_sec);
-
-        state.last_time = current_time;
+        Time delta_time = getDeltaTime(state.last_time);
 
         const units::V2Position position = this->tracker.getPosition();
 
@@ -115,10 +107,7 @@ class boomerang : public Motion<ControllersType,
         Number lin_multiplier = angular_linear_func(position_carrot_error);
 
         // applies sign component here so that sign of error is accurate
-        // NOTE: sgn can be zero, which can set linear error to zero as well!
-        linear_error *= units::sgn(lin_multiplier) == 0 ?
-                          Number(1.0) :
-                          units::sgn(lin_multiplier);
+        linear_error *= signed_sgn(lin_multiplier);
 
         // update tolerances if they are included
         this->tolerances.linearErrorToleranceUpdate(linear_error);

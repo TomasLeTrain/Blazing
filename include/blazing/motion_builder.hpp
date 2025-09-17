@@ -3,6 +3,8 @@
 #include "blazing/motions/distance_at_heading.hpp"
 #include "blazing/motions/moveTo.hpp"
 #include "blazing/motions/turnTo.hpp"
+#include "motions/boomerang.hpp"
+#include <iterator>
 
 namespace blazing {
 
@@ -20,9 +22,21 @@ class MotionBuilder {
                                        typename Chassis::drivetrainType,
                                        typename Chassis::trackerType,
                                        typename Chassis::tolerancesType>;
+    using distanceAtHeadingType =
+      blazing::distanceAtHeading<Controllers,
+                                 typename Chassis::drivetrainType,
+                                 typename Chassis::trackerType,
+                                 typename Chassis::tolerancesType>;
+    using boomerangType = blazing::boomerang<Controllers,
+                                             typename Chassis::drivetrainType,
+                                             typename Chassis::trackerType,
+                                             typename Chassis::tolerancesType>;
 
     using MoveToModifier = std::function<moveToType(moveToType)>;
     using TurnToModifier = std::function<turnToType(turnToType)>;
+    using DistanceAtHeadingModifier =
+      std::function<distanceAtHeadingType(distanceAtHeadingType)>;
+    using BoomerangModifier = std::function<boomerangType(boomerangType)>;
 
     MoveToModifier moveToModifier = [](moveToType moveTo) {
         return moveTo;
@@ -30,19 +44,35 @@ class MotionBuilder {
     TurnToModifier turnToModifier = [](turnToType turnTo) {
         return turnTo;
     };
+    DistanceAtHeadingModifier distanceAtHeadingModifier =
+      [](distanceAtHeadingType distanceAtHeading) {
+          return distanceAtHeading;
+      };
+    BoomerangModifier boomerangModifier = [](boomerangType boomerang) {
+        return boomerang;
+    };
 
   public:
     MotionBuilder(Chassis chassis, Controllers controllers)
         : chassis(chassis),
           controllers(controllers) {}
 
-	void setMoveToModifier(MoveToModifier customModifier){
-		moveToModifier = customModifier;
-	}
+    void setMoveToModifier(MoveToModifier customModifier) {
+        moveToModifier = customModifier;
+    }
 
-	void setTurnToModifier(TurnToModifier customModifier){
-		turnToModifier = customModifier;
-	}
+    void setTurnToModifier(TurnToModifier customModifier) {
+        turnToModifier = customModifier;
+    }
+
+    void
+    setDistanceAtHeadingModifier(DistanceAtHeadingModifier customModifier) {
+        distanceAtHeadingModifier = customModifier;
+    }
+
+    void setBoomerangModifier(BoomerangModifier customModifier) {
+        boomerangModifier = customModifier;
+    }
 
     [[nodiscard("motion won't be executed unless run or async are used!")]]
     moveToType moveTo(Length x, Length y) {
@@ -75,31 +105,53 @@ class MotionBuilder {
     }
 
     [[nodiscard("motion won't be executed unless run or async are used!")]]
-    auto distanceAtHeading(Length target_distance) {
-        return blazing::distanceAtHeading(controllers,
-                                          chassis,
-                                          target_distance);
+    distanceAtHeadingType distanceAtHeading(Length target_distance) {
+        return distanceAtHeadingModifier(
+          blazing::distanceAtHeading(controllers, chassis, target_distance));
     }
 
     [[nodiscard("motion won't be executed unless run or async are used!")]]
-    auto distanceAtHeading(double target_distance) {
-        return blazing::turnTo(controllers, chassis, target_distance);
+    distanceAtHeadingType distanceAtHeading(double target_distance) {
+        return distanceAtHeadingModifier(
+          blazing::distanceAtHeading(controllers, chassis, target_distance));
     }
 
     [[nodiscard("motion won't be executed unless run or async are used!")]]
-    auto distanceAtHeading(Length target_distance, Angle target_heading) {
-        return blazing::turnTo(controllers,
-                               chassis,
-                               target_distance,
-                               target_heading);
+    distanceAtHeadingType distanceAtHeading(Length target_distance,
+                                            Angle target_heading) {
+        return distanceAtHeadingModifier(
+          blazing::distanceAtHeading(controllers,
+                                     chassis,
+                                     target_distance,
+                                     target_heading));
     }
 
     [[nodiscard("motion won't be executed unless run or async are used!")]]
-    auto distanceAtHeading(double target_distance, double target_heading) {
-        return blazing::turnTo(controllers,
-                               chassis,
-                               target_distance,
-                               target_heading);
+    distanceAtHeadingType distanceAtHeading(double target_distance,
+                                            double target_heading) {
+        return distanceAtHeadingModifier(
+          blazing::distanceAtHeading(controllers,
+                                     chassis,
+                                     target_distance,
+                                     target_heading));
+    }
+
+    [[nodiscard("motion won't be executed unless run or async are used!")]]
+    boomerangType boomerang(units::Pose pose) {
+        return boomerangModifier(
+          blazing::boomerang(controllers, chassis, pose));
+    }
+
+    [[nodiscard("motion won't be executed unless run or async are used!")]]
+    boomerangType boomerang(Length x, Length y, Angle heading) {
+        return boomerangModifier(
+          blazing::boomerang(controllers, chassis, x, y, heading));
+    }
+
+    [[nodiscard("motion won't be executed unless run or async are used!")]]
+    boomerangType boomerang(double x, double y, double heading) {
+        return boomerangModifier(
+          blazing::boomerang(controllers, chassis, x, y, heading));
     }
 };
 } // namespace blazing

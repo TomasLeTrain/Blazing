@@ -67,15 +67,7 @@ class turnTo : public Motion<ControllersType,
         TurnToState& state = m_state.value();
         motionExecutionResult result;
 
-        Time current_time = from_msec(pros::millis());
-
-        Time delta_time = state.last_time
-                            .transform([current_time](Time last_time) -> Time {
-                                return current_time - last_time;
-                            })
-                            .value_or(0.0_sec);
-
-        state.last_time = current_time;
+		Time delta_time = getDeltaTime(state.last_time);
 
         const Angle heading = [&] -> Angle {
             const Angle heading = this->tracker.getAngle();

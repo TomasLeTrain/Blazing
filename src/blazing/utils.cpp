@@ -1,4 +1,5 @@
 #include "blazing/utils.hpp"
+#include "pros/rtos.hpp"
 
 namespace blazing {
 
@@ -47,5 +48,15 @@ std::array<T, size> desaturate(std::array<T, size> saturated, T max) {
 // TODO: move desaturate to header file to avoid having to do this
 template std::array<Voltage, 2>
 desaturate<Voltage, 2>(std::array<Voltage, 2> saturated, Voltage max);
+
+Time getDeltaTime(std::optional<Time>& last_time) {
+    Time current_time = from_msec(pros::millis());
+    return last_time
+      .transform([current_time](Time last_time) -> Time {
+          return current_time - last_time;
+      })
+      .value_or(0.0_sec);
+    last_time = current_time;
+}
 
 } // namespace blazing
