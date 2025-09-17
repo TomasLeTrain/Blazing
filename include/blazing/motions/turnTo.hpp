@@ -2,6 +2,7 @@
 
 #include "blazing/controllers/controllers.hpp"
 #include "blazing/controllers/slew.hpp"
+#include "blazing/controllers/voltage_clamp.hpp"
 #include "blazing/drivetrains/drivetrain.hpp"
 #include "blazing/motions/motion.hpp"
 #include "blazing/tolerances.hpp"
@@ -67,7 +68,7 @@ class turnTo : public Motion<ControllersType,
         TurnToState& state = m_state.value();
         motionExecutionResult result;
 
-		Time delta_time = getDeltaTime(state.last_time);
+        Time delta_time = getDeltaTime(state.last_time);
 
         const Angle heading = [&] -> Angle {
             const Angle heading = this->tracker.getAngle();
@@ -161,13 +162,18 @@ class turnTo : public Motion<ControllersType,
 
         Voltage linear_output = 0_volt;
 
+        // apply voltage constraints
+        if constexpr (hasAngularVoltageClampController<ControllersType>) {
+            angular_output =
+              this->controllers.angular_voltage_clamp_controller.apply(
+                angular_output);
+        }
+
         // apply slew
         if constexpr (hasAngularSlewController<ControllersType>) {
-            std::cout << "slew  " << angular_output << std::endl;
             angular_output =
               this->controllers.angular_slew_controller.apply(angular_output,
                                                               delta_time);
-            std::cout << "ahh  " << angular_output << std::endl;
         }
 
         this->drivetrain.moveArcade(linear_output, angular_output);

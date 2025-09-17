@@ -2,6 +2,8 @@
 
 #include "blazing/chassis.hpp"
 #include "blazing/controllers/feedback/feedback.hpp"
+#include "blazing/controllers/slew.hpp"
+#include "blazing/controllers/voltage_clamp.hpp"
 #include "blazing/drivetrains/drivetrain.hpp"
 #include "blazing/motions/motion.hpp"
 #include "blazing/tolerances.hpp"
@@ -41,6 +43,9 @@ class boomerang : public Motion<ControllersType,
     bool reversed = false;
     double lead = 0.5;
     Length close_threshold = 4_in;
+    bool overturn = false;
+
+    Voltage max_overturn_output = 1_volt;
 
     // defaults to cosine of angle
     std::function<double(Angle)> angular_linear_func =
@@ -168,6 +173,51 @@ class boomerang : public Motion<ControllersType,
             linear_output = 0_volt;
         }
 
+        // apply min voltage constraints
+        if constexpr (hasLinearVoltageClampController<ControllersType>) {
+            linear_output =
+              this->controllers.linear_voltage_clamp_controller.applyMin(
+                linear_output);
+        }
+        if constexpr (hasAngularVoltageClampController<ControllersType>) {
+            angular_output =
+              this->controllers.angular_voltage_clamp_controller.applyMin(
+                angular_output);
+        }
+
+        // apply overturn
+        Voltage overturn_value = units::abs(linear_output) +
+                                 units::abs(angular_output) -
+                                 max_overturn_output;
+
+        if (overturn_value > 0_volt && overturn) {
+            linear_output -= overturn_value * units::sgn(linear_output);
+        }
+
+        // apply max voltage constraints
+        if constexpr (hasLinearVoltageClampController<ControllersType>) {
+            linear_output =
+              this->controllers.linear_voltage_clamp_controller.applyMax(
+                linear_output);
+        }
+        if constexpr (hasAngularVoltageClampController<ControllersType>) {
+            angular_output =
+              this->controllers.angular_voltage_clamp_controller.applyMax(
+                angular_output);
+        }
+
+        // apply slew
+        if constexpr (hasLinearSlewController<ControllersType>) {
+            linear_output =
+              this->controllers.linear_slew_controller.apply(linear_output,
+                                                             delta_time);
+        }
+        if constexpr (hasAngularSlewController<ControllersType>) {
+            angular_output =
+              this->controllers.angular_slew_controller.apply(angular_output,
+                                                              delta_time);
+        }
+
         this->drivetrain.moveArcade(linear_output, angular_output);
 
         return result;
@@ -209,6 +259,14 @@ class boomerang : public Motion<ControllersType,
     [[nodiscard("motion won't be executed unless an executor is used!")]]
     auto reverse() {
         this->reversed = true;
+
+        return this->getReference();
+    }
+
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
+    auto withOverturn(Voltage max_overturn_output = 1_volt) {
+        this->overturn = true;
+        this->max_overturn_output = max_overturn_output;
 
         return this->getReference();
     }

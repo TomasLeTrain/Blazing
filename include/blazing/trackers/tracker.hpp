@@ -5,6 +5,8 @@
 #include <concepts>
 
 namespace blazing {
+// tracker concepts
+
 template<typename Q>
 concept angleTracker = requires(Q q) {
     { q.getAngle() } -> std::same_as<Angle>;
@@ -34,34 +36,5 @@ concept angularVelocityTracker = requires(Q q) {
 };
 template<typename Q>
 concept velocityTracker = linearVelocityTracker<Q> && angularVelocityTracker<Q>;
-
-class PoseTracker {
-  public:
-    PoseTracker() {}
-
-    Angle getAngle() {
-        return 67_stDeg;
-    }
-
-    units::V2Position getPosition() {
-        return { 2_in, 3_in };
-    }
-
-    LinearVelocity getLinearVelocity() {
-        return 1_inps;
-    }
-
-    AngularVelocity getAngularVelocity() {
-        return 1_degps;
-    }
-	Length getForwardTravel() {
-		return 1_in;
-	}
-};
-
-// class PositionOnlyTracker {
-//   public:
-//     units::V2Position getPosition() {}
-// };
 
 } // namespace blazing

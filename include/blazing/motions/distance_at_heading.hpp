@@ -1,5 +1,7 @@
 #pragma once
 
+#include "blazing/controllers/slew.hpp"
+#include "blazing/controllers/voltage_clamp.hpp"
 #include "blazing/drivetrains/drivetrain.hpp"
 #include "blazing/motions/motion.hpp"
 #include "blazing/tolerances.hpp"
@@ -64,7 +66,7 @@ class distanceAtHeading : public Motion<ControllersType,
         DistanceAtHeadingState& state = m_state.value();
         motionExecutionResult result;
 
-		Time delta_time = getDeltaTime(state.last_time);
+        Time delta_time = getDeltaTime(state.last_time);
 
         Length forward_travel = this->tracker.getForwardTravel();
         const Angle heading = [&] {
@@ -103,38 +105,32 @@ class distanceAtHeading : public Motion<ControllersType,
             tolerance = tolerance.value_or(true) && curr_in_tolerance;
         };
 
-		// get set to true if either normal/large tolerances are finished
+        // get set to true if either normal/large tolerances are finished
         state.angular_settled = false;
         state.linear_settled = false;
 
         // check tolerances
         if constexpr (hasLinearTolerance<TolerancesType>) {
-            bool curr_in_tolerance = this->tolerances.linear.withinTolerance();
-
-            updateTolerance(result.inSmallTolerance, curr_in_tolerance);
+            updateTolerance(result.inSmallTolerance,
+                            this->tolerances.linear.withinTolerance());
 
             state.linear_settled |= this->tolerances.linear.finished();
         }
         if constexpr (hasLargeLinearTolerance<TolerancesType>) {
-            bool curr_in_tolerance =
-              this->tolerances.large_linear.withinTolerance();
-
-            updateTolerance(result.inLargeTolerance, curr_in_tolerance);
+            updateTolerance(result.inLargeTolerance,
+                            this->tolerances.large_linear.withinTolerance());
 
             state.linear_settled |= this->tolerances.large_linear.finished();
         }
         if constexpr (hasAngularTolerance<TolerancesType>) {
-            bool curr_in_tolerance = this->tolerances.angular.withinTolerance();
-
-            updateTolerance(result.inSmallTolerance, curr_in_tolerance);
+            updateTolerance(result.inSmallTolerance,
+                            this->tolerances.angular.withinTolerance());
 
             state.angular_settled |= this->tolerances.angular.finished();
         }
         if constexpr (hasLargeAngularTolerance<TolerancesType>) {
-            bool curr_in_tolerance =
-              this->tolerances.large_angular.withinTolerance();
-
-            updateTolerance(result.inLargeTolerance, curr_in_tolerance);
+            updateTolerance(result.inLargeTolerance,
+                            this->tolerances.large_angular.withinTolerance());
 
             state.angular_settled |= this->tolerances.large_angular.finished();
         }
@@ -166,6 +162,30 @@ class distanceAtHeading : public Motion<ControllersType,
           this->controllers.linear_feedback_controller.update(-linear_error,
                                                               0_in,
                                                               delta_time);
+
+        // apply voltage constraints
+        if constexpr (hasLinearVoltageClampController<ControllersType>) {
+            linear_output =
+              this->controllers.linear_voltage_clamp_controller.apply(
+                linear_output);
+        }
+        if constexpr (hasAngularVoltageClampController<ControllersType>) {
+            angular_output =
+              this->controllers.angular_voltage_clamp_controller.apply(
+                angular_output);
+        }
+
+        // apply slew
+        if constexpr (hasLinearSlewController<ControllersType>) {
+            linear_output =
+              this->controllers.linear_slew_controller.apply(linear_output,
+                                                             delta_time);
+        }
+        if constexpr (hasAngularSlewController<ControllersType>) {
+            angular_output =
+              this->controllers.angular_slew_controller.apply(angular_output,
+                                                              delta_time);
+        }
 
         this->drivetrain.moveArcade(linear_output, angular_output);
 

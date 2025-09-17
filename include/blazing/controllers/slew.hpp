@@ -36,7 +36,7 @@ class SlewController {
             // return output;
         }
 
-        auto output_vel = delta_time.internal() == 0 ?
+        auto output_vel = delta_time == 0_sec ?
                             0.0_volt / sec :
                             (output - *last_output) / delta_time;
 
