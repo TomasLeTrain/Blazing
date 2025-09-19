@@ -41,9 +41,7 @@ class moveTo : public Motion<ControllersType,
     std::optional<Time> timeout = std::nullopt;
     bool reversed = false;
     Length close_threshold = 4_in;
-    bool overturn = false;
-
-    Voltage max_overturn_output = 1_volt;
+	std::optional<Voltage> max_overturn_output = std::nullopt;
 
     // defaults to cosine of angle
     std::function<double(Angle)> angular_linear_func =
@@ -99,6 +97,7 @@ class moveTo : public Motion<ControllersType,
         // used for cosine scaling and applying correct sign for linear
         // error/output
         Number lin_multiplier = angular_linear_func(position_target_error);
+		std::cout << "lin: " << lin_multiplier << std::endl;
 
         // applies sign component here so that sign of error is accurate
         // NOTE: sgn can be zero, which can set linear error to zero as well!
@@ -149,6 +148,7 @@ class moveTo : public Motion<ControllersType,
           this->controllers.linear_feedback_controller.update(-linear_error,
                                                               0.0_in,
                                                               delta_time);
+		std::cout << "pids: " << linear_output << " " << angular_output << std::endl;
 
         // sign was already applied to error, only applies cosine scaling
         // component
@@ -176,14 +176,16 @@ class moveTo : public Motion<ControllersType,
                 angular_output);
         }
 
-        // apply overturn
-        Voltage overturn_value = units::abs(linear_output) +
-                                 units::abs(angular_output) -
-                                 max_overturn_output;
+		if(max_overturn_output){
+			// apply overturn
+			Voltage overturn_value = units::abs(linear_output) +
+									 units::abs(angular_output) -
+									 *max_overturn_output;
 
-        if (overturn_value > 0_volt && overturn) {
-            linear_output -= overturn_value * units::sgn(linear_output);
-        }
+			if (overturn_value > 0_volt) {
+				linear_output -= overturn_value * units::sgn(linear_output);
+			}
+		}
 
         // apply max voltage constraints
         if constexpr (hasLinearVoltageClampController<ControllersType>) {
@@ -247,7 +249,6 @@ class moveTo : public Motion<ControllersType,
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
     auto withOverturn(Voltage max_overturn_output = 1_volt) {
-        this->overturn = true;
         this->max_overturn_output = max_overturn_output;
 
         return this->getReference();

@@ -51,12 +51,17 @@ desaturate<Voltage, 2>(std::array<Voltage, 2> saturated, Voltage max);
 
 Time getDeltaTime(std::optional<Time>& last_time) {
     Time current_time = from_msec(pros::millis());
-    return last_time
-      .transform([current_time](Time last_time) -> Time {
-          return current_time - last_time;
-      })
-      .value_or(0.0_sec);
+
+    // can't return becaue we need to set last_time!
+    auto result = last_time
+                    .transform([current_time](Time last_time) -> Time {
+                        return current_time - last_time;
+                    })
+                    .value_or(0.0_sec);
+
     last_time = current_time;
+
+    return result;
 }
 
 } // namespace blazing

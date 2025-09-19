@@ -161,9 +161,11 @@ class turnTo : public Motion<ControllersType,
                                                                delta_time);
 
         Voltage linear_output = 0_volt;
+		// std::cout << "ang " << angular_output << std::endl;
 
         // apply voltage constraints
         if constexpr (hasAngularVoltageClampController<ControllersType>) {
+			std::cout << "not happening" << std::endl;
             angular_output =
               this->controllers.angular_voltage_clamp_controller.apply(
                 angular_output);
@@ -171,6 +173,7 @@ class turnTo : public Motion<ControllersType,
 
         // apply slew
         if constexpr (hasAngularSlewController<ControllersType>) {
+			std::cout << "not happening" << std::endl;
             angular_output =
               this->controllers.angular_slew_controller.apply(angular_output,
                                                               delta_time);

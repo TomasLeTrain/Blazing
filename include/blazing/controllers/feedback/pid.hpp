@@ -36,9 +36,9 @@ class PID {
     Input m_inputUnits = Input(1);
     Output m_outputUnits = Output(1);
 
-    KP_t<Input, Output> UKP = KP_t<Input, Output>(1);
-    KI_t<Input, Output> UKI = KI_t<Input, Output>(1);
-    KD_t<Input, Output> UKD = KD_t<Input, Output>(1);
+    KP_t<Input, Output> UKP;
+    KI_t<Input, Output> UKI;
+    KD_t<Input, Output> UKD;
 
     PID(KP_t<Input, Output> kP,
         KI_t<Input, Output> kI,
@@ -79,7 +79,8 @@ class PID {
                 return maxVoltage * outputUnits;
             })) {
         // std::cout << "constructor 2 called " << std::endl;
-        // std::cout << " tf " << mkP * UKP << " " << mkI * UKI << " " << mkD * UKD
+        // std::cout << " tf " << mkP * UKP << " " << mkI * UKI << " " << mkD *
+        // UKD
         //           << std::endl;
         // std::cout << " tf " << kP << " " << kI << " " << kD << std::endl;
     }
@@ -90,7 +91,7 @@ class PID {
     }
 
     Output update(Input measurement, Input target, Time dt) {
-		Input error = target - measurement;
+        Input error = target - measurement;
 
         if (!previousError) previousError = error;
 
@@ -117,15 +118,16 @@ class PID {
 
         // std::cout << "[PID] UKP/I/D: " << UKP << " " << UKI << " " << UKD
         //           << std::endl;
-        // std::cout << "[PID] error/kp/integral/ki/der/kd: " << error << " " << kP
+        // std::cout << "[PID] error/kp/integral/ki/der/kd: " << error << " " <<
+        // kP
         //           << " " << integral << " " << kI << " " << derivative << " "
         //           << kD << std::endl;
         //
         // std::cout << "[PID] unclamped result: " << result;
 
-        result = units::clamp(result,
-                              -maxVoltage.value_or(100_volt),
-                              maxVoltage.value_or(100_volt));
+        if (maxVoltage) {
+            result = units::clamp(result, -(*maxVoltage), *maxVoltage);
+        }
         // std::cout << ", clamped result: " << result << std::endl;
 
         return result;
