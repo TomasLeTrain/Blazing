@@ -127,7 +127,8 @@ void ChainedExecutor::update() {
 
     // starts fusing if any tolerance gets hit
     if ((result.inSmallTolerance.value_or(false) ||
-         result.inLargeTolerance.value_or(false)) &&
+         result.inLargeTolerance.value_or(false) ||
+         result.inChainTolerance.value_or(false)) &&
         !fuse_start_time) {
         fuse_start_time = from_msec(pros::millis());
         std::cout << "start fusing!" << std::endl;

@@ -132,6 +132,11 @@ class boomerang : public Motion<ControllersType,
               this->tolerances.large_linear.withinTolerance();
             result.finished |= this->tolerances.large_linear.finished();
         }
+        // dont use to check if we have finished
+        if constexpr (hasChainLinearTolerance<TolerancesType>) {
+            result.inChainTolerance =
+              this->tolerances.chain_linear.withinTolerance();
+        }
 
         // check timeout
         result.finished |=

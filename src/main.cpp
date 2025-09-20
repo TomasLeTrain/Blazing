@@ -10,6 +10,7 @@
 #include "blazing/motions/distance_at_heading.hpp"
 #include "blazing/motions/moveTo.hpp"
 #include "blazing/motions/turnTo.hpp"
+#include "blazing/tolerances.hpp"
 #include "blazing/trackers/simple_odom.hpp"
 #include "blazing/utils.hpp"
 #include "pros/misc.h"
@@ -74,40 +75,32 @@ pros::Controller master(pros::E_CONTROLLER_MASTER);
 
 using namespace blazing;
 
-PID<Length, Voltage> lateral_pid(6,
-                                 0,
-                                 3,
-                                 std::nullopt,
-                                 127,
-                                 50_msec,
-                                 1_in,
-                                 (1.0 / 127.0) * volt);
+PID<Length, Voltage>
+  lateral_pid(6, 0, 3, 5, 127, 50_msec, 1_in, (1.0 / 127.0) * volt);
 
 PID<Angle, Voltage> angular_pid(2.8,
                                 0.0,
+                                10,
                                 5,
-                                std::nullopt,
-                                std::nullopt,
-                                // 127,
+                                // std::nullopt,
+                                127,
                                 50_msec,
                                 (1_stDeg),
                                 (1.0 / 127.0) * volt);
 
-Controllers controllers {
-    // pid controllers
-    PIDLinearController(lateral_pid),
-    PIDAngularController(angular_pid),
-    // slew controllers
+Controllers controllers(
+  // pid controllers
+  PIDLinearController(lateral_pid),
+  PIDAngularController(angular_pid),
 
-    LinearSlewController(0.3_volt),
+  // slew controllers
+  LinearSlewController(0.3_volt)
+  // AngularSlewController(0.6_volt),
 
-    AngularSlewController(0.6_volt),
-
-
-    // // min/max voltage controllers
-    // LinearVoltageClampController(1.0_volt),
-    // AngularVoltageClampController(1.0_volt),
-};
+  // voltage constraints controllers
+  // LinearVoltageClampController(1.0_volt),
+  // AngularVoltageClampController(1.0_volt),
+);
 
 DifferentialDrivetrain drivetrain(&left_motors, &right_motors);
 
@@ -127,26 +120,31 @@ Tolerances linearTolerances(200_msec,
                             VelocityTolerance { 10_inps });
 // HalfCircleTolerance { 1_in });
 
-Tolerances angularTolerances(150_sec,
-                             ErrorTolerance { 3_stDeg },
-                             VelocityTolerance { 30_degps });
+Tolerances angularTolerances(150_msec,
+                             ErrorTolerance { 4_stDeg },
+                             VelocityTolerance { 40_degps });
 
-Tolerances largeLinearTolerances(500_msec,
-                                 // ErrorTolerance { 6_in },
-                                 ErrorTolerance { 14_in },
-                                 VelocityTolerance { 50_inps });
-// HalfCircleTolerance { 10_in });
+// large tolerances
+Tolerances largeLinearTolerances(1_sec,
+                                 ErrorTolerance { 5_in },
+                                 VelocityTolerance { 30_inps });
 
-Tolerances largeAngularTolerances(100_sec,
-                                  // ErrorTolerance { 5_stDeg },
-                                  // VelocityTolerance { 40_degps });
+Tolerances largeAngularTolerances(1_sec,
                                   ErrorTolerance { 30_stDeg },
                                   VelocityTolerance { 1000_degps });
 
-DefaultTolerances tolerances(linearTolerances,
-                             angularTolerances,
-                             largeLinearTolerances,
-                             largeAngularTolerances);
+// chain tolerances
+Tolerances chainLinearTolerances(1_sec, ErrorTolerance { 14_in });
+
+Tolerances chainAngularTolerances(1_sec, ErrorTolerance { 30_stDeg });
+
+normalLargeChainTolerances tolerances(linearTolerances,
+                                      angularTolerances,
+                                      largeLinearTolerances,
+                                      largeAngularTolerances,
+
+                                      chainLinearTolerances,
+                                      chainAngularTolerances);
 
 Chassis chassis(drivetrain, pose_tracker, tolerances);
 
@@ -154,7 +152,15 @@ RunExecutor run;
 AsyncExecutor async;
 
 auto chain_lerp = [](Voltage a, Voltage b, double t) -> Voltage {
-    return (1 - t) * a + t * b;
+    // return (1 - t) * a + t * b;
+
+    // return b;
+
+    if (t >= 0.5) {
+        return b;
+    } else {
+        return a;
+    }
 };
 
 auto angular_linear_func = [](Angle angle) -> double {
@@ -167,6 +173,8 @@ auto angular_linear_func = [](Angle angle) -> double {
             // simple polynomial that delays linear output until angle error is
             // small
             return 1.0 - 2.0 * (x * x) + 1.08866 * (x * x * x);
+            // idea: simple lerp with cosine, to make it still output small
+            // voltage at high angle errors
         }
         return 0.00001;
     };
@@ -212,68 +220,53 @@ void opcontrol() {
 
     pros::delay(100);
 
-    // pose_tracker.setPose({ 0_in, 0_in, 90_stDeg });
+    std::vector<units::Pose> poses;
+
+    pros::Task([&]() {
+        bool disabled = false;
+        while (true) {
+            if (master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_B))
+                disabled = true;
+
+            if (master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_A)) {
+                // print results
+                std::cout << "\n\nposes:\n";
+                for (auto pose : poses) {
+                    std::cout << pose.x << "," << pose.y << ","
+                              << pose.orientation << '\n';
+                }
+                break;
+            }
+
+            if (!disabled) {
+                poses.push_back(
+                  { pose_tracker.getPosition(), pose_tracker.getAngle() });
+            }
+
+            pros::delay(20);
+        }
+    });
 
     pose_tracker.setPose({ 0_in, 0_in, 0_stDeg });
 
-    std::vector<pros::imu_accel_s_t> results;
-    std::vector<units::Pose> poses;
-
-    //  pros::Task([&]() {
-    //      bool disabled = false;
-    //      while (true) {
-    //          if (master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_B))
-    //              disabled = true;
-    //
-    //          if (master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_A))
-    //          {
-    //              // print results
-    //              std::cout << "imu stuff:\n";
-    //              for (auto accel : results) {
-    //                  std::cout << accel.x << "," << accel.y << "," << accel.z
-    //                            << '\n';
-    //              }
-    //              std::cout << "\n\nposes:\n";
-    //              for (auto pose : poses) {
-    //                  std::cout << pose.x << "," << pose.y << ","
-    //                            << pose.orientation << '\n';
-    //              }
-    //              break;
-    //          }
-    //
-    //          if (!disabled) {
-    //              results.push_back(imu.get_accel());
-    //              poses.push_back(
-    //                { pose_tracker.getPosition(), pose_tracker.getAngle() });
-    //          }
-    //
-    // pros::delay(20);
-    //      }
-    //  });
-
     mb.turnTo(90) | run;
+    // mb.moveTo(0,48) | run;
 
-    // mb.moveTo(24, 24) | run;
-    // mb.moveTo(-24, 24) | run;
-    // mb.moveTo(0, 0) | run;
-	
-    // mb.moveTo(20, -20).setChainTime(10_msec) | run;
+    mb.moveTo(24, 24) | run;
+    mb.moveTo(-24, 24) | run;
+    mb.moveTo(0, 0) | run;
+
+    mb.moveTo(20, -20).setChainTime(10_msec) | run;
     // mb.moveTo(20, -20) | run;
     //
     // mb.moveTo(20, -20) | run;
     // mb.moveTo(24, 24) | run;
 
     while (true) {
-        pros::lcd::print(0,
-                         "%d %d %d",
-                         (pros::lcd::read_buttons() & LCD_BTN_LEFT) >> 2,
-                         (pros::lcd::read_buttons() & LCD_BTN_CENTER) >> 1,
-                         (pros::lcd::read_buttons() & LCD_BTN_RIGHT) >> 0);
-
         int dir = master.get_analog(ANALOG_LEFT_Y);
         int turn = master.get_analog(ANALOG_RIGHT_X);
-        left_motors.move(dir - turn);
-        right_motors.move(dir + turn);
+        left_motors.move(dir + turn);
+        right_motors.move(dir - turn);
         pros::delay(20);
     }
 }

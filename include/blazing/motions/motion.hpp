@@ -23,6 +23,7 @@ namespace blazing {
 struct motionExecutionResult {
     std::optional<bool> inLargeTolerance = false;
     std::optional<bool> inSmallTolerance = false;
+	std::optional<bool> inChainTolerance = false;
     bool finished = false;
 };
 
@@ -139,6 +140,20 @@ class Motion : public MotionBase {
         return self.getReference();
     }
 
+	// not really relevant to how its supposed to be used
+	//
+    // motionChanger chainLinearToleranceDuration(this Self&& self,
+    //                                            Time duration) {
+    //     self.tolerances.chain_linear.setDuration(duration);
+    //     return self.getReference();
+    // }
+    //
+    // motionChanger chainAngularToleranceDuration(this Self&& self,
+    //                                             Time duration) {
+    //     self.tolerances.chain_angular.setDuration(duration);
+    //     return self.getReference();
+    // }
+
     // Error tolerance changers
     motionChanger linearErrorTolerance(this Self&& self, Length tolerance) {
         self.tolerances.linear.setErrorTolerance(tolerance);
@@ -159,6 +174,18 @@ class Motion : public MotionBase {
     motionChanger largeAngularErrorTolerance(this Self&& self,
                                              Angle tolerance) {
         self.tolerances.large_angular.setErrorTolerance(tolerance);
+        return self.getReference();
+    }
+
+    motionChanger chainLinearErrorTolerance(this Self&& self,
+                                            Length tolerance) {
+        self.tolerances.chain_linear.setErrorTolerance(tolerance);
+        return self.getReference();
+    }
+
+    motionChanger chainAngularErrorTolerance(this Self&& self,
+                                             Angle tolerance) {
+        self.tolerances.chain_angular.setErrorTolerance(tolerance);
         return self.getReference();
     }
 
@@ -187,6 +214,19 @@ class Motion : public MotionBase {
         return self.getReference();
     }
 
+    motionChanger chainLinearVelocityTolerance(this Self&& self,
+                                               LinearVelocity tolerance) {
+        self.tolerances.change_linear.setVelocityTolerance(tolerance);
+        return self.getReference();
+    }
+
+    motionChanger chainAngularVelocityTolerance(this Self&& self,
+                                                AngularVelocity tolerance) {
+        self.tolerances.chain_angular.setVelocityTolerance(tolerance);
+        return self.getReference();
+    }
+
+    // half circle tolerances
     motionChanger halfcircleTolerance(this Self&& self, Length tolerance) {
         self.tolerances.linear.setHalfcircleTolerance(tolerance);
         return self.getReference();
@@ -194,6 +234,11 @@ class Motion : public MotionBase {
 
     motionChanger largeHalfcircleTolerance(this Self&& self, Length tolerance) {
         self.tolerances.large_linear.setHalfcircleTolerance(tolerance);
+        return self.getReference();
+    }
+
+    motionChanger chainHalfcircleTolerance(this Self&& self, Length tolerance) {
+        self.tolerances.chain_linear.setHalfcircleTolerance(tolerance);
         return self.getReference();
     }
 

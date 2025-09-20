@@ -41,7 +41,7 @@ class moveTo : public Motion<ControllersType,
     std::optional<Time> timeout = std::nullopt;
     bool reversed = false;
     Length close_threshold = 4_in;
-	std::optional<Voltage> max_overturn_output = std::nullopt;
+    std::optional<Voltage> max_overturn_output = std::nullopt;
 
     // defaults to cosine of angle
     std::function<double(Angle)> angular_linear_func =
@@ -66,7 +66,7 @@ class moveTo : public Motion<ControllersType,
         MoveToState& state = m_state.value();
         motionExecutionResult result;
 
-		Time delta_time = getDeltaTime(state.last_time);
+        Time delta_time = getDeltaTime(state.last_time);
 
         const units::V2Position position = this->tracker.getPosition();
         const Angle heading = [&] -> Angle {
@@ -97,7 +97,7 @@ class moveTo : public Motion<ControllersType,
         // used for cosine scaling and applying correct sign for linear
         // error/output
         Number lin_multiplier = angular_linear_func(position_target_error);
-		std::cout << "lin: " << lin_multiplier << std::endl;
+        std::cout << "lin: " << lin_multiplier << std::endl;
 
         // applies sign component here so that sign of error is accurate
         // NOTE: sgn can be zero, which can set linear error to zero as well!
@@ -121,6 +121,11 @@ class moveTo : public Motion<ControllersType,
             result.inLargeTolerance =
               this->tolerances.large_linear.withinTolerance();
             result.finished |= this->tolerances.large_linear.finished();
+        }
+        // dont use to check if we have finished
+        if constexpr (hasChainLinearTolerance<TolerancesType>) {
+            result.inChainTolerance =
+              this->tolerances.chain_linear.withinTolerance();
         }
 
         // check timeout
@@ -148,7 +153,8 @@ class moveTo : public Motion<ControllersType,
           this->controllers.linear_feedback_controller.update(-linear_error,
                                                               0.0_in,
                                                               delta_time);
-		std::cout << "pids: " << linear_output << " " << angular_output << std::endl;
+        std::cout << "pids: " << linear_output << " " << angular_output
+                  << std::endl;
 
         // sign was already applied to error, only applies cosine scaling
         // component
@@ -176,16 +182,16 @@ class moveTo : public Motion<ControllersType,
                 angular_output);
         }
 
-		if(max_overturn_output){
-			// apply overturn
-			Voltage overturn_value = units::abs(linear_output) +
-									 units::abs(angular_output) -
-									 *max_overturn_output;
+        if (max_overturn_output) {
+            // apply overturn
+            Voltage overturn_value = units::abs(linear_output) +
+                                     units::abs(angular_output) -
+                                     *max_overturn_output;
 
-			if (overturn_value > 0_volt) {
-				linear_output -= overturn_value * units::sgn(linear_output);
-			}
-		}
+            if (overturn_value > 0_volt) {
+                linear_output -= overturn_value * units::sgn(linear_output);
+            }
+        }
 
         // apply max voltage constraints
         if constexpr (hasLinearVoltageClampController<ControllersType>) {

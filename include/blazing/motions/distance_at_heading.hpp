@@ -135,6 +135,16 @@ class distanceAtHeading : public Motion<ControllersType,
             state.angular_settled |= this->tolerances.large_angular.finished();
         }
 
+        // dont use to check if we have finished
+        if constexpr (hasChainLinearTolerance<TolerancesType>) {
+            updateTolerance(result.inChainTolerance,
+                            this->tolerances.chain_linear.withinTolerance());
+        }
+        if constexpr (hasChainAngularTolerance<TolerancesType>) {
+            updateTolerance(result.inChainTolerance,
+                            this->tolerances.chain_angular.withinTolerance());
+        }
+
         result.finished = state.linear_settled && state.angular_settled;
 
         // check timeout

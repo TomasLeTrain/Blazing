@@ -177,6 +177,7 @@ concept hasLinearTolerance =
 template<typename TolerancesType>
 concept hasLargeLinearTolerance =
   requires(TolerancesType tolerances) { tolerances.large_linear; };
+
 template<typename TolerancesType>
 concept hasAngularTolerance =
   requires(TolerancesType tolerances) { tolerances.angular; };
@@ -184,6 +185,14 @@ template<typename TolerancesType>
 concept hasLargeAngularTolerance =
   requires(TolerancesType tolerances) { tolerances.large_angular; };
 
+template<typename TolerancesType>
+concept hasChainLinearTolerance =
+  requires(TolerancesType tolerances) { tolerances.chain_linear; };
+template<typename TolerancesType>
+concept hasChainAngularTolerance =
+  requires(TolerancesType tolerances) { tolerances.chain_angular; };
+
+// linear errors
 template<typename TolerancesType>
 concept hasLinearErrorTolerance =
   requires(TolerancesType tolerances, Length error) {
@@ -199,6 +208,14 @@ concept hasLargeLinearErrorTolerance =
   };
 
 template<typename TolerancesType>
+concept hasChainLinearErrorTolerance =
+  requires(TolerancesType tolerances, Length error) {
+      tolerances.chain_linear.setErrorTolerance(error);
+      tolerances.chain_linear.errorToleranceUpdate(error);
+  };
+
+// angular errors
+template<typename TolerancesType>
 concept hasAngularErrorTolerance =
   requires(TolerancesType tolerances, Angle error) {
       tolerances.angular.setErrorTolerance(error);
@@ -213,6 +230,14 @@ concept hasLargeAngularErrorTolerance =
   };
 
 template<typename TolerancesType>
+concept hasChainAngularErrorTolerance =
+  requires(TolerancesType tolerances, Angle error) {
+      tolerances.chain_angular.setErrorTolerance(error);
+      tolerances.chain_angular.errorToleranceUpdate(error);
+  };
+
+// linear velocity
+template<typename TolerancesType>
 concept hasLinearVelocityTolerance =
   requires(TolerancesType tolerances, LinearVelocity velocity) {
       tolerances.linear.setVelocityTolerance(velocity);
@@ -224,7 +249,14 @@ concept hasLargeLinearVelocityTolerance =
       tolerances.large_linear.setVelocityTolerance(velocity);
       tolerances.large_linear.velocityToleranceUpdate(velocity);
   };
+template<typename TolerancesType>
+concept hasChainLinearVelocityTolerance =
+  requires(TolerancesType tolerances, LinearVelocity velocity) {
+      tolerances.chain_linear.setVelocityTolerance(velocity);
+      tolerances.chain_linear.velocityToleranceUpdate(velocity);
+  };
 
+// angular velocity
 template<typename TolerancesType>
 concept hasAngularVelocityTolerance =
   requires(TolerancesType tolerances, AngularVelocity velocity) {
@@ -239,6 +271,14 @@ concept hasLargeAngularVelocityTolerance =
       tolerances.large_angular.velocityToleranceUpdate(velocity);
   };
 
+template<typename TolerancesType>
+concept hasChainAngularVelocityTolerance =
+  requires(TolerancesType tolerances, AngularVelocity velocity) {
+      tolerances.chain_angular.setVelocityTolerance(velocity);
+      tolerances.chain_angular.velocityToleranceUpdate(velocity);
+  };
+
+// half circle
 template<typename TolerancesType>
 concept hasLinearHalfcircleTolerance = requires(TolerancesType tolerances,
                                                 Length tolerance,
@@ -259,6 +299,16 @@ concept hasLargeLinearHalfcircleTolerance = requires(TolerancesType tolerances,
     tolerances.large_linear.halfcircleToleranceUpdate(pose, target, theta);
 };
 
+template<typename TolerancesType>
+concept hasChainLinearHalfcircleTolerance = requires(TolerancesType tolerances,
+                                                     Length tolerance,
+                                                     units::V2Position pose,
+                                                     units::V2Position target,
+                                                     Angle theta) {
+    tolerances.chain_linear.setHalfcircleTolerance(tolerance);
+    tolerances.chain_linear.halfcircleToleranceUpdate(pose, target, theta);
+};
+
 struct TolerancesGroup {
     // updates
     virtual void linearErrorToleranceUpdate(Length error) {}
@@ -277,23 +327,22 @@ struct TolerancesGroup {
 };
 
 template<typename LinearTolerances, typename AngularTolerances>
-struct LinearAndAngularTolerances : public TolerancesGroup {
+struct SimpleTolerances : public TolerancesGroup {
     LinearTolerances linear;
     AngularTolerances angular;
 
-    LinearAndAngularTolerances(LinearTolerances linear,
-                               AngularTolerances angular)
+    SimpleTolerances(LinearTolerances linear, AngularTolerances angular)
         : linear(linear),
           angular(angular) {}
 
     void linearErrorToleranceUpdate(Length error) override {
-        if constexpr (hasLinearErrorTolerance<LinearAndAngularTolerances>) {
+        if constexpr (hasLinearErrorTolerance<SimpleTolerances>) {
             linear.errorToleranceUpdate(error);
         }
     }
 
     void linearVelocityToleranceUpdate(LinearVelocity velocity) override {
-        if constexpr (hasLinearVelocityTolerance<LinearAndAngularTolerances>) {
+        if constexpr (hasLinearVelocityTolerance<SimpleTolerances>) {
             linear.velocityToleranceUpdate(velocity);
         }
     };
@@ -301,20 +350,19 @@ struct LinearAndAngularTolerances : public TolerancesGroup {
     void linearHalfcircleToleranceUpdate(units::V2Position pose,
                                          units::V2Position target,
                                          Angle theta) override {
-        if constexpr (hasLinearHalfcircleTolerance<
-                        LinearAndAngularTolerances>) {
+        if constexpr (hasLinearHalfcircleTolerance<SimpleTolerances>) {
             linear.halfcircleToleranceUpdate(pose, target, theta);
         }
     }
 
     void angularErrorToleranceUpdate(Angle error) override {
-        if constexpr (hasAngularErrorTolerance<LinearAndAngularTolerances>) {
+        if constexpr (hasAngularErrorTolerance<SimpleTolerances>) {
             angular.errorToleranceUpdate(error);
         }
     }
 
     void angularVelocityToleranceUpdate(AngularVelocity velocity) override {
-        if constexpr (hasAngularVelocityTolerance<LinearAndAngularTolerances>) {
+        if constexpr (hasAngularVelocityTolerance<SimpleTolerances>) {
             angular.velocityToleranceUpdate(velocity);
         }
     }
@@ -324,35 +372,35 @@ template<typename LinearTolerances,
          typename AngularTolerances,
          typename LargeLinearTolerances,
          typename LargeAngularTolerances>
-struct DefaultTolerances : public TolerancesGroup {
-    LinearTolerances linear;
-    AngularTolerances angular;
+struct normalLargeTolerances
+    : public SimpleTolerances<LinearTolerances, AngularTolerances> {
+
     LargeLinearTolerances large_linear;
     LargeAngularTolerances large_angular;
 
-    DefaultTolerances(LinearTolerances linear,
-                      AngularTolerances angular,
-                      LargeLinearTolerances large_linear,
-                      LargeAngularTolerances large_angular)
-        : linear(linear),
-          angular(angular),
+    using inherited_type =
+      SimpleTolerances<LinearTolerances, AngularTolerances>;
+
+    normalLargeTolerances(LinearTolerances linear,
+                          AngularTolerances angular,
+                          LargeLinearTolerances large_linear,
+                          LargeAngularTolerances large_angular)
+        : inherited_type(linear, angular),
           large_linear(large_linear),
           large_angular(large_angular) {}
 
     void linearErrorToleranceUpdate(Length error) override {
-        if constexpr (hasLinearErrorTolerance<DefaultTolerances>) {
-            linear.errorToleranceUpdate(error);
-        }
-        if constexpr (hasLargeLinearErrorTolerance<DefaultTolerances>) {
+        inherited_type::linearErrorToleranceUpdate(error);
+
+        if constexpr (hasLargeLinearErrorTolerance<normalLargeTolerances>) {
             large_linear.errorToleranceUpdate(error);
         }
     }
 
     void linearVelocityToleranceUpdate(LinearVelocity velocity) override {
-        if constexpr (hasLinearVelocityTolerance<DefaultTolerances>) {
-            linear.velocityToleranceUpdate(velocity);
-        }
-        if constexpr (hasLargeLinearVelocityTolerance<DefaultTolerances>) {
+        inherited_type::linearVelocityToleranceUpdate(velocity);
+
+        if constexpr (hasLargeLinearVelocityTolerance<normalLargeTolerances>) {
             large_linear.velocityToleranceUpdate(velocity);
         }
     };
@@ -360,29 +408,104 @@ struct DefaultTolerances : public TolerancesGroup {
     void linearHalfcircleToleranceUpdate(units::V2Position pose,
                                          units::V2Position target,
                                          Angle theta) override {
-        if constexpr (hasLinearHalfcircleTolerance<DefaultTolerances>) {
-            linear.halfcircleToleranceUpdate(pose, target, theta);
-        }
-        if constexpr (hasLargeLinearHalfcircleTolerance<DefaultTolerances>) {
+        inherited_type::linearHalfcircleToleranceUpdate(pose, target, theta);
+
+        if constexpr (hasLargeLinearHalfcircleTolerance<
+                        normalLargeTolerances>) {
             large_linear.halfcircleToleranceUpdate(pose, target, theta);
         }
     }
 
     void angularErrorToleranceUpdate(Angle error) override {
-        if constexpr (hasAngularErrorTolerance<DefaultTolerances>) {
-            angular.errorToleranceUpdate(error);
-        }
-        if constexpr (hasLargeAngularErrorTolerance<DefaultTolerances>) {
+        inherited_type::angularErrorToleranceUpdate(error);
+
+        if constexpr (hasLargeAngularErrorTolerance<normalLargeTolerances>) {
             large_angular.errorToleranceUpdate(error);
         }
     }
 
     void angularVelocityToleranceUpdate(AngularVelocity velocity) override {
-        if constexpr (hasAngularVelocityTolerance<DefaultTolerances>) {
-            angular.velocityToleranceUpdate(velocity);
-        }
-        if constexpr (hasLargeAngularVelocityTolerance<DefaultTolerances>) {
+        inherited_type::angularVelocityToleranceUpdate(velocity);
+
+        if constexpr (hasLargeAngularVelocityTolerance<normalLargeTolerances>) {
             large_angular.velocityToleranceUpdate(velocity);
+        }
+    }
+};
+
+template<typename LinearTolerances,
+         typename AngularTolerances,
+         typename LargeLinearTolerances,
+         typename LargeAngularTolerances,
+         typename LinearChainTolerances,
+         typename AngularChainTolerances>
+struct normalLargeChainTolerances
+    : public normalLargeTolerances<LinearTolerances,
+                                   AngularTolerances,
+                                   LargeLinearTolerances,
+                                   LargeAngularTolerances> {
+    LinearChainTolerances chain_linear;
+    AngularChainTolerances chain_angular;
+
+    using inherited_type = normalLargeTolerances<LinearTolerances,
+                                                 AngularTolerances,
+                                                 LargeLinearTolerances,
+                                                 LargeAngularTolerances>;
+
+    normalLargeChainTolerances(LinearTolerances linear,
+                               AngularTolerances angular,
+                               LargeLinearTolerances large_linear,
+                               LargeAngularTolerances large_angular,
+                               LinearChainTolerances chain_linear,
+                               AngularChainTolerances chain_angular)
+        : inherited_type(linear, angular, large_linear, large_angular),
+          chain_linear(chain_linear),
+          chain_angular(chain_angular) {}
+
+    void linearErrorToleranceUpdate(Length error) override {
+        inherited_type::linearErrorToleranceUpdate(error);
+
+        if constexpr (hasChainLinearErrorTolerance<
+                        normalLargeChainTolerances>) {
+            chain_linear.errorToleranceUpdate(error);
+        }
+    }
+
+    void linearVelocityToleranceUpdate(LinearVelocity velocity) override {
+        inherited_type::linearVelocityToleranceUpdate(velocity);
+
+        if constexpr (hasChainLinearVelocityTolerance<
+                        normalLargeChainTolerances>) {
+            chain_linear.velocityToleranceUpdate(velocity);
+        }
+    };
+
+    void linearHalfcircleToleranceUpdate(units::V2Position pose,
+                                         units::V2Position target,
+                                         Angle theta) override {
+        inherited_type::linearHalfcircleToleranceUpdate(pose, target, theta);
+
+        if constexpr (hasChainLinearHalfcircleTolerance<
+                        normalLargeChainTolerances>) {
+            chain_linear.halfcircleToleranceUpdate(pose, target, theta);
+        }
+    }
+
+    void angularErrorToleranceUpdate(Angle error) override {
+        inherited_type::angularErrorToleranceUpdate(error);
+
+        if constexpr (hasChainAngularErrorTolerance<
+                        normalLargeChainTolerances>) {
+            chain_angular.errorToleranceUpdate(error);
+        }
+    }
+
+    void angularVelocityToleranceUpdate(AngularVelocity velocity) override {
+        inherited_type::angularVelocityToleranceUpdate(velocity);
+
+        if constexpr (hasChainAngularVelocityTolerance<
+                        normalLargeChainTolerances>) {
+            chain_angular.velocityToleranceUpdate(velocity);
         }
     }
 };

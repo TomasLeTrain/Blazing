@@ -56,15 +56,15 @@ class DifferentialDrivetrain : public ChainableDrivetrain {
             linear_output + angular_output
         };
 
-        // std::cout << "[differential] saturated: " << saturated_voltages.at(0)
-        //           << " " << saturated_voltages.at(1) << std::endl;
+        std::cout << "[differential] saturated: " << saturated_voltages.at(0)
+                  << " " << saturated_voltages.at(1) << std::endl;
 
         // normalizes voltages to [-1, 1]
         auto [left_voltage, right_voltage] =
           desaturate(saturated_voltages, 1_volt);
 
-        // std::cout << "[differential] desaturated: " << left_voltage << " "
-        //           << right_voltage << std::endl;
+        std::cout << "[differential] desaturated: " << left_voltage << " "
+                  << right_voltage << std::endl;
 
         moveTank(left_voltage, right_voltage);
     }
