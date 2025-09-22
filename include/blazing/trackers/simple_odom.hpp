@@ -11,6 +11,7 @@
 #include <iterator>
 #include <optional>
 
+namespace blazing {
 class SimpleOdomTracker {
   private:
     pros::MotorGroup* left_motors;
@@ -22,7 +23,8 @@ class SimpleOdomTracker {
     AngularVelocity final_rpm;
 
     units::Pose pose {};
-    Length forward_travel;
+    Length forward_travel = 0_in;
+    Length distance_traveled = 0_in;
     LinearVelocity linear_velocity;
     AngularVelocity angular_velocity;
 
@@ -64,6 +66,10 @@ class SimpleOdomTracker {
 
     Length getForwardTravel() {
         return forward_travel;
+    }
+
+    Length getDistanceTraveled() {
+        return distance_traveled;
     }
 
     void setPose(units::Pose new_pose) {
@@ -114,6 +120,7 @@ class SimpleOdomTracker {
         linear_velocity = average_distance / delta_time;
 
         forward_travel += average_distance;
+        distance_traveled += units::abs(average_distance);
 
         const Angle heading = from_cDeg(imu->get_rotation());
         if (!last_heading) last_heading = heading;
@@ -133,3 +140,4 @@ class SimpleOdomTracker {
         pose = { pose + change_vector, heading };
     }
 };
+} // namespace blazing

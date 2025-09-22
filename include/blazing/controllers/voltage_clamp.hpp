@@ -14,6 +14,14 @@ class VoltageClampController {
         : max_voltage(max_voltage),
           min_voltage(min_voltage) {}
 
+    void setMin(Voltage min) {
+        this->min_voltage = min;
+    }
+
+    void setMax(Voltage max) {
+        this->max_voltage = max;
+    }
+
     Voltage applyMin(Voltage output) {
         if (!min_voltage) {
             return output;

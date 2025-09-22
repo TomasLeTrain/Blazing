@@ -66,7 +66,7 @@ class distanceAtHeading : public Motion<ControllersType,
         DistanceAtHeadingState& state = m_state.value();
         motionExecutionResult result;
 
-        Time delta_time = getDeltaTime(state.last_time);
+        Time delta_time = deltaTime(state.last_time);
 
         Length forward_travel = this->tracker.getForwardTravel();
         const Angle heading = [&] {

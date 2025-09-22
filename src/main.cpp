@@ -75,18 +75,18 @@ pros::Controller master(pros::E_CONTROLLER_MASTER);
 
 using namespace blazing;
 
-PID<Length, Voltage>
-  lateral_pid(6, 0, 3, 5, 127, 50_msec, 1_in, (1.0 / 127.0) * volt);
+PID<Length, Voltage> lateral_pid(6,
+                                 0,
+                                 3,
+                                 5,
+                                 // std::nullopt,
+                                 127,
+                                 50_msec,
+                                 1_in,
+                                 (1.0 / 127.0) * volt);
 
-PID<Angle, Voltage> angular_pid(2.8,
-                                0.0,
-                                10,
-                                5,
-                                // std::nullopt,
-                                127,
-                                50_msec,
-                                (1_stDeg),
-                                (1.0 / 127.0) * volt);
+PID<Angle, Voltage>
+  angular_pid(2.8, 0.0, 5, 10, 127, 50_msec, (1_stDeg), (1.0 / 127.0) * volt);
 
 Controllers controllers(
   // pid controllers
@@ -94,13 +94,12 @@ Controllers controllers(
   PIDAngularController(angular_pid),
 
   // slew controllers
-  LinearSlewController(0.3_volt)
-  // AngularSlewController(0.6_volt),
+  LinearSlewController(0.3_volt),
+  AngularSlewController(0.3_volt),
 
   // voltage constraints controllers
-  // LinearVoltageClampController(1.0_volt),
-  // AngularVoltageClampController(1.0_volt),
-);
+  LinearVoltageClampController(),
+  AngularVoltageClampController());
 
 DifferentialDrivetrain drivetrain(&left_motors, &right_motors);
 
@@ -152,15 +151,15 @@ RunExecutor run;
 AsyncExecutor async;
 
 auto chain_lerp = [](Voltage a, Voltage b, double t) -> Voltage {
-    // return (1 - t) * a + t * b;
+    return (1 - t) * a + t * b;
 
     // return b;
 
-    if (t >= 0.5) {
-        return b;
-    } else {
-        return a;
-    }
+    // if (t >= 0.5) {
+    //     return b;
+    // } else {
+    //     return a;
+    // }
 };
 
 auto angular_linear_func = [](Angle angle) -> double {
@@ -169,14 +168,14 @@ auto angular_linear_func = [](Angle angle) -> double {
 
     // defined on the range [0,pi/2]
     auto func = [](double x) -> double {
+        double poly = 0.0001;
         if (x < 1.224747) {
             // simple polynomial that delays linear output until angle error is
             // small
-            return 1.0 - 2.0 * (x * x) + 1.08866 * (x * x * x);
-            // idea: simple lerp with cosine, to make it still output small
-            // voltage at high angle errors
+            poly = 1.0 - 2.0 * (x * x) + 1.08866 * (x * x * x);
         }
-        return 0.00001;
+        // return 0.00001;
+        return 0.7 * poly + std::cos(x) * 0.3;
     };
 
     // makes this function apply on the range [0,pi]
@@ -189,7 +188,7 @@ auto angular_linear_func = [](Angle angle) -> double {
 
 MotionBuilder mb(chassis, controllers);
 
-ChainedExecutor chain(300_msec, chain_lerp);
+ChainedExecutor chain(100_msec, chain_lerp);
 
 void initialize() {
     pros::lcd::initialize();
@@ -214,8 +213,19 @@ void opcontrol() {
 
     // change all moveTo movements to use custom angularLinear function and go
     // in reverse
-    // mb.setMoveToModifier([](auto moveTo) {
-    //     return moveTo.customAngularLinearFunc(angular_linear_func).reverse();
+    mb.setMoveToModifier([](auto moveTo) {
+        // return moveTo.customAngularLinearFunc(angular_linear_func).reverse();
+        return moveTo.customAngularLinearFunc(angular_linear_func);
+        // .withOverturn(1_);
+        // return moveTo.reverse();
+    });
+
+    // mb.setBoomerangModifier([](auto boomerang) {
+    //     // return
+    //     moveTo.customAngularLinearFunc(angular_linear_func).reverse(); return
+    //     boomerang.customAngularLinearFunc(angular_linear_func);
+    //     // .withOverturn(1_);
+    //     // return moveTo.reverse();
     // });
 
     pros::delay(100);
@@ -250,13 +260,17 @@ void opcontrol() {
     pose_tracker.setPose({ 0_in, 0_in, 0_stDeg });
 
     mb.turnTo(90) | run;
-    // mb.moveTo(0,48) | run;
+    // mb.moveTo(24, 24).reverse() | chain;
+    // mb.moveTo(-24, 24) | chain;
+    // mb.moveTo(0, 0).reverse() | chain;
+    mb.boomerang(24, 24, 0).withLead(0.4).closeThreshold(14_in) | run;
 
-    mb.moveTo(24, 24) | run;
-    mb.moveTo(-24, 24) | run;
-    mb.moveTo(0, 0) | run;
+    // chain.wait();
+    // chain.waitUntil([&]() -> bool {
+    // 	return pose_tracker.getDistanceTraveled() > 80_in;
+    // });
 
-    mb.moveTo(20, -20).setChainTime(10_msec) | run;
+    // mb.moveTo(20, -20).setChainTime(10_msec) | run;
     // mb.moveTo(20, -20) | run;
     //
     // mb.moveTo(20, -20) | run;

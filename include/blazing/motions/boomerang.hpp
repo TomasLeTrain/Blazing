@@ -43,7 +43,7 @@ class boomerang : public Motion<ControllersType,
     bool reversed = false;
     double lead = 0.5;
     Length close_threshold = 4_in;
-	std::optional<Voltage> max_overturn_output = std::nullopt;
+    std::optional<Voltage> max_overturn_output = std::nullopt;
 
     // defaults to cosine of angle
     std::function<double(Angle)> angular_linear_func =
@@ -68,7 +68,7 @@ class boomerang : public Motion<ControllersType,
         BoomerangState& state = m_state.value();
         motionExecutionResult result;
 
-        Time delta_time = getDeltaTime(state.last_time);
+        Time delta_time = deltaTime(state.last_time);
 
         const units::V2Position position = this->tracker.getPosition();
 
@@ -95,7 +95,8 @@ class boomerang : public Motion<ControllersType,
         Angle position_carrot_heading = position.angleTo(carrot);
 
         const Angle target_heading =
-          state.close ? target.orientation : position.angleTo(carrot);
+          state.close ? target.orientation :
+			(0.3 * target.orientation + 0.7 * position.angleTo(carrot));
 
         Length linear_error =
           position.distanceTo(carrot) * (reversed ? -1.0 : 1.0);
@@ -188,16 +189,16 @@ class boomerang : public Motion<ControllersType,
                 angular_output);
         }
 
-		if(max_overturn_output){
-			// apply overturn
-			Voltage overturn_value = units::abs(linear_output) +
-									 units::abs(angular_output) -
-									 *max_overturn_output;
+        if (max_overturn_output) {
+            // apply overturn
+            Voltage overturn_value = units::abs(linear_output) +
+                                     units::abs(angular_output) -
+                                     *max_overturn_output;
 
-			if (overturn_value > 0_volt) {
-				linear_output -= overturn_value * units::sgn(linear_output);
-			}
-		}
+            if (overturn_value > 0_volt) {
+                linear_output -= overturn_value * units::sgn(linear_output);
+            }
+        }
 
         // apply max voltage constraints
         if constexpr (hasLinearVoltageClampController<ControllersType>) {

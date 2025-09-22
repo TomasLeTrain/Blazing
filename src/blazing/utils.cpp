@@ -49,7 +49,7 @@ std::array<T, size> desaturate(std::array<T, size> saturated, T max) {
 template std::array<Voltage, 2>
 desaturate<Voltage, 2>(std::array<Voltage, 2> saturated, Voltage max);
 
-Time getDeltaTime(std::optional<Time>& last_time) {
+Time deltaTime(std::optional<Time>& last_time) {
     Time current_time = from_msec(pros::millis());
 
     // can't return becaue we need to set last_time!

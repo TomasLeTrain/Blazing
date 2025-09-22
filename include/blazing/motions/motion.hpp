@@ -2,6 +2,7 @@
 
 #include "blazing/chassis.hpp"
 #include "blazing/controllers/controllers.hpp"
+#include "blazing/controllers/voltage_clamp.hpp"
 #include "blazing/drivetrains/drivetrain.hpp"
 #include "blazing/tolerances.hpp"
 #include "units/units.hpp"
@@ -23,7 +24,7 @@ namespace blazing {
 struct motionExecutionResult {
     std::optional<bool> inLargeTolerance = false;
     std::optional<bool> inSmallTolerance = false;
-	std::optional<bool> inChainTolerance = false;
+    std::optional<bool> inChainTolerance = false;
     bool finished = false;
 };
 
@@ -67,7 +68,7 @@ class Motion : public MotionBase {
     TrackerType& tracker;
     DrivetrainType& drivetrain;
 
-    std::optional<Time> chain_time;
+    std::optional<Time> chain_time = std::nullopt;
 
   public:
     Motion(ControllersType controllers,
@@ -140,8 +141,8 @@ class Motion : public MotionBase {
         return self.getReference();
     }
 
-	// not really relevant to how its supposed to be used
-	//
+    // not really relevant to how its supposed to be used
+    //
     // motionChanger chainLinearToleranceDuration(this Self&& self,
     //                                            Time duration) {
     //     self.tolerances.chain_linear.setDuration(duration);
@@ -272,7 +273,7 @@ class Motion : public MotionBase {
         return self.getReference();
     }
 
-    motionChangerT lateral_maxVoltage(this Self&& self, T maxVoltage)
+    motionChangerT lateral_PIDmaxVoltage(this Self&& self, T maxVoltage)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
         self.controllers.linear_feedback_controller.set_maxVoltage(maxVoltage);
@@ -309,10 +310,42 @@ class Motion : public MotionBase {
         return self.getReference();
     }
 
-    motionChangerT angular_maxVoltage(this Self&& self, T maxVoltage)
+    motionChangerT angular_PIDmaxVoltage(this Self&& self, T maxVoltage)
         requires std::derived_from<ControllersType, PIDAngularController>
     {
         self.controllers.angular_feedback_controller.set_maxVoltage(maxVoltage);
+        return self.getReference();
+    }
+
+    motionChangerT linear_clampMinVoltage(this Self&& self, T minVoltage)
+        requires std::derived_from<ControllersType,
+                                   LinearVoltageClampController>
+    {
+        self.controllers.linear_voltage_clamp_controller.setMin(minVoltage);
+        return self.getReference();
+    }
+
+    motionChangerT linear_clampMaxVoltage(this Self&& self, T maxVoltage)
+        requires std::derived_from<ControllersType,
+                                   LinearVoltageClampController>
+    {
+        self.controllers.linear_voltage_clamp_controller.setMax(maxVoltage);
+        return self.getReference();
+    }
+
+    motionChangerT angular_clampMinVoltage(this Self&& self, T minVoltage)
+        requires std::derived_from<ControllersType,
+                                   AngularVoltageClampController>
+    {
+        self.controllers.angular_voltage_clamp_controller.setMin(minVoltage);
+        return self.getReference();
+    }
+
+    motionChangerT angular_clampMaxVoltage(this Self&& self, T maxVoltage)
+        requires std::derived_from<ControllersType,
+                                   AngularVoltageClampController>
+    {
+        self.controllers.angular_voltage_clamp_controller.setMax(maxVoltage);
         return self.getReference();
     }
 };

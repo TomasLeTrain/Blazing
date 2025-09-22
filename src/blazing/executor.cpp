@@ -83,7 +83,7 @@ void AsyncExecutor::exitAll() {
     }
 }
 
-void AsyncExecutor::runUntil(std::function<bool()> condition) {
+void AsyncExecutor::waitUntil(std::function<bool()> condition) {
     while (!condition()) {
         pros::delay(20);
     }
@@ -243,7 +243,7 @@ void ChainedExecutor::exitAll() {
     motions.clear();
 }
 
-void ChainedExecutor::runUntil(std::function<bool()> condition) {
+void ChainedExecutor::waitUntil(std::function<bool()> condition) {
     while (!condition()) {
         pros::delay(20);
     }

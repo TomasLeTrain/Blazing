@@ -69,7 +69,7 @@ class AsyncExecutor : public Executor {
 
     // waits until the function returns true, after which it exists all queued
     // motions
-    void runUntil(std::function<bool()> condition);
+    void waitUntil(std::function<bool()> condition);
 };
 
 struct ChainOptions {
@@ -119,6 +119,6 @@ class ChainedExecutor : public Executor {
 
     // waits until the function returns true, after which it exists all queued
     // motions
-    void runUntil(std::function<bool()> condition);
+    void waitUntil(std::function<bool()> condition);
 };
 } // namespace blazing
