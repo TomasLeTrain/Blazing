@@ -1,5 +1,6 @@
 #pragma once
 
+#include "blazing/utils.hpp"
 #include "pros/device.hpp"
 #include "pros/error.h"
 #include "pros/imu.hpp"
@@ -9,8 +10,8 @@
 #include "units/Pose.hpp"
 #include "units/Vector2D.hpp"
 #include "units/units.hpp"
-#include "utils.hpp"
 #include <cmath>
+#include <initializer_list>
 #include <optional>
 #include <variant>
 
@@ -36,12 +37,6 @@ class TrackingWheel {
                   Length offset,
                   Length wheel_diameter,
                   std::optional<AngularVelocity> final_rpm = std::nullopt)
-        requires
-      // either holds a rotation sensor
-      (std::holds_alternative<pros::Rotation*>(sensor) ||
-       // or holds a motor group and specifis a final rpm
-       (std::holds_alternative<pros::MotorGroup*>(sensor) &&
-        final_rpm.has_value()))
         : sensor(sensor),
           offset(offset),
           wheel_diameter(wheel_diameter),
@@ -126,23 +121,29 @@ class TrackingImu {
   private:
     double last_heading;
     Angle m_delta = INFINITY * rad;
+    pros::Imu* sensor;
+    bool disabled = false;
 
   public:
-    pros::Imu* sensor;
-
     Angle getDelta() {
         return m_delta;
     }
 
     void update() {
-        if (sensor == nullptr || !sensor->is_installed()) {
+        if (sensor == nullptr || !sensor->is_installed() || disabled) {
             last_heading = INFINITY;
             m_delta = Angle(INFINITY);
+            // gets disabled permanently if disconnects, since measurements from
+            // now on are effectively useless
+            disabled = true;
             return;
         }
 
         double current = sensor->get_rotation();
         double result = INFINITY;
+
+        // disable if we get infinity
+        if (!std::isfinite(current)) disabled = true;
 
         if (std::isfinite(current) && std::isfinite(last_heading)) {
             result = -1.0 * (current - last_heading);
@@ -157,21 +158,18 @@ class TrackingImu {
         : sensor(sensor) {}
 };
 
-class SimpleOdomTracker {
+class ArcOdomTracker {
   private:
     std::vector<ForwardsTracker> forwards_trackers;
     std::vector<SidewaysTracker> sideways_trackers;
 
     std::vector<TrackingImu> imus;
 
-    Length track_width;
-    Length wheel_diameter;
-    AngularVelocity final_rpm;
-
     units::Pose pose {};
     Length forward_travel = 0_in;
     Length distance_traveled = 0_in;
-    LinearVelocity linear_velocity;
+    units::V2Velocity velocity_vector;
+
     AngularVelocity angular_velocity;
 
     std::optional<Length> last_left_dist = std::nullopt;
@@ -179,10 +177,55 @@ class SimpleOdomTracker {
     std::optional<Angle> last_heading = std::nullopt;
     std::optional<Time> last_time = std::nullopt;
 
+    template<TrackerOrientation orientation>
+    static std::optional<Angle> calculateWheelHeading(
+      std::vector<TrackingWheel<orientation>>& trackingWheels) {
+        // check that there are enough tracking wheels
+        if (trackingWheels.size() < 2) return std::nullopt;
+        // get data
+        for (int i = 0; i < trackingWheels.size(); i++) {
+            const Length distance1 = trackingWheels.at(i).getDelta();
+            const Length offset1 = trackingWheels.at(i).getOffset();
+
+            if (!std::isfinite(distance1.internal())) continue;
+
+            for (int j = i + 1; j < trackingWheels.size(); j++) {
+                const Length distance2 = trackingWheels.at(j).getDelta();
+                const Length offset2 = trackingWheels.at(j).getOffset();
+
+                if (!std::isfinite(distance2.internal()) || offset1 == offset2)
+                    continue;
+
+                // return the calculated heading
+                return from_stRad((distance1 - distance2) / (offset1 - offset2));
+            }
+        }
+        return std::nullopt;
+    }
+
+    std::optional<Angle> getImuDeltaAngle() {
+        Angle heading_delta = 0_stDeg;
+        int imu_count = 0;
+
+        for (auto& imu : imus) {
+            Angle current = imu.getDelta();
+            if (std::isfinite(current.internal())) {
+                heading_delta += current;
+                imu_count++;
+            } else {
+                printf("imu returned infinity!\n");
+            }
+        }
+
+        if (imu_count == 0) return std::nullopt;
+
+        return heading_delta / imu_count;
+    }
+
   public:
-    SimpleOdomTracker(std::initializer_list<SidewaysTracker> sideways_trackers,
-                      std::initializer_list<ForwardsTracker> forwards_trackers,
-                      std::initializer_list<TrackingImu> imus)
+    ArcOdomTracker(std::initializer_list<ForwardsTracker> forwards_trackers,
+                   std::initializer_list<SidewaysTracker> sideways_trackers,
+                   std::initializer_list<TrackingImu> imus)
         : sideways_trackers(sideways_trackers),
           forwards_trackers(forwards_trackers),
           imus(imus) {}
@@ -196,7 +239,16 @@ class SimpleOdomTracker {
     }
 
     LinearVelocity getLinearVelocity() {
-        return linear_velocity;
+        // Should be magnitude instead?
+        return velocity_vector.x;
+    }
+
+    LinearVelocity getTangentLinearVelocity() {
+        return velocity_vector.y;
+    }
+
+    units::V2Velocity getVelocityVector() {
+        return velocity_vector;
     }
 
     AngularVelocity getAngularVelocity() {
@@ -228,45 +280,39 @@ class SimpleOdomTracker {
             tracker.update();
         }
 
-        Angle heading_delta = 0_stDeg;
-        int imu_count = 0;
+        Angle heading_delta =
+          getImuDeltaAngle()
+            .or_else(
+              std::bind(&calculateWheelHeading<Sideways>, sideways_trackers))
+            .or_else(
+              std::bind(&calculateWheelHeading<Forwards>, forwards_trackers))
+            .value_or(Angle(INFINITY));
 
-        for (auto& imu : imus) {
-            Angle current = imu.getDelta();
-            if (std::isfinite(current.internal())) {
-                heading_delta += current;
-                imu_count++;
-            }
-        }
-
-        if (imu_count == 0) {
-            heading_delta = Angle(INFINITY);
-        } else {
-            heading_delta /= imu_count;
-        }
-
-        if (!std::isfinite(heading_delta.internal())) {
-            // TODO: try to calculate heading from forward trackers
-        }
-
-        units::V2Position deltas = { Length(INFINITY), Length(INFINITY) },
-                          offsets = { Length(INFINITY), Length(INFINITY) };
+        // default to zero
+        units::V2Position deltas = units::origin<Length>,
+                          offsets = units::origin<Length>;
 
         // TODO: when falling back to drivetrain make sure it uses both sides of
         // the drive instead of just one
 
         // use first tracker that gives good delta
         for (auto& tracker : forwards_trackers) {
-            Length current = tracker.getDelta();
-            if (!std::isfinite(current.internal())) continue;
-            deltas.x = current;
+            Length current_delta = tracker.getDelta();
+            if (!std::isfinite(current_delta.internal())) {
+                printf("forward tracker returned infinity!\n");
+                continue;
+            }
+            deltas.x = current_delta;
             offsets.x = tracker.getOffset();
             break;
         }
         for (auto& tracker : sideways_trackers) {
-            Length current = tracker.getDelta();
-            if (!std::isfinite(current.internal())) continue;
-            deltas.y = current;
+            Length current_delta = tracker.getDelta();
+            if (!std::isfinite(current_delta.internal())) {
+                printf("sideways tracker returned infinity!\n");
+                continue;
+            }
+            deltas.y = current_delta;
             offsets.y = tracker.getOffset();
             break;
         }
@@ -276,24 +322,25 @@ class SimpleOdomTracker {
                 !std::isfinite(heading_delta.internal())) {
                 return deltas;
             } else {
-                const double unit_chord = 2 * units::sin(heading_delta / 2);
-                return unit_chord *
+                // subtract to keep sign of offsets consistent with most libs
+                return 2 * units::sin(heading_delta / 2) *
                        (deltas / to_stRad(heading_delta) - offsets);
             }
         }();
 
-        const Length average_distance = local_position_delta.magnitude();
-
         // NOTE: this is not super accurate, might return 0 due to the
         // polling rate
-        linear_velocity = delta_time == 0_sec ? LinearVelocity(INFINITY) :
-                                                average_distance / delta_time;
+        velocity_vector = delta_time == 0_sec ?
+                            units::V2Velocity { LinearVelocity(INFINITY),
+                                                LinearVelocity(INFINITY) } :
+                            local_position_delta / delta_time;
 
         angular_velocity = delta_time == 0_sec ? AngularVelocity(INFINITY) :
                                                  heading_delta / delta_time;
 
-        forward_travel += average_distance;
-        distance_traveled += units::abs(average_distance);
+        forward_travel += local_position_delta.x;
+        // should be magnitude instead?
+        distance_traveled += units::abs(local_position_delta.x);
 
         // update pose
         pose +=

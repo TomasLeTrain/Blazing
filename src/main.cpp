@@ -11,6 +11,7 @@
 #include "blazing/motions/moveTo.hpp"
 #include "blazing/motions/turnTo.hpp"
 #include "blazing/tolerances.hpp"
+#include "blazing/trackers/arc_odom.hpp"
 #include "blazing/trackers/simple_odom.hpp"
 #include "blazing/utils.hpp"
 #include "pros/misc.h"
@@ -75,6 +76,41 @@ pros::Controller master(pros::E_CONTROLLER_MASTER);
 
 using namespace blazing;
 
+// tracker stuff
+DifferentialDrivetrain drivetrain(&left_motors, &right_motors);
+
+Length track_width = 10.5_in;
+Length wheel_diameter = 3.25_in;
+AngularVelocity final_rpm = 450_rpm;
+
+SimpleOdomTracker pose_tracker(&left_motors,
+                               &right_motors,
+                               &imu,
+                               track_width,
+                               wheel_diameter,
+                               final_rpm);
+
+ForwardsTracker
+  left_motor_tracker(&left_motors, -track_width / 2, wheel_diameter, 450_rpm);
+
+ForwardsTracker right_motor_tracker(&right_motors,
+                                    track_width / 2,
+                                    wheel_diameter,
+                                    final_rpm);
+
+pros::Rotation forwards_rotation_sensor(6);
+pros::Rotation sideways_rotation_sensor(7);
+
+ForwardsTracker forwards_tracker(&forwards_rotation_sensor, 0_in, 1.96_in);
+SidewaysTracker sideways_tracker(&sideways_rotation_sensor, 0_in, 1.96_in);
+
+ArcOdomTracker arc_pose_tracker({ forwards_tracker,
+                                  left_motor_tracker,
+                                  right_motor_tracker },
+                                { sideways_tracker },
+                                { TrackingImu(&imu) });
+
+// controller stuff
 PID<Length, Voltage> lateral_pid(6,
                                  0,
                                  3,
@@ -101,19 +137,7 @@ Controllers controllers(
   LinearVoltageClampController(),
   AngularVoltageClampController());
 
-DifferentialDrivetrain drivetrain(&left_motors, &right_motors);
-
-Length track_width = 10.5_in;
-Length wheel_diameter = 3.25_in;
-AngularVelocity final_rpm = 450_rpm;
-
-SimpleOdomTracker pose_tracker(&left_motors,
-                               &right_motors,
-                               &imu,
-                               track_width,
-                               wheel_diameter,
-                               final_rpm);
-
+// tolerance stuff
 Tolerances linearTolerances(200_msec,
                             ErrorTolerance { 3_in },
                             VelocityTolerance { 10_inps });
@@ -145,7 +169,7 @@ normalLargeChainTolerances tolerances(linearTolerances,
                                       chainLinearTolerances,
                                       chainAngularTolerances);
 
-Chassis chassis(drivetrain, pose_tracker, tolerances);
+Chassis chassis(drivetrain, arc_pose_tracker, tolerances);
 
 RunExecutor run;
 AsyncExecutor async;
@@ -214,19 +238,12 @@ void opcontrol() {
     // change all moveTo movements to use custom angularLinear function and go
     // in reverse
     mb.setMoveToModifier([](auto moveTo) {
-        // return moveTo.customAngularLinearFunc(angular_linear_func).reverse();
         return moveTo.customAngularLinearFunc(angular_linear_func);
-        // .withOverturn(1_);
-        // return moveTo.reverse();
     });
 
-    // mb.setBoomerangModifier([](auto boomerang) {
-    //     // return
-    //     moveTo.customAngularLinearFunc(angular_linear_func).reverse(); return
-    //     boomerang.customAngularLinearFunc(angular_linear_func);
-    //     // .withOverturn(1_);
-    //     // return moveTo.reverse();
-    // });
+    mb.setBoomerangModifier([](auto boomerang) {
+        return boomerang.customAngularLinearFunc(angular_linear_func);
+    });
 
     pros::delay(100);
 
@@ -257,7 +274,8 @@ void opcontrol() {
         }
     });
 
-    pose_tracker.setPose({ 0_in, 0_in, 0_stDeg });
+    // pose_tracker.setPose({ 0_in, 0_in, 0_stDeg });
+    arc_pose_tracker.setPose({ 0_in, 0_in, 0_stDeg });
 
     mb.turnTo(90) | run;
     // mb.moveTo(24, 24).reverse() | chain;
@@ -277,10 +295,11 @@ void opcontrol() {
     // mb.moveTo(24, 24) | run;
 
     while (true) {
-        int dir = master.get_analog(ANALOG_LEFT_Y);
-        int turn = master.get_analog(ANALOG_RIGHT_X);
-        left_motors.move(dir + turn);
-        right_motors.move(dir - turn);
+        Voltage dir = from_volt(master.get_analog(ANALOG_LEFT_Y) / 127.0);
+        Voltage turn = -from_volt(master.get_analog(ANALOG_RIGHT_X) / 127.0);
+
+        drivetrain.moveArcade(dir, turn);
+
         pros::delay(20);
     }
 }

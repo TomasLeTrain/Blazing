@@ -65,11 +65,11 @@ class PID {
           m_inputUnits(inputUnits),
           m_outputUnits(outputUnits),
           UKP(outputUnits / inputUnits),
-          UKI(outputUnits / timeUnits / inputUnits),
-          UKD(outputUnits * timeUnits / inputUnits),
+          UKI((outputUnits / timeUnits) / inputUnits),
+          UKD((outputUnits * timeUnits) / inputUnits),
           kP(mkP * (outputUnits / inputUnits)),
-          kI(mkI * (outputUnits / timeUnits / inputUnits)),
-          kD(mkD * (outputUnits * timeUnits / inputUnits)),
+          kI(mkI * ((outputUnits / timeUnits) / inputUnits)),
+          kD(mkD * ((outputUnits * timeUnits) / inputUnits)),
           windupRange(
             windupRange.transform([inputUnits](double windupRange) -> Input {
                 return windupRange * inputUnits;
