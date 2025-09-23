@@ -1,5 +1,6 @@
 #pragma once
 
+#include "blazing/utils.hpp"
 #include "pros/device.hpp"
 #include "pros/imu.hpp"
 #include "pros/motor_group.hpp"
@@ -78,15 +79,7 @@ class SimpleOdomTracker {
     }
 
     void update() {
-        Time current_time = from_msec(pros::millis());
-
-        const Time delta_time =
-          last_time
-            .transform([current_time](Time last_time) -> Time {
-                return current_time - last_time;
-            })
-            .value_or(0.0_sec);
-        last_time = current_time;
+        const Time delta_time = deltaTime(last_time);
 
         auto get_dist = [this](pros::MotorGroup* motors) -> Length {
             Length res = 0_in;
@@ -117,7 +110,8 @@ class SimpleOdomTracker {
 
         // NOTE: this is not super accurate, might return 0 due to the polling
         // rate
-        linear_velocity = average_distance / delta_time;
+        linear_velocity = delta_time == 0_sec ? LinearVelocity(INFINITY) :
+                                                average_distance / delta_time;
 
         forward_travel += average_distance;
         distance_traveled += units::abs(average_distance);
@@ -128,7 +122,8 @@ class SimpleOdomTracker {
         // std::cout << "[odom] heading " << heading << std::endl;
 
         Angle heading_theta = heading - *last_heading;
-        angular_velocity = heading_theta / delta_time;
+        angular_velocity = delta_time == 0_sec ? AngularVelocity(INFINITY) :
+                                                 heading_theta / delta_time;
         last_heading = heading;
 
         // update pose
