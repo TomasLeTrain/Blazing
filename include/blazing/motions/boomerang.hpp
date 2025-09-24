@@ -84,19 +84,41 @@ class boomerang : public Motion<ControllersType,
         if (units::abs(pose_target_distance) < close_threshold &&
             !state.close) {
             state.close = true;
+            std::cout << "now close!" << std::endl;
         }
+
+        const double lead2 = 0.5;
+        const double lead2_active = pose_target_distance < 14_in ? 0.0 : 1.0;
 
         const units::V2Position carrot =
           state.close ?
             target :
-            target - units::V2Position::fromPolar(target.orientation,
-                                                  pose_target_distance * lead);
+            target -
+              units::V2Position::fromPolar(target.orientation,
+                                           pose_target_distance * lead) -
+              lead2_active *
+				// TODO: - 90_deg doesn't work in all cases
+                units::V2Position::fromPolar(target.orientation - 90_stDeg,
+                                             pose_target_distance * lead2);
 
         Angle position_carrot_heading = position.angleTo(carrot);
 
+        // double t = std::clamp(
+        //   (units::abs(this->tracker.getTangentLinearVelocity()).internal()) +
+        //     0.3,
+        //   0.0,
+        //   1.0);
+
         const Angle target_heading =
-          state.close ? target.orientation :
-			(0.3 * target.orientation + 0.7 * position.angleTo(carrot));
+          state.close ?
+            target.orientation :
+            // (0.3 * target.orientation + 0.7 * position.angleTo(carrot));
+            // (t * target.orientation + (1-t) * position.angleTo(carrot));
+            position.angleTo(carrot);
+
+        // std::cout << t << " "
+        //           << units::abs(this->tracker.getTangentLinearVelocity())
+        //           << std::endl;
 
         Length linear_error =
           position.distanceTo(carrot) * (reversed ? -1.0 : 1.0);

@@ -53,6 +53,7 @@ EOF
 		  alias u="pros --no-sentry --no-analytics u"
 		  alias m="pros --no-sentry --no-analytics build-compile-commands"
 		  alias t="pros --no-sentry --no-analytics t"
+		  alias ut="pros --no-sentry --no-analytics ut"
         '';
       };
     });

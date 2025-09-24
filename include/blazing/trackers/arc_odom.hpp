@@ -197,7 +197,8 @@ class ArcOdomTracker {
                     continue;
 
                 // return the calculated heading
-                return from_stRad((distance1 - distance2) / (offset1 - offset2));
+                return from_stRad((distance1 - distance2) /
+                                  (offset1 - offset2));
             }
         }
         return std::nullopt;
@@ -286,7 +287,7 @@ class ArcOdomTracker {
               std::bind(&calculateWheelHeading<Sideways>, sideways_trackers))
             .or_else(
               std::bind(&calculateWheelHeading<Forwards>, forwards_trackers))
-            .value_or(Angle(INFINITY));
+            .value_or(0_stDeg);
 
         // default to zero
         units::V2Position deltas = units::origin<Length>,
@@ -330,10 +331,14 @@ class ArcOdomTracker {
 
         // NOTE: this is not super accurate, might return 0 due to the
         // polling rate
-        velocity_vector = delta_time == 0_sec ?
-                            units::V2Velocity { LinearVelocity(INFINITY),
-                                                LinearVelocity(INFINITY) } :
-                            local_position_delta / delta_time;
+
+		// this if somehow fixes the noisyness?
+		if(local_position_delta.y > 0.001_in){
+			velocity_vector = delta_time == 0_sec ?
+								units::V2Velocity { LinearVelocity(INFINITY),
+													LinearVelocity(INFINITY) } :
+								local_position_delta / delta_time;
+		}
 
         angular_velocity = delta_time == 0_sec ? AngularVelocity(INFINITY) :
                                                  heading_delta / delta_time;
@@ -346,6 +351,9 @@ class ArcOdomTracker {
         pose +=
           local_position_delta.rotatedBy(pose.orientation + heading_delta / 2);
         pose.orientation += heading_delta;
+
+        // std::cout << pose.x << " " << pose.y << " " << pose.orientation
+        //           << std::endl;
     }
 };
 } // namespace blazing

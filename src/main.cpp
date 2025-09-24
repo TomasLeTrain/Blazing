@@ -68,9 +68,55 @@ void competition_initialize() {}
  */
 void autonomous() {}
 
+class ScaledIMU : public pros::IMU {
+  public:
+    ScaledIMU(int port, double scalar = 1.0)
+        : pros::IMU(port),
+          m_port(port),
+          m_scalar(scalar) {}
+
+    ScaledIMU(const pros::IMU& other, double scalar = 1.0)
+        : pros::IMU(other),
+          m_port(other.get_port()),
+          m_scalar(scalar) {}
+
+    int32_t reset(bool blocking = false) {
+        std::lock_guard lock(m_mutex);
+
+        m_offset = 0;
+        return pros::IMU::reset(blocking);
+    }
+
+    virtual double get_rotation() const {
+        std::lock_guard lock(m_mutex);
+
+        double raw = pros::c::imu_get_rotation(m_port);
+        if (raw == INFINITY) return INFINITY;
+        return raw * m_scalar + m_offset;
+    }
+
+    virtual int set_rotation(double new_rotation) {
+        std::lock_guard lock(m_mutex);
+
+        double curr_raw = this->get_rotation();
+        if (curr_raw == INFINITY) return INT32_MAX;
+
+        m_offset += new_rotation - curr_raw;
+        return 0;
+    }
+
+  private:
+    const double m_scalar;
+    int m_port;
+
+    mutable pros::Mutex m_mutex;
+
+    double m_offset = 0;
+};
+
 pros::MotorGroup left_motors({ -11, -14, 13 });
 pros::MotorGroup right_motors({ 15, 16, -10 });
-pros::Imu imu(1);
+ScaledIMU imu(1, (360.0 + 3.8) / 360.0);
 pros::Controller master(pros::E_CONTROLLER_MASTER);
 // ScaledImu imu(1, (360.0 + 3.8) / 360.0);
 
@@ -98,11 +144,11 @@ ForwardsTracker right_motor_tracker(&right_motors,
                                     wheel_diameter,
                                     final_rpm);
 
-pros::Rotation forwards_rotation_sensor(6);
-pros::Rotation sideways_rotation_sensor(7);
+pros::Rotation forwards_rotation_sensor(-20);
+pros::Rotation sideways_rotation_sensor(5);
 
-ForwardsTracker forwards_tracker(&forwards_rotation_sensor, 0_in, 1.96_in);
-SidewaysTracker sideways_tracker(&sideways_rotation_sensor, 0_in, 1.96_in);
+ForwardsTracker forwards_tracker(&forwards_rotation_sensor, -0.55_in, 1.996_in);
+SidewaysTracker sideways_tracker(&sideways_rotation_sensor, -0.2_in, 1.96_in);
 
 ArcOdomTracker arc_pose_tracker({ forwards_tracker,
                                   left_motor_tracker,
@@ -235,6 +281,13 @@ void opcontrol() {
         }
     });
 
+    pros::Task([&]() {
+        while (true) {
+            arc_pose_tracker.update();
+            pros::delay(10);
+        }
+    });
+
     // change all moveTo movements to use custom angularLinear function and go
     // in reverse
     mb.setMoveToModifier([](auto moveTo) {
@@ -274,14 +327,34 @@ void opcontrol() {
         }
     });
 
+    pros::delay(100);
+
     // pose_tracker.setPose({ 0_in, 0_in, 0_stDeg });
+	
     arc_pose_tracker.setPose({ 0_in, 0_in, 0_stDeg });
 
     mb.turnTo(90) | run;
     // mb.moveTo(24, 24).reverse() | chain;
     // mb.moveTo(-24, 24) | chain;
     // mb.moveTo(0, 0).reverse() | chain;
-    mb.boomerang(24, 24, 0).withLead(0.4).closeThreshold(14_in) | run;
+    // mb.boomerang(-24, 24, 180)
+    //     .withLead(0.6)
+    //     .closeThreshold(8_in)
+    //     .linear_clampMaxVoltage(1.0_volt) |
+    //   run;
+
+    mb.boomerang(-24, 48, 180)
+        .withLead(0.4)
+        .closeThreshold(14_in)
+        .linear_clampMaxVoltage(1.0_volt) |
+      run;
+
+    mb.boomerang(0, 0, 270)
+		.reverse()
+        .withLead(0.4)
+        .closeThreshold(4_in)
+        .linear_clampMaxVoltage(1.0_volt) |
+      run;
 
     // chain.wait();
     // chain.waitUntil([&]() -> bool {
@@ -294,11 +367,19 @@ void opcontrol() {
     // mb.moveTo(20, -20) | run;
     // mb.moveTo(24, 24) | run;
 
+    pros::delay(30);
+
     while (true) {
         Voltage dir = from_volt(master.get_analog(ANALOG_LEFT_Y) / 127.0);
         Voltage turn = -from_volt(master.get_analog(ANALOG_RIGHT_X) / 127.0);
 
         drivetrain.moveArcade(dir, turn);
+
+        pros::lcd::print(0,
+                         "%f %f %f",
+                         to_in(arc_pose_tracker.getPosition().x),
+                         to_in(arc_pose_tracker.getPosition().y),
+                         to_stDeg(arc_pose_tracker.getAngle()));
 
         pros::delay(20);
     }

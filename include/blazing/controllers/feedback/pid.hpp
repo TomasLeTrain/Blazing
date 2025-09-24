@@ -126,9 +126,9 @@ class PID {
         // std::cout << "[PID] unclamped result: " << result;
 
         if (maxVoltage) {
-			std::cout  << "unclamped " << result.internal() << std::endl;
+			// std::cout  << "unclamped " << result.internal() << std::endl;
             result = units::clamp(result, -(*maxVoltage), *maxVoltage);
-			std::cout  << "clamped " << result.internal() << std::endl;
+			// std::cout  << "clamped " << result.internal() << std::endl;
         }
         // std::cout << ", clamped result: " << result << std::endl;
 
