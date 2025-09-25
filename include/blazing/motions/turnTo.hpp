@@ -44,9 +44,9 @@ class turnTo : public Motion<ControllersType,
     std::variant<Angle, units::V2Position> target;
 
     // turnTo-specific properties
-    std::optional<Time> timeout = std::nullopt;
+    std::optional<Time> m_timeout = std::nullopt;
     bool reversed = false;
-    std::optional<AngularDirection> direction = std::nullopt;
+    std::optional<AngularDirection> m_direction = std::nullopt;
 
     std::optional<TurnToState> m_state;
 
@@ -112,7 +112,7 @@ class turnTo : public Motion<ControllersType,
 
             return state.settling ?
                      directionless_error :
-                     angleError(target_heading, heading, direction);
+                     angleError(target_heading, heading, m_direction);
         }();
 
         // std::cout << "turnTo: err angular/vel: " << angular_error << " "
@@ -146,7 +146,7 @@ class turnTo : public Motion<ControllersType,
 
         // check timeout
         result.finished |=
-          timeout
+          m_timeout
             .transform([state](Time timeout) -> bool {
                 return from_msec(pros::millis()) - state.start_time > timeout;
             })
@@ -235,15 +235,15 @@ class turnTo : public Motion<ControllersType,
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
-    auto withTimeout(Time timeout) {
-        this->timeout = timeout;
+    auto timeout(Time timeout) {
+        this->m_timeout = timeout;
 
         return this->getReference();
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
-    auto withDirection(std::optional<AngularDirection> direction) {
-        this->direction = direction;
+    auto direction(std::optional<AngularDirection> direction) {
+        this->m_direction = direction;
 
         return this->getReference();
     }

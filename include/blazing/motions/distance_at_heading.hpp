@@ -43,8 +43,8 @@ class distanceAtHeading : public Motion<ControllersType,
 
     // distanceAtHeading-specific properties
     bool reversed = false;
-    std::optional<Time> timeout = std::nullopt;
-    std::optional<AngularDirection> direction = std::nullopt;
+    std::optional<Time> m_timeout = std::nullopt;
+    std::optional<AngularDirection> m_direction = std::nullopt;
 
     std::optional<DistanceAtHeadingState> m_state;
 
@@ -86,7 +86,7 @@ class distanceAtHeading : public Motion<ControllersType,
         Length linear_error =
           (target_distance + state.initial_forward_travel) - forward_travel;
 
-        Angle angular_error = angleError(target_heading, heading, direction);
+        Angle angular_error = angleError(target_heading, heading, m_direction);
 
         // linear tolerances
         this->tolerances.linearErrorToleranceUpdate(linear_error);
@@ -149,7 +149,7 @@ class distanceAtHeading : public Motion<ControllersType,
 
         // check timeout
         result.finished |=
-          timeout
+          m_timeout
             .transform([state](Time timeout) -> bool {
                 return from_msec(pros::millis()) - state.start_time > timeout;
             })
@@ -252,15 +252,15 @@ class distanceAtHeading : public Motion<ControllersType,
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
-    auto withTimeout(Time timeout) {
-        this->timeout = timeout;
+    auto timeout(Time timeout) {
+        this->m_timeout = timeout;
 
         return this->getReference();
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
-    auto withDirection(std::optional<AngularDirection> direction) {
-        this->direction = direction;
+    auto direction(std::optional<AngularDirection> direction) {
+        this->m_direction = direction;
 
         return this->getReference();
     }

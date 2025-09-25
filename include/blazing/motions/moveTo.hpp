@@ -38,7 +38,7 @@ class moveTo : public Motion<ControllersType,
     units::V2Position target;
 
     // moveTo-specific properties
-    std::optional<Time> timeout = std::nullopt;
+    std::optional<Time> m_timeout = std::nullopt;
     bool reversed = false;
     Length close_threshold = 4_in;
     std::optional<Voltage> max_overturn_output = std::nullopt;
@@ -130,7 +130,7 @@ class moveTo : public Motion<ControllersType,
 
         // check timeout
         result.finished |=
-          timeout
+          m_timeout
             .transform([state](Time timeout) -> bool {
                 return from_msec(pros::millis()) - state.start_time > timeout;
             })
@@ -254,7 +254,7 @@ class moveTo : public Motion<ControllersType,
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
-    auto withOverturn(Voltage max_overturn_output = 1_volt) {
+    auto overturn(Voltage max_overturn_output = 1_volt) {
         this->max_overturn_output = max_overturn_output;
 
         return this->getReference();
@@ -274,8 +274,8 @@ class moveTo : public Motion<ControllersType,
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
-    auto withTimeout(Time timeout) {
-        this->timeout = timeout;
+    auto timeout(Time timeout) {
+        this->m_timeout = timeout;
 
         return this->getReference();
     }

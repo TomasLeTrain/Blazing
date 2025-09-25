@@ -39,10 +39,14 @@ class boomerang : public Motion<ControllersType,
     units::Pose target;
 
     // boomerang-specific properties
-    std::optional<Time> timeout = std::nullopt;
+    std::optional<Time> m_timeout = std::nullopt;
     bool reversed = false;
-    double lead = 0.5;
+    double m_lead = 0.5;
+    double m_lead2 = 0.0;
+
     Length close_threshold = 4_in;
+    Length lead2_dist_threshold = 10_in;
+
     std::optional<Voltage> max_overturn_output = std::nullopt;
 
     // defaults to cosine of angle
@@ -87,19 +91,31 @@ class boomerang : public Motion<ControllersType,
             std::cout << "now close!" << std::endl;
         }
 
-        const double lead2 = 0.5;
-        const double lead2_active = pose_target_distance < 14_in ? 0.0 : 1.0;
+        const units::V2Position carrot = [&] -> units::V2Position {
+            if (state.close) return target;
+            auto carrot = target - units::V2Position::fromPolar(
+                                     target.orientation,
+                                     pose_target_distance * m_lead);
 
-        const units::V2Position carrot =
-          state.close ?
-            target :
-            target -
-              units::V2Position::fromPolar(target.orientation,
-                                           pose_target_distance * lead) -
-              lead2_active *
-				// TODO: - 90_deg doesn't work in all cases
-                units::V2Position::fromPolar(target.orientation - 90_stDeg,
-                                             pose_target_distance * lead2);
+            // lead2 not active anymore, use normal carrot
+            if (pose_target_distance < lead2_dist_threshold || m_lead2 == 0.0)
+                return carrot;
+
+            // perpendicular to lead
+            auto lead2_vector =
+              units::V2Position::fromPolar(target.orientation + 90_stDeg,
+                                           pose_target_distance * m_lead2);
+
+            auto carrot1 = carrot - lead2_vector;
+            auto carrot2 = carrot + lead2_vector;
+
+            // use carrot which minimizes distance
+            if (position.distanceTo(carrot1) < position.distanceTo(carrot2)) {
+                return carrot1;
+            } else {
+                return carrot2;
+            }
+        }();
 
         Angle position_carrot_heading = position.angleTo(carrot);
 
@@ -163,7 +179,7 @@ class boomerang : public Motion<ControllersType,
 
         // check timeout
         result.finished |=
-          timeout
+          m_timeout
             .transform([state](Time timeout) -> bool {
                 return from_msec(pros::millis()) - state.start_time > timeout;
             })
@@ -305,8 +321,15 @@ class boomerang : public Motion<ControllersType,
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
-    auto withLead(double lead) {
-        this->lead = lead;
+    auto lead2DistThreshold(Length threshold) {
+        this->lead2_dist_threshold = threshold;
+        return this->getReference();
+    }
+
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
+    auto lead(double lead, double lead2 = 0.0) {
+        this->m_lead = lead;
+        this->m_lead2 = lead2;
         return this->getReference();
     }
 
@@ -318,8 +341,8 @@ class boomerang : public Motion<ControllersType,
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
-    auto withTimeout(Time timeout) {
-        this->timeout = timeout;
+    auto timeout(Time timeout) {
+        this->m_timeout = timeout;
 
         return this->getReference();
     }

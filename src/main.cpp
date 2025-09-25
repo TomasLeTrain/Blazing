@@ -344,14 +344,14 @@ void opcontrol() {
     //   run;
 
     mb.boomerang(-24, 48, 180)
-        .withLead(0.4)
+        .lead(0.4)
         .closeThreshold(14_in)
         .linear_clampMaxVoltage(1.0_volt) |
       run;
 
     mb.boomerang(0, 0, 270)
 		.reverse()
-        .withLead(0.4)
+        .lead(0.4)
         .closeThreshold(4_in)
         .linear_clampMaxVoltage(1.0_volt) |
       run;
