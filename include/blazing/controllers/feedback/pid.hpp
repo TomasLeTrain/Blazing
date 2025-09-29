@@ -16,13 +16,13 @@ using KD_t = Divided<Multiplied<Output, Time>, Input>;
 template<typename Input, typename Output>
 class PID {
   private:
-    KP_t<Input, Output> kP;
-    KI_t<Input, Output> kI;
-    KD_t<Input, Output> kD;
+    KP_t<Input, Output> m_kp;
+    KI_t<Input, Output> m_ki;
+    KD_t<Input, Output> m_kd;
 
-    std::optional<Input> windupRange;
+    std::optional<Input> m_windupRange;
 
-    std::optional<Output> maxVoltage;
+    std::optional<Output> m_maxVoltage;
 
     std::optional<Input> previousError;
     Multiplied<Input, Time> integral = Multiplied<Input, Time>(0);
@@ -40,18 +40,16 @@ class PID {
     KI_t<Input, Output> UKI;
     KD_t<Input, Output> UKD;
 
-    PID(KP_t<Input, Output> kP,
-        KI_t<Input, Output> kI,
-        KD_t<Input, Output> kD,
+    PID(KP_t<Input, Output> kp,
+        KI_t<Input, Output> ki,
+        KD_t<Input, Output> kd,
         std::optional<Input> windupRange = std::nullopt,
         std::optional<Output> maxVoltage = std::nullopt)
-        : kP(kP),
-          kI(kI),
-          kD(kD),
-          windupRange(windupRange),
-          maxVoltage(maxVoltage) {
-        // std::cout << "constructor 1 called " << std::endl;
-    }
+        : m_kp(kp),
+          m_ki(ki),
+          m_kd(kd),
+          m_windupRange(windupRange),
+          m_maxVoltage(maxVoltage) {}
 
     PID(double mkP,
         double mkI,
@@ -67,23 +65,17 @@ class PID {
           UKP(outputUnits / inputUnits),
           UKI((outputUnits / timeUnits) / inputUnits),
           UKD((outputUnits * timeUnits) / inputUnits),
-          kP(mkP * (outputUnits / inputUnits)),
-          kI(mkI * ((outputUnits / timeUnits) / inputUnits)),
-          kD(mkD * ((outputUnits * timeUnits) / inputUnits)),
-          windupRange(
+          m_kp(mkP * (outputUnits / inputUnits)),
+          m_ki(mkI * ((outputUnits / timeUnits) / inputUnits)),
+          m_kd(mkD * ((outputUnits * timeUnits) / inputUnits)),
+          m_windupRange(
             windupRange.transform([inputUnits](double windupRange) -> Input {
                 return windupRange * inputUnits;
             })),
-          maxVoltage(
+          m_maxVoltage(
             maxVoltage.transform([outputUnits](double maxVoltage) -> Output {
                 return maxVoltage * outputUnits;
-            })) {
-        // std::cout << "constructor 2 called " << std::endl;
-        // std::cout << " tf " << mkP * UKP << " " << mkI * UKI << " " << mkD *
-        // UKD
-        //           << std::endl;
-        // std::cout << " tf " << kP << " " << kI << " " << kD << std::endl;
-    }
+            })) {}
 
     void reset() {
         integral = 0;
@@ -105,101 +97,90 @@ class PID {
         // sign flip reset. If the sign of error changes, set the integral to 0
         if (units::sgn(error) != units::sgn(*previousError))
             integral = Multiplied<Input, Time>(0);
+
         // anti windup range. Unless error is small enough, set the integral to
         // 0
-        if (windupRange
+        if (m_windupRange
               .transform([error](Input windupRange) {
                   return units::abs(error) > windupRange;
               })
               .value_or(false))
             integral = Multiplied<Input, Time>(0);
 
-        Output result = error * kP + integral * kI + derivative * kD;
+        Output result = error * m_kp + integral * m_ki + derivative * m_kd;
 
-        // std::cout << "[PID] UKP/I/D: " << UKP << " " << UKI << " " << UKD
-        //           << std::endl;
-        // std::cout << "[PID] error/kp/integral/ki/der/kd: " << error << " " <<
-        // kP
-        //           << " " << integral << " " << kI << " " << derivative << " "
-        //           << kD << std::endl;
-        //
-        // std::cout << "[PID] unclamped result: " << result;
-
-        if (maxVoltage) {
-			// std::cout  << "unclamped " << result.internal() << std::endl;
-            result = units::clamp(result, -(*maxVoltage), *maxVoltage);
-			// std::cout  << "clamped " << result.internal() << std::endl;
+        if (m_maxVoltage) {
+            result = units::clamp(result, -(*m_maxVoltage), *m_maxVoltage);
         }
-        // std::cout << ", clamped result: " << result << std::endl;
 
         return result;
     }
 
-    KP_t<Input, Output> get_kP() {
-        return kP;
+    KP_t<Input, Output> get_kp() {
+        return m_kp;
     }
 
-    KI_t<Input, Output> get_kI() {
-        return kI;
+    KI_t<Input, Output> get_ki() {
+        return m_ki;
     }
 
-    KD_t<Input, Output> get_kD() {
-        return kD;
+    KD_t<Input, Output> get_kd() {
+        return m_kd;
     }
 
     std::optional<Input> get_windupRange() {
-        return windupRange;
+        return m_windupRange;
     }
 
     std::optional<Output> get_maxVoltage() {
-        return maxVoltage;
+        return m_maxVoltage;
     }
 
-    void set_kP(KP_t<Input, Output> kP) {
-        this->kP = kP;
+    void set_kp(KP_t<Input, Output> kp) {
+        m_kp = kp;
     }
 
-    void set_kI(KI_t<Input, Output> kI) {
-        this->kI = kI;
+    void set_ki(KI_t<Input, Output> ki) {
+        m_ki = ki;
     }
 
-    void set_kD(KD_t<Input, Output> kD) {
-        this->kD = kD;
+    void set_kd(KD_t<Input, Output> kd) {
+        m_kd = kd;
     }
 
     void set_windupRange(std::optional<Input> windupRange) {
-        this->windupRange = windupRange;
+        m_windupRange = windupRange;
     }
 
     void set_positiveSlew(std::optional<Output> positiveSlew) {
-        this->maxVoltage = positiveSlew;
+        m_maxVoltage = positiveSlew;
     }
 
     // double versions
-    void set_kP(double kP) {
-        this->kP = kP * UKP;
+    void set_kp(double kp) {
+        set_kp(kp * UKP);
     }
 
-    void set_kI(double kI) {
-        this->kI = kI * UKI;
+    void set_ki(double ki) {
+        set_ki(ki * UKI);
     }
 
-    void set_kD(double kD) {
-        this->kD = kD * UKD;
+    void set_kd(double kd) {
+        set_kd(kd * UKD);
     }
 
     void set_windupRange(std::optional<double> windupRange) {
-        this->windupRange = windupRange.transform(
+        set_windupRange(windupRange.transform(
           [inputUnits = this->m_inputUnits](auto windupRange) -> Input {
               return windupRange * inputUnits;
-          });
+          }));
     }
 
     void set_maxVoltage(std::optional<double> maxVoltage) {
-        this->maxVoltage = maxVoltage.transform(
+        set_maxVoltage(maxVoltage.transform(
           [outputUnits = this->m_outputUnits](auto maxVoltage) -> Output {
               return maxVoltage * outputUnits;
-          });
+          }));
     }
 };
 } // namespace blazing

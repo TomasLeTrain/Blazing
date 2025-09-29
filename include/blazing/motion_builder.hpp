@@ -151,6 +151,7 @@ class MotionBuilder {
                                      target_heading));
     }
 
+    // boomerang
     [[nodiscard("motion won't be executed unless an executor is used!")]]
     boomerangType boomerang(units::Pose pose) {
         return boomerangModifier(

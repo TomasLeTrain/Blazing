@@ -244,24 +244,24 @@ class Motion : public MotionBase {
     }
 
     // lateral pid changers
-    motionChangerT lateral_kP(this Self&& self, T kP)
+    motionChangerT lateral_kP(this Self&& self, T kp)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
-        self.controllers.linear_feedback_controller.set_kP(kP);
+        self.controllers.linear_feedback_controller.set_kp(kp);
         return self.getReference();
     }
 
-    motionChangerT lateral_kI(this Self&& self, T kI)
+    motionChangerT lateral_ki(this Self&& self, T ki)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
-        self.controllers.linear_feedback_controller.set_kI(kI);
+        self.controllers.linear_feedback_controller.set_ki(ki);
         return self.getReference();
     }
 
-    motionChangerT lateral_kD(this Self&& self, T kD)
+    motionChangerT lateral_kd(this Self&& self, T kd)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
-        self.controllers.linear_feedback_controller.set_kD(kD);
+        self.controllers.linear_feedback_controller.set_kd(kd);
         return self.getReference();
     }
 
@@ -295,10 +295,10 @@ class Motion : public MotionBase {
         return self.getReference();
     }
 
-    motionChangerT angular_kd(this Self&& self, T kD)
+    motionChangerT angular_kd(this Self&& self, T kd)
         requires std::derived_from<ControllersType, PIDAngularController>
     {
-        self.controllers.angular_feedback_controller.set_kD(kD);
+        self.controllers.angular_feedback_controller.set_kd(kd);
         return self.getReference();
     }
 
