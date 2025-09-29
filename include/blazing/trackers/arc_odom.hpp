@@ -269,6 +269,9 @@ class ArcOdomTracker {
     }
 
     void update() {
+        bool first_update = !last_time;
+
+        // should never equal zero since first update is ommited
         const Time delta_time = deltaTime(last_time);
 
         for (auto& tracker : imus) {
@@ -280,6 +283,10 @@ class ArcOdomTracker {
         for (auto& tracker : forwards_trackers) {
             tracker.update();
         }
+
+        // almost guaranteed that all trackers are undefined,
+        // just skip this update
+        if (first_update) return;
 
         Angle heading_delta =
           getImuDeltaAngle()
@@ -332,16 +339,16 @@ class ArcOdomTracker {
         // NOTE: this is not super accurate, might return 0 due to the
         // polling rate
 
-		// this if somehow fixes the noisyness?
-		if(local_position_delta.y > 0.001_in){
-			velocity_vector = delta_time == 0_sec ?
-								units::V2Velocity { LinearVelocity(INFINITY),
-													LinearVelocity(INFINITY) } :
-								local_position_delta / delta_time;
-		}
+        // this somehow fixes the noisyness?
+        // TODO: check if the delta is 0, and if so then don't update. (would
+        // need to check if that actually fixes the issue or if an epsilon check
+        // is required)
+        if (local_position_delta.y > 0.001_in) {
+            velocity_vector = local_position_delta / delta_time;
+        }
 
-        angular_velocity = delta_time == 0_sec ? AngularVelocity(INFINITY) :
-                                                 heading_delta / delta_time;
+        // TODO: maybe do the same with heading_delta?
+        angular_velocity = heading_delta / delta_time;
 
         forward_travel += local_position_delta.x;
         // should be magnitude instead?

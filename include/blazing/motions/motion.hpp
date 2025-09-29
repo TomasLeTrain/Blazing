@@ -243,29 +243,29 @@ class Motion : public MotionBase {
         return self.getReference();
     }
 
-    // lateral pid changers
-    motionChangerT lateral_kP(this Self&& self, T kp)
+    // linear pid changers
+    motionChangerT linear_kP(this Self&& self, T kp)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
         self.controllers.linear_feedback_controller.set_kp(kp);
         return self.getReference();
     }
 
-    motionChangerT lateral_ki(this Self&& self, T ki)
+    motionChangerT linear_ki(this Self&& self, T ki)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
         self.controllers.linear_feedback_controller.set_ki(ki);
         return self.getReference();
     }
 
-    motionChangerT lateral_kd(this Self&& self, T kd)
+    motionChangerT linear_kd(this Self&& self, T kd)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
         self.controllers.linear_feedback_controller.set_kd(kd);
         return self.getReference();
     }
 
-    motionChangerT lateral_windupRange(this Self&& self, T windupRange)
+    motionChangerT linear_windupRange(this Self&& self, T windupRange)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
         self.controllers.linear_feedback_controller.set_windupRange(
@@ -273,7 +273,7 @@ class Motion : public MotionBase {
         return self.getReference();
     }
 
-    motionChangerT lateral_PIDmaxVoltage(this Self&& self, T maxVoltage)
+    motionChangerT linear_PIDmaxVoltage(this Self&& self, T maxVoltage)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
         self.controllers.linear_feedback_controller.set_maxVoltage(maxVoltage);

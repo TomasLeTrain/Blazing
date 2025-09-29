@@ -137,7 +137,7 @@ SimpleOdomTracker pose_tracker(&left_motors,
                                final_rpm);
 
 ForwardsTracker
-  left_motor_tracker(&left_motors, -track_width / 2, wheel_diameter, 450_rpm);
+  left_motor_tracker(&left_motors, -track_width / 2, wheel_diameter, final_rpm);
 
 ForwardsTracker right_motor_tracker(&right_motors,
                                     track_width / 2,
@@ -157,22 +157,22 @@ ArcOdomTracker arc_pose_tracker({ forwards_tracker,
                                 { TrackingImu(&imu) });
 
 // controller stuff
-PID<Length, Voltage> lateral_pid(6,
-                                 0,
-                                 3,
-                                 5,
-                                 // std::nullopt,
-                                 127,
-                                 50_msec,
-                                 1_in,
-                                 (1.0 / 127.0) * volt);
+PID<Length, Voltage> linear_pid(6,
+                                0,
+                                3,
+                                5,
+                                // std::nullopt,
+                                127,
+                                50_msec,
+                                1_in,
+                                (1.0 / 127.0) * volt);
 
 PID<Angle, Voltage>
   angular_pid(2.8, 0.0, 5, 10, 127, 50_msec, (1_stDeg), (1.0 / 127.0) * volt);
 
 Controllers controllers(
   // pid controllers
-  PIDLinearController(lateral_pid),
+  PIDLinearController(linear_pid),
   PIDAngularController(angular_pid),
 
   // slew controllers
@@ -330,7 +330,7 @@ void opcontrol() {
     pros::delay(100);
 
     // pose_tracker.setPose({ 0_in, 0_in, 0_stDeg });
-	
+
     arc_pose_tracker.setPose({ 0_in, 0_in, 0_stDeg });
 
     mb.turnTo(90) | run;
@@ -350,7 +350,7 @@ void opcontrol() {
       run;
 
     mb.boomerang(0, 0, 270)
-		.reverse()
+        .reverse()
         .lead(0.4)
         .closeThreshold(4_in)
         .linear_clampMaxVoltage(1.0_volt) |
