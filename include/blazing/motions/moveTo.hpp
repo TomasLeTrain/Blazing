@@ -55,17 +55,20 @@ class moveTo : public Motion<ControllersType,
         return 10;
     }
 
-    motionExecutionResult execute() override {
+    std::optional<motionExecutionResult> execute() override {
         if (!m_state.has_value()) {
             m_state = { .close = false,
-                        .last_time = from_msec(pros::millis()),
-                        .start_time = from_msec(pros::millis()),
+                        .last_time = now(),
+                        .start_time = now(),
                         .locked_heading = std::nullopt };
+			// done to prevent values like delta_time being 0
+            return std::nullopt;
         }
 
         MoveToState& state = m_state.value();
         motionExecutionResult result;
 
+        // should never equal 0_sec
         Time delta_time = deltaTime(state.last_time);
 
         const units::V2Position position = this->tracker.getPosition();
@@ -132,7 +135,7 @@ class moveTo : public Motion<ControllersType,
         result.finished |=
           m_timeout
             .transform([state](Time timeout) -> bool {
-                return from_msec(pros::millis()) - state.start_time > timeout;
+                return now() - state.start_time > timeout;
             })
             .value_or(false);
 

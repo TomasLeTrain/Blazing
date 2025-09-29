@@ -3,6 +3,7 @@
 #include "pros/rtos.hpp"
 #include "units/Vector2D.hpp"
 #include "units/units.hpp"
+#include "utils.hpp"
 #include <optional>
 
 namespace blazing {
@@ -145,12 +146,12 @@ class Tolerances : virtual ToleranceBase,
 
             // set timestamp if it doesn't have one
             if (!tolerance_timestamp) {
-                tolerance_timestamp = from_msec(pros::millis());
+                tolerance_timestamp = now();
             }
             if (duration
                   .transform([timestamp =
                                 *this->tolerance_timestamp](Time time) -> bool {
-                      return from_msec(pros::millis()) - timestamp > time;
+                      return now() - timestamp > time;
                   })
                   .value_or(false)) {
                 // tolerance_timestamp = std::nullopt;

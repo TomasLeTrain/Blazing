@@ -1,4 +1,5 @@
 #include "blazing/executor.hpp"
+#include <optional>
 
 namespace blazing {
 
@@ -8,10 +9,14 @@ namespace blazing {
 void RunExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
     while (true) {
         // std::cout << "evaluating motion!" << std::endl;
-        auto result = motion->execute();
+        std::optional<motionExecutionResult> result = motion->execute();
+
+        auto result_finished = [](auto result) -> std::optional<bool> {
+            return result.finished;
+        };
 
         // finished motion, stop
-        if (result.finished) {
+        if (result.and_then(result_finished).value_or(false)) {
             break;
         }
 
@@ -42,7 +47,7 @@ void AsyncExecutor::update() {
 
     mutex.give();
 
-    if (result.finished) {
+    if (result && result->finished) {
         // remove motion from queue, need to take the mutex again
         mutex.take();
         motions.pop();
@@ -123,14 +128,19 @@ void ChainedExecutor::update() {
     bool disabled_result = current_motion->setEnabledDrivetrain(false);
 
     // run motion logic
-    auto result = current_motion->execute();
+    std::optional<motionExecutionResult> result = current_motion->execute();
+
+    auto result_inTolerance =
+      [](motionExecutionResult result) -> std::optional<bool> {
+        return result.inSmallTolerance.value_or(false) ||
+               result.inLargeTolerance.value_or(false) ||
+               result.inChainTolerance.value_or(false);
+    };
 
     // starts fusing if any tolerance gets hit
-    if ((result.inSmallTolerance.value_or(false) ||
-         result.inLargeTolerance.value_or(false) ||
-         result.inChainTolerance.value_or(false)) &&
-        !fuse_start_time) {
-        fuse_start_time = from_msec(pros::millis());
+    if (!fuse_start_time.has_value() &&
+        result.and_then(result_inTolerance).value_or(false)) {
+        fuse_start_time = now();
         std::cout << "start fusing!" << std::endl;
     }
 
@@ -151,7 +161,7 @@ void ChainedExecutor::update() {
         // the current motion (this should never really happen)
         next_motion->setEnabledDrivetrain(false);
 
-        // compute next motion
+        // compute next motion (dont care about its results?)
         next_motion->execute();
 
         // get its voltages
@@ -163,7 +173,7 @@ void ChainedExecutor::update() {
 
             std::vector<Voltage> fused_voltages(current_voltages->size());
 
-            Time elapsed_time = from_msec(pros::millis()) - *fuse_start_time;
+            Time elapsed_time = now() - *fuse_start_time;
 
             // use custom chain time from next motion if specified
             Time fusing_duration =
@@ -202,7 +212,11 @@ void ChainedExecutor::update() {
     // not using the queue anymore
     mutex.give();
 
-    if (result.finished || fusing_finished) {
+    auto result_finished = [](auto result) -> std::optional<bool> {
+        return result.finished;
+    };
+
+    if (fusing_finished || result.and_then(result_finished).value_or(false)) {
         // remove motion from queue, need to take the mutex again
         std::cout << "finished motion " << fusing_finished << std::endl;
         mutex.take();

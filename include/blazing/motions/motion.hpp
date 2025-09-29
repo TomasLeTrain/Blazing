@@ -22,9 +22,9 @@ namespace blazing {
     [[nodiscard("motion won't be executed unless an executor is used!")]] auto
 
 struct motionExecutionResult {
-    std::optional<bool> inLargeTolerance = false;
-    std::optional<bool> inSmallTolerance = false;
-    std::optional<bool> inChainTolerance = false;
+    std::optional<bool> inLargeTolerance = std::nullopt;
+    std::optional<bool> inSmallTolerance = std::nullopt;
+    std::optional<bool> inChainTolerance = std::nullopt;
     bool finished = false;
 };
 
@@ -32,7 +32,7 @@ struct motionExecutionResult {
 class MotionBase {
   public:
     virtual int getLoopDelayTime() = 0;
-    virtual motionExecutionResult execute() = 0;
+    virtual std::optional<motionExecutionResult> execute() = 0;
 
     // functions meant to be used for chaining motions
     virtual bool setEnabledDrivetrain(bool enabled) {

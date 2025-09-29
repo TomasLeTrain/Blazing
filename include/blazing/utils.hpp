@@ -1,5 +1,6 @@
 #pragma once
 
+#include "pros/rtos.hpp"
 #include "units/Angle.hpp"
 #include "units/units.hpp"
 #include <array>
@@ -32,6 +33,12 @@ Time deltaTime(std::optional<Time>& last_time);
 template<isQuantity Q>
 Number signed_sgn(Q num) {
     return units::sgn(num) == 0 ? Number(1.0) : units::sgn(num);
+}
+
+// returns time since program started
+// uses pros::millis to get the information
+inline Time now(){
+	return from_msec(pros::millis());
 }
 
 } // namespace blazing

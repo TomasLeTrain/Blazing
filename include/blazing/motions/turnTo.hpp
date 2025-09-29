@@ -54,20 +54,23 @@ class turnTo : public Motion<ControllersType,
         return 10;
     }
 
-    motionExecutionResult execute() override {
+    std::optional<motionExecutionResult> execute() override {
         if (!m_state.has_value()) {
             m_state = { .initial_distance_traveled =
                           this->tracker.getForwardTravel(),
-                        .start_time = from_msec(pros::millis()),
-                        .last_time = from_msec(pros::millis()),
+                        .start_time = now(),
+                        .last_time = now(),
                         .settled = false,
                         .settling = false,
                         .prev_directionless_error = std::nullopt };
+            // done to prevent values like delta_time being 0
+            return std::nullopt;
         }
 
         TurnToState& state = m_state.value();
         motionExecutionResult result;
 
+        // should never equal 0_sec
         Time delta_time = deltaTime(state.last_time);
 
         const Angle heading = [&] -> Angle {
@@ -148,7 +151,7 @@ class turnTo : public Motion<ControllersType,
         result.finished |=
           m_timeout
             .transform([state](Time timeout) -> bool {
-                return from_msec(pros::millis()) - state.start_time > timeout;
+                return now() - state.start_time > timeout;
             })
             .value_or(false);
 

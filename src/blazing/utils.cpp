@@ -50,7 +50,7 @@ template std::array<Voltage, 2>
 desaturate<Voltage, 2>(std::array<Voltage, 2> saturated, Voltage max);
 
 Time deltaTime(std::optional<Time>& last_time) {
-    Time current_time = from_msec(pros::millis());
+    Time current_time = now();
 
     // can't return becaue we need to set last_time!
     auto result = last_time
