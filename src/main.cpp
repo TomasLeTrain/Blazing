@@ -189,18 +189,16 @@ Tolerances linearTolerances(200_msec,
                             VelocityTolerance { 10_inps });
 // HalfCircleTolerance { 1_in });
 
-Tolerances angularTolerances(150_msec,
+Tolerances angularTolerances(100_msec,
                              ErrorTolerance { 4_stDeg },
-                             VelocityTolerance { 40_degps });
+                             VelocityTolerance { 50_degps });
 
 // large tolerances
 Tolerances largeLinearTolerances(1_sec,
                                  ErrorTolerance { 5_in },
                                  VelocityTolerance { 30_inps });
 
-Tolerances largeAngularTolerances(1_sec,
-                                  ErrorTolerance { 30_stDeg },
-                                  VelocityTolerance { 1000_degps });
+Tolerances largeAngularTolerances(1_sec, ErrorTolerance { 20_stDeg });
 
 // chain tolerances
 Tolerances chainLinearTolerances(1_sec, ErrorTolerance { 14_in });
@@ -346,6 +344,8 @@ void opcontrol() {
     mb.boomerang(-24, 48, 180)
         .lead(0.4)
         .closeThreshold(14_in)
+        // new to try
+        .lead2DistThreshold(4_in)
         .linear_clampMaxVoltage(1.0_volt) |
       run;
 

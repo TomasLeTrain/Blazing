@@ -67,7 +67,7 @@ class boomerang : public Motion<ControllersType,
                         .start_time = now(),
                         .close = false,
                         .prev_position = this->tracker.getPosition() };
-			// done to prevent values like delta_time being 0
+            // done to prevent values like delta_time being 0
             return std::nullopt;
         }
 
@@ -100,8 +100,19 @@ class boomerang : public Motion<ControllersType,
                                      target.orientation,
                                      pose_target_distance * m_lead);
 
+            // // lead2 not active anymore, use normal carrot
+            // if (pose_target_distance < lead2_dist_threshold || m_lead2 == 0.0)
+            //     return carrot;
+
+			// sideways error relative to the target angle
+			// used to determine of to use lead2 or not
+			Length sideways_error =
+			  units::abs((target - position) *
+						 units::Vector2D { -units::sin(target.orientation),
+										   units::cos(target.orientation) });
+
             // lead2 not active anymore, use normal carrot
-            if (pose_target_distance < lead2_dist_threshold || m_lead2 == 0.0)
+            if (sideways_error < lead2_dist_threshold || m_lead2 == 0.0)
                 return carrot;
 
             // perpendicular to lead
@@ -121,12 +132,6 @@ class boomerang : public Motion<ControllersType,
         }();
 
         Angle position_carrot_heading = position.angleTo(carrot);
-
-        // double t = std::clamp(
-        //   (units::abs(this->tracker.getTangentLinearVelocity()).internal()) +
-        //     0.3,
-        //   0.0,
-        //   1.0);
 
         const Angle target_heading =
           state.close ?
@@ -181,12 +186,11 @@ class boomerang : public Motion<ControllersType,
         }
 
         // check timeout
-        result.finished |=
-          m_timeout
-            .transform([state](Time timeout) -> bool {
-                return now() - state.start_time > timeout;
-            })
-            .value_or(false);
+        result.finished |= m_timeout
+                             .transform([state](Time timeout) -> bool {
+                                 return now() - state.start_time > timeout;
+                             })
+                             .value_or(false);
 
         // finished if any of the available tolerances or timeout are triggered
         if (result.finished) {

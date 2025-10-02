@@ -34,20 +34,26 @@ void AsyncExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
 }
 
 void AsyncExecutor::update() {
+    // there is a motion to perform
+    mutex.take();
+
     if (motions.empty()) {
         // delay until a new motion is available
+        mutex.give();
         pros::delay(20);
         return;
     }
-    // there is a motion to perform
-    mutex.take();
 
     std::unique_ptr<MotionBase>& current_motion = motions.front();
     auto result = current_motion->execute();
 
     mutex.give();
 
-    if (result && result->finished) {
+    auto result_finished = [](auto result) -> std::optional<bool> {
+        return result.finished;
+    };
+
+    if (result.and_then(result_finished).value_or(false)) {
         // remove motion from queue, need to take the mutex again
         mutex.take();
         motions.pop();
@@ -114,13 +120,15 @@ void ChainedExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
 }
 
 void ChainedExecutor::update() {
+    // there is a motion to perform
+    mutex.take();
+
     if (motions.empty()) {
         // delay until a new motion is available
+		mutex.give();
         pros::delay(20);
         return;
     }
-    // there is a motion to perform
-    mutex.take();
 
     std::unique_ptr<MotionBase>& current_motion = motions.front();
 
