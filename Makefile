@@ -14,6 +14,8 @@ INCDIR=$(ROOT)/include
 
 WARNFLAGS+=
 EXTRA_CFLAGS=
+# module support (incappable of building some pros screen code)
+# EXTRA_CXXFLAGS=-fmodules-ts
 EXTRA_CXXFLAGS=
 
 # Set to 1 to enable hot/cold linking

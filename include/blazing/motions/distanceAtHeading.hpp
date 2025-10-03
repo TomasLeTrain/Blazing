@@ -22,6 +22,10 @@ struct DistanceAtHeadingState {
 
     bool linear_settled;
     bool angular_settled;
+
+    bool settling;
+
+    std::optional<Angle> prev_directionless_error;
 };
 
 template<typename ControllersType,
@@ -54,14 +58,16 @@ class distanceAtHeading : public Motion<ControllersType,
 
     std::optional<motionExecutionResult> execute() override {
         if (!m_state.has_value()) {
-            m_state = {
-                .initial_forward_travel = this->tracker.getForwardTravel(),
-                .start_time = now(),
-                .last_time = now(),
-                .linear_settled = false,
-                .angular_settled = false,
-            };
-			// done to prevent values like delta_time being 0
+            m_state = { .initial_forward_travel =
+                          this->tracker.getForwardTravel(),
+                        .start_time = now(),
+                        .last_time = now(),
+                        .linear_settled = false,
+                        .angular_settled = false,
+                        .settling = false,
+                        .prev_directionless_error = std::nullopt };
+
+            // done to prevent values like delta_time being 0
             return std::nullopt;
         }
 
@@ -89,7 +95,23 @@ class distanceAtHeading : public Motion<ControllersType,
         Length linear_error =
           (target_distance + state.initial_forward_travel) - forward_travel;
 
-        Angle angular_error = angleError(target_heading, heading, m_direction);
+        const Angle angular_error = [&] -> Angle {
+            const Angle directionless_error =
+              angleError(target_heading, heading);
+
+            // check for sign change in directionless error, if so then settling
+            if (!state.settling && state.prev_directionless_error &&
+                units::sgn(directionless_error) !=
+                  units::sgn(*state.prev_directionless_error)) {
+                state.settling = true;
+            }
+
+            state.prev_directionless_error = directionless_error;
+
+            return state.settling ?
+                     directionless_error :
+                     angleError(target_heading, heading, m_direction);
+        }();
 
         // linear tolerances
         this->tolerances.linearErrorToleranceUpdate(linear_error);
@@ -151,12 +173,11 @@ class distanceAtHeading : public Motion<ControllersType,
         result.finished = state.linear_settled && state.angular_settled;
 
         // check timeout
-        result.finished |=
-          m_timeout
-            .transform([state](Time timeout) -> bool {
-                return now() - state.start_time > timeout;
-            })
-            .value_or(false);
+        result.finished |= m_timeout
+                             .transform([state](Time timeout) -> bool {
+                                 return now() - state.start_time > timeout;
+                             })
+                             .value_or(false);
 
         // finished if any of the available tolerances or timeout are
         // triggered

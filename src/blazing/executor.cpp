@@ -1,4 +1,5 @@
 #include "blazing/executor.hpp"
+#include <mutex>
 #include <optional>
 
 namespace blazing {
@@ -24,13 +25,70 @@ void RunExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
     }
 }
 
-// -- Async methods
+// Some async methods used for both AsyncExecutor and ChainedExecutor
+
+// start the async task
+void AsyncExecutorBase::init() {
+    pros::Task([this_ptr = this]() {
+        // breaks if the executor gets deleted for any reason
+        while (this_ptr != nullptr) {
+            this_ptr->update();
+        }
+    });
+}
+
+bool AsyncExecutorBase::hasMotions() {
+    return numQueuedMotions() > 0;
+}
+
+void AsyncExecutorBase::exitAll() {
+    while (hasMotions()) {
+        exitCurrent();
+    }
+}
+
+// blocks until all the motions in the queue have finished
+void AsyncExecutorBase::wait() {
+    while (hasMotions()) {
+        pros::delay(20);
+    }
+}
+
+void AsyncExecutorBase::waitUntil(std::function<bool()> condition) {
+    while (!condition() || !hasMotions()) {
+        pros::delay(20);
+    }
+}
+
+void AsyncExecutorBase::stopIf(std::function<bool()> condition) {
+    waitUntil(condition);
+    exitAll();
+}
+
+size_t AsyncExecutorBase::getCurrentIndex() {
+    return latest_motion_index;
+}
+
+size_t AsyncExecutorBase::getFinishedIndex() {
+    return finished_index;
+}
+
+// waits until the finished index matches the given index
+void AsyncExecutorBase::waitUntilIndex(size_t index) {
+    this->waitUntil([this, index] {
+        return index == this->getFinishedIndex();
+    });
+}
+
+// AsyncExecutor methods
 
 // executes as soon as motion gets added
 void AsyncExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
     // wait until the queue is available
     std::lock_guard lock(mutex);
     motions.push(std::move(motion));
+
+    latest_motion_index++;
 }
 
 void AsyncExecutor::update() {
@@ -59,26 +117,11 @@ void AsyncExecutor::update() {
         motions.pop();
         mutex.give();
 
+        finished_index++;
+
         pros::delay(10);
     } else {
         pros::delay(current_motion->getLoopDelayTime());
-    }
-}
-
-// start the async task
-void AsyncExecutor::init() {
-    pros::Task([this_ptr = this]() {
-        // breaks if the executor gets deleted for any reason
-        while (this_ptr != nullptr) {
-            this_ptr->update();
-        }
-    });
-}
-
-// blocks until all the motions in the queue have finished
-void AsyncExecutor::wait() {
-    while (!motions.empty()) {
-        pros::delay(20);
     }
 }
 
@@ -87,18 +130,9 @@ void AsyncExecutor::exitCurrent() {
     motions.pop();
 }
 
-void AsyncExecutor::exitAll() {
+size_t AsyncExecutor::numQueuedMotions() {
     std::lock_guard lock(mutex);
-    while (!motions.empty()) {
-        motions.pop();
-    }
-}
-
-void AsyncExecutor::waitUntil(std::function<bool()> condition) {
-    while (!condition()) {
-        pros::delay(20);
-    }
-    exitAll();
+    return motions.size();
 }
 
 // -- Chained methods
@@ -117,6 +151,8 @@ void ChainedExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
     // wait until the queue is available
     std::lock_guard lock(mutex);
     motions.push_back(std::move(motion));
+
+    latest_motion_index++;
 }
 
 void ChainedExecutor::update() {
@@ -125,7 +161,7 @@ void ChainedExecutor::update() {
 
     if (motions.empty()) {
         // delay until a new motion is available
-		mutex.give();
+        mutex.give();
         pros::delay(20);
         return;
     }
@@ -158,9 +194,9 @@ void ChainedExecutor::update() {
 
     bool fusing_finished = false;
 
-    std::cout << "cant fuse: " << disabled_result << std::endl;
+    // std::cout << "cant fuse: " << disabled_result << std::endl;
 
-    if (motions.size() >= 2 && fuse_start_time &&
+    if (motions.size() >= 2 && fuse_start_time.has_value() &&
         // makes sure we actually disabled the drivetrain
         disabled_result) {
         std::unique_ptr<MotionBase>& next_motion = *next(motions.begin());
@@ -221,6 +257,8 @@ void ChainedExecutor::update() {
     mutex.give();
 
     auto result_finished = [](auto result) -> std::optional<bool> {
+        std::cout << "finished? " << (result.finished ? "ye" : "nah")
+                  << std::endl;
         return result.finished;
     };
 
@@ -230,6 +268,9 @@ void ChainedExecutor::update() {
         mutex.take();
         motions.pop_front();
         mutex.give();
+
+        finished_index++;
+
         fuse_start_time = std::nullopt;
 
         pros::delay(10);
@@ -238,37 +279,14 @@ void ChainedExecutor::update() {
     }
 }
 
-// start the async task
-void ChainedExecutor::init() {
-    pros::Task([this_ptr = this]() {
-        // breaks if the executor gets deleted for any reason
-        while (this_ptr != nullptr) {
-            this_ptr->update();
-        }
-    });
-}
-
-// blocks until all the motions in the queue have finished
-void ChainedExecutor::wait() {
-    while (!motions.empty()) {
-        pros::delay(20);
-    }
-}
-
 void ChainedExecutor::exitCurrent() {
     std::lock_guard lock(mutex);
     motions.pop_front();
 }
 
-void ChainedExecutor::exitAll() {
+size_t ChainedExecutor::numQueuedMotions() {
     std::lock_guard lock(mutex);
-    motions.clear();
+    return motions.size();
 }
 
-void ChainedExecutor::waitUntil(std::function<bool()> condition) {
-    while (!condition()) {
-        pros::delay(20);
-    }
-    exitAll();
-}
 } // namespace blazing

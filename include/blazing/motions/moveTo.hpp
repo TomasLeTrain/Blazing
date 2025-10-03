@@ -43,6 +43,8 @@ class moveTo : public Motion<ControllersType,
     Length close_threshold = 4_in;
     std::optional<Voltage> max_overturn_output = std::nullopt;
 
+    std::optional<Divided<Angle, Length>> m_k_lat = std::nullopt;
+
     // defaults to cosine of angle
     std::function<double(Angle)> angular_linear_func =
       [](Angle angle) -> double {
@@ -61,7 +63,7 @@ class moveTo : public Motion<ControllersType,
                         .last_time = now(),
                         .start_time = now(),
                         .locked_heading = std::nullopt };
-			// done to prevent values like delta_time being 0
+            // done to prevent values like delta_time being 0
             return std::nullopt;
         }
 
@@ -100,7 +102,6 @@ class moveTo : public Motion<ControllersType,
         // used for cosine scaling and applying correct sign for linear
         // error/output
         Number lin_multiplier = angular_linear_func(position_target_error);
-        std::cout << "lin: " << lin_multiplier << std::endl;
 
         // applies sign component here so that sign of error is accurate
         // NOTE: sgn can be zero, which can set linear error to zero as well!
@@ -132,12 +133,11 @@ class moveTo : public Motion<ControllersType,
         }
 
         // check timeout
-        result.finished |=
-          m_timeout
-            .transform([state](Time timeout) -> bool {
-                return now() - state.start_time > timeout;
-            })
-            .value_or(false);
+        result.finished |= m_timeout
+                             .transform([state](Time timeout) -> bool {
+                                 return now() - state.start_time > timeout;
+                             })
+                             .value_or(false);
 
         // finished if any of the available tolerances or timeout are triggered
         if (result.finished) {
@@ -156,8 +156,18 @@ class moveTo : public Motion<ControllersType,
           this->controllers.linear_feedback_controller.update(-linear_error,
                                                               0.0_in,
                                                               delta_time);
-        std::cout << "pids: " << linear_output << " " << angular_output
-                  << std::endl;
+        // std::cout << "pids: " << linear_output << " " << angular_output
+        //           << std::endl;
+        //
+        //
+        //
+
+		// if(m_k_lat){
+		// 	angular_output =
+		// 	  angular_output + *m_k_lat * linear_output *
+		// 						 (target - position).rotatedBy(-heading).y *
+		// 						 sinc(angular_error);
+		// }
 
         // sign was already applied to error, only applies cosine scaling
         // component
@@ -259,6 +269,13 @@ class moveTo : public Motion<ControllersType,
     [[nodiscard("motion won't be executed unless an executor is used!")]]
     auto overturn(Voltage max_overturn_output = 1_volt) {
         this->max_overturn_output = max_overturn_output;
+
+        return this->getReference();
+    }
+
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
+    auto k_lat(std::optional<Divided<Angle, Length>> k_lat = std::nullopt) {
+        this->m_k_lat = k_lat;
 
         return this->getReference();
     }

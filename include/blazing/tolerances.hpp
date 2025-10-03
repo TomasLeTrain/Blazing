@@ -118,7 +118,6 @@ class Tolerances : virtual ToleranceBase,
   private:
     std::optional<Time> tolerance_timestamp = std::nullopt;
     std::optional<Time> duration = std::nullopt;
-    bool tolerance_finished = false;
 
   public:
     Tolerances(Time duration, ToleranceTypes&&... bases)
@@ -130,8 +129,6 @@ class Tolerances : virtual ToleranceBase,
     }
 
     bool withinTolerance() {
-        // std::cout << "[tol]: " << in_tolerance.has_value() << " "
-        //           << in_tolerance.value_or(false) << std::endl;
         return in_tolerance.value_or(false);
     }
 
@@ -140,32 +137,25 @@ class Tolerances : virtual ToleranceBase,
         if (withinTolerance()) {
             in_tolerance = std::nullopt;
 
-            // already triggered tolerance, return true forever
-            // however if we get out of tolerance this gets reset
-            if (tolerance_finished) return true;
-
             // set timestamp if it doesn't have one
-            if (!tolerance_timestamp) {
-                tolerance_timestamp = now();
-            }
+            tolerance_timestamp = tolerance_timestamp.value_or(now());
+
+            // enough time has passed
             if (duration
                   .transform([timestamp =
                                 *this->tolerance_timestamp](Time time) -> bool {
                       return now() - timestamp > time;
                   })
                   .value_or(false)) {
-                // tolerance_timestamp = std::nullopt;
-                tolerance_finished = true;
                 return true;
             }
-        } else if (tolerance_timestamp) {
-            // not in tolerance, reset
-            tolerance_timestamp = std::nullopt;
+			// not enough time has passed
+            // return false but don't reset anything
+            return false;
         }
 
-        // reset in_tolerance
-        tolerance_finished = false;
         in_tolerance = std::nullopt;
+        tolerance_timestamp = std::nullopt;
 
         return false;
     }

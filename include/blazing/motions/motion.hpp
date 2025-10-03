@@ -2,6 +2,7 @@
 
 #include "blazing/chassis.hpp"
 #include "blazing/controllers/controllers.hpp"
+#include "blazing/controllers/slew.hpp"
 #include "blazing/controllers/voltage_clamp.hpp"
 #include "blazing/drivetrains/drivetrain.hpp"
 #include "blazing/tolerances.hpp"
@@ -80,9 +81,9 @@ class Motion : public MotionBase {
 
     // attempt to override chain functions
     bool setEnabledDrivetrain(bool enabled) override {
-        std::cout << "enabled called\n";
+        // std::cout << "enabled called\n";
         if constexpr (MotionChainableDrivetrain<DrivetrainType>) {
-            std::cout << "enabled good\n";
+            // std::cout << "enabled good\n";
             drivetrain.setEnabled(enabled);
             return true;
         }
@@ -90,18 +91,16 @@ class Motion : public MotionBase {
     };
 
     std::optional<std::vector<Voltage>> getVoltagesDrivetrain() override {
-        std::cout << "get volts called\n";
+        // std::cout << "get volts called\n";
         if constexpr (MotionChainableDrivetrain<DrivetrainType>) {
-            std::cout << "get volts good\n";
+            // std::cout << "get volts good\n";
             return drivetrain.getVoltages();
         }
         return std::nullopt;
     };
 
     bool moveVoltagesDrivetrain(std::vector<Voltage> voltages) override {
-        std::cout << "set volts called\n";
         if constexpr (MotionChainableDrivetrain<DrivetrainType>) {
-            std::cout << "set volts good\n";
             drivetrain.moveVoltages(voltages);
             return true;
         }
@@ -244,7 +243,7 @@ class Motion : public MotionBase {
     }
 
     // linear pid changers
-    motionChangerT linear_kP(this Self&& self, T kp)
+    motionChangerT linear_kp(this Self&& self, T kp)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
         self.controllers.linear_feedback_controller.set_kp(kp);
@@ -346,6 +345,54 @@ class Motion : public MotionBase {
                                    AngularVoltageClampController>
     {
         self.controllers.angular_voltage_clamp_controller.setMax(maxVoltage);
+        return self.getReference();
+    }
+
+    motionChangerT linear_slew(this Self&& self,
+                               T accelSlew = std::nullopt,
+                               T decelSlew = std::nullopt)
+        requires hasLinearSlewController<ControllersType>
+    {
+        self.controllers.linear_slew_controller.set_accel(accelSlew);
+        self.controllers.linear_slew_controller.set_decel(decelSlew);
+        return self.getReference();
+    }
+
+    motionChangerT linear_accelSlew(this Self&& self, T accelSlew)
+        requires hasLinearSlewController<ControllersType>
+    {
+        self.controllers.linear_slew_controller.set_accel(accelSlew);
+        return self.getReference();
+    }
+
+    motionChangerT linear_decelSlew(this Self&& self, T decelSlew)
+        requires hasLinearSlewController<ControllersType>
+    {
+        self.controllers.linear_slew_controller.set_decel(decelSlew);
+        return self.getReference();
+    }
+
+    motionChangerT angular_slew(this Self&& self,
+                                T accelSlew = std::nullopt,
+                                T decelSlew = std::nullopt)
+        requires hasAngularSlewController<ControllersType>
+    {
+        self.controllers.angular_slew_controller.set_accel(accelSlew);
+        self.controllers.angular_slew_controller.set_decel(decelSlew);
+        return self.getReference();
+    }
+
+    motionChangerT angular_accelSlew(this Self&& self, T accelSlew)
+        requires hasAngularSlewController<ControllersType>
+    {
+        self.controllers.angular_slew_controller.set_accel(accelSlew);
+        return self.getReference();
+    }
+
+    motionChangerT angular_decelSlew(this Self&& self, T decelSlew)
+        requires hasAngularSlewController<ControllersType>
+    {
+        self.controllers.angular_slew_controller.set_decel(decelSlew);
         return self.getReference();
     }
 };

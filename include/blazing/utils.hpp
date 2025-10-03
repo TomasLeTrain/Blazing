@@ -37,8 +37,16 @@ Number signed_sgn(Q num) {
 
 // returns time since program started
 // uses pros::millis to get the information
-inline Time now(){
-	return from_msec(pros::millis());
+inline Time now() {
+    return from_msec(pros::millis());
 }
+
+inline Divided<Number, Angle> sinc(Angle theta) {
+    if (units::abs(theta) < 1e-6 * rad) {
+        return (1.0 - theta.internal() * theta.internal() / 6.0) / rad;
+    } else {
+        return units::sin(theta) / theta;
+    }
+};
 
 } // namespace blazing

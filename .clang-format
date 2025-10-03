@@ -73,7 +73,11 @@ ReflowComments: true
 RequiresClausePosition: OwnLine
 RequiresExpressionIndentation: OuterScope
 SeparateDefinitionBlocks: Always
-SortIncludes: CaseSensitive
+
+SortIncludes:
+  Enabled: true
+  IgnoreCase: false
+
 SortUsingDeclarations: Lexicographic
 SpaceAfterCStyleCast: false
 SpaceAfterLogicalNot: false

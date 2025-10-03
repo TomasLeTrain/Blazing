@@ -1,6 +1,6 @@
 #pragma once
 
-#include "blazing/motions/distance_at_heading.hpp"
+#include "blazing/motions/distanceAtHeading.hpp"
 #include "blazing/motions/moveTo.hpp"
 #include "blazing/motions/turnTo.hpp"
 #include "blazing/utils.hpp"
@@ -139,16 +139,21 @@ class MotionBuilder {
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
     distanceAtHeadingType
-    arc(Length radius, Angle current_heading, Angle target_heading) {
+    arc(Length radius,
+        Angle current_heading,
+        Angle target_heading,
+        std::optional<AngularDirection> direction = std::nullopt) {
         // calculate target distance from radius
         Length distance =
-          units::abs(radius * angleError(target_heading, current_heading)) /
+          units::abs(radius *
+                     angleError(target_heading, current_heading, direction)) /
           rad;
         return distanceAtHeadingModifier(
           blazing::distanceAtHeading(controllers,
                                      chassis,
-                                     distance,
-                                     target_heading));
+                                     distance * units::sgn(radius),
+                                     target_heading)
+            .direction(direction));
     }
 
     // boomerang

@@ -12,6 +12,7 @@
 #include "units/Angle.hpp"
 #include "units/Pose.hpp"
 #include "units/Vector2D.hpp"
+#include "units/units.hpp"
 #include <iostream>
 
 namespace blazing {
@@ -19,7 +20,11 @@ struct BoomerangState {
     std::optional<Time> last_time;
     Time start_time;
 
+    bool crossed_sideways;
     bool close;
+
+    std::optional<Length> initial_side;
+
     units::V2FPosition prev_position;
 };
 
@@ -49,6 +54,8 @@ class boomerang : public Motion<ControllersType,
 
     std::optional<Voltage> max_overturn_output = std::nullopt;
 
+    std::optional<Divided<Angle, Length>> m_k_lat = std::nullopt;
+
     // defaults to cosine of angle
     std::function<double(Angle)> angular_linear_func =
       [](Angle angle) -> double {
@@ -65,7 +72,9 @@ class boomerang : public Motion<ControllersType,
         if (!m_state.has_value()) {
             m_state = { .last_time = now(),
                         .start_time = now(),
+                        .crossed_sideways = false,
                         .close = false,
+                        .initial_side = std::nullopt,
                         .prev_position = this->tracker.getPosition() };
             // done to prevent values like delta_time being 0
             return std::nullopt;
@@ -81,8 +90,13 @@ class boomerang : public Motion<ControllersType,
 
         const Angle heading = [&] {
             const Angle heading = this->tracker.getAngle();
+            // return heading;
             return reversed ? reverseAngle(heading) : heading;
         }();
+
+        // takes reverse into account
+        const Angle target_orientation =
+          reversed ? reverseAngle(target.orientation) : target.orientation;
 
         const Length pose_target_distance = position.distanceTo(target);
 
@@ -97,34 +111,55 @@ class boomerang : public Motion<ControllersType,
         const units::V2Position carrot = [&] -> units::V2Position {
             if (state.close) return target;
             auto carrot = target - units::V2Position::fromPolar(
-                                     target.orientation,
+                                     target_orientation,
                                      pose_target_distance * m_lead);
 
             // // lead2 not active anymore, use normal carrot
-            // if (pose_target_distance < lead2_dist_threshold || m_lead2 == 0.0)
+            // if (pose_target_distance < lead2_dist_threshold || m_lead2 ==
+            // 0.0)
             //     return carrot;
 
-			// sideways error relative to the target angle
-			// used to determine of to use lead2 or not
-			Length sideways_error =
-			  units::abs((target - position) *
-						 units::Vector2D { -units::sin(target.orientation),
-										   units::cos(target.orientation) });
+            // sideways error relative to the target angle
+            // used to determine of to use lead2 or not
+            Length sideways_error =
+              (target - position) *
+              units::Vector2D { -units::sin(target_orientation),
+                                units::cos(target_orientation) };
 
-            // lead2 not active anymore, use normal carrot
-            if (sideways_error < lead2_dist_threshold || m_lead2 == 0.0)
+            if (!state.initial_side) state.initial_side = sideways_error;
+
+            Length abs_sideways_error = units::abs(sideways_error);
+
+            if (state.crossed_sideways ||
+                abs_sideways_error < lead2_dist_threshold || m_lead2 == 0.0) {
+                state.crossed_sideways = true;
+				// TODO: make configurable?? 
+                m_k_lat = 0.7 * rad / m;
                 return carrot;
+            }
 
             // perpendicular to lead
             auto lead2_vector =
-              units::V2Position::fromPolar(target.orientation + 90_stDeg,
+              units::V2Position::fromPolar(target_orientation + 90_stDeg,
                                            pose_target_distance * m_lead2);
+
+            // when the robot crosses the side, the carrot which is good
+            // reverses we can keep track of the sign of vertical error to see
+            // what we have to do
 
             auto carrot1 = carrot - lead2_vector;
             auto carrot2 = carrot + lead2_vector;
 
+            bool swap_sides = false;
+
+            if (units::sgn(*state.initial_side) != units::sgn(sideways_error)) {
+                swap_sides = true;
+            }
+
             // use carrot which minimizes distance
-            if (position.distanceTo(carrot1) < position.distanceTo(carrot2)) {
+            // if we are swaping sides then it uses the maximum distance
+            if (swap_sides ^
+                (position.distanceTo(carrot1) < position.distanceTo(carrot2))) {
                 return carrot1;
             } else {
                 return carrot2;
@@ -134,21 +169,14 @@ class boomerang : public Motion<ControllersType,
         Angle position_carrot_heading = position.angleTo(carrot);
 
         const Angle target_heading =
-          state.close ?
-            target.orientation :
-            // (0.3 * target.orientation + 0.7 * position.angleTo(carrot));
-            // (t * target.orientation + (1-t) * position.angleTo(carrot));
-            position.angleTo(carrot);
-
-        // std::cout << t << " "
-        //           << units::abs(this->tracker.getTangentLinearVelocity())
-        //           << std::endl;
+          state.close ? target_orientation : position_carrot_heading;
 
         Length linear_error =
           position.distanceTo(carrot) * (reversed ? -1.0 : 1.0);
 
         Angle angular_error = angleError(target_heading, heading);
 
+        // why is this different???
         Angle position_carrot_error =
           angleError(position_carrot_heading, heading);
 
@@ -208,6 +236,13 @@ class boomerang : public Motion<ControllersType,
           this->controllers.linear_feedback_controller.update(-linear_error,
                                                               0.0_in,
                                                               delta_time);
+
+        if (m_k_lat) {
+            angular_output =
+              angular_output + *m_k_lat * linear_output *
+                                 (target - position).rotatedBy(-heading).y *
+                                 sinc(angular_error);
+        }
 
         // sign was already applied to error, only applies cosine scaling
         // component
@@ -337,6 +372,13 @@ class boomerang : public Motion<ControllersType,
     auto lead(double lead, double lead2 = 0.0) {
         this->m_lead = lead;
         this->m_lead2 = lead2;
+        return this->getReference();
+    }
+
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
+    auto k_lat(std::optional<Divided<Angle, Length>> k_lat = std::nullopt) {
+        this->m_k_lat = k_lat;
+
         return this->getReference();
     }
 

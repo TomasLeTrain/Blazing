@@ -8,6 +8,7 @@
 #include <list>
 #include <memory>
 #include <mutex>
+#include <numbers>
 #include <optional>
 #include <ostream>
 #include <queue>
@@ -27,7 +28,7 @@ template<typename M>
 constexpr void operator|(M&& motion, Executor& executor) {
     // creates a copy of the temporary motion object and creates one owned by
     // the executor
-	std::cout << "operator called!" << std::endl;
+    std::cout << "operator called!" << std::endl;
     executor.addMotion(
       std::move(std::make_unique<std::decay_t<M>>(std::forward<M>(motion))));
 }
@@ -40,7 +41,52 @@ class RunExecutor : public Executor {
     void addMotion(std::unique_ptr<MotionBase> motion) override;
 };
 
-class AsyncExecutor : public Executor {
+// virtual class that implements some async-specific methods
+class AsyncExecutorBase : public Executor {
+  protected:
+    size_t finished_index = 0;
+    size_t latest_motion_index = 0;
+
+  public:
+    // main update logic
+    virtual void update() = 0;
+
+    // exit current motion, moves onto next motion immediately
+    virtual void exitCurrent() = 0;
+
+    // returns number of queued motions
+    virtual size_t numQueuedMotions() = 0;
+
+	// returns true of there are no motions to execute
+    virtual bool hasMotions();
+
+    // start the async task
+    virtual void init();
+
+    // blocks until all the motions in the queue have finished
+    virtual void wait();
+
+    // exits all motions that were gonna be executed from queue
+    virtual void exitAll();
+
+    // blocks until the function returns true
+    virtual void waitUntil(std::function<bool()> condition);
+
+    // blocks until the function returns true, after which it exists all queued
+    // motions
+    virtual void stopIf(std::function<bool()> condition);
+
+    // gets index of latest added motion
+    virtual size_t getCurrentIndex();
+
+    // gets index of last motion that was finished
+    virtual size_t getFinishedIndex();
+
+    // waits until the finished index matches the given index
+    virtual void waitUntilIndex(size_t index);
+};
+
+class AsyncExecutor : public AsyncExecutorBase {
   private:
     std::queue<std::unique_ptr<MotionBase>> motions;
 
@@ -53,23 +99,14 @@ class AsyncExecutor : public Executor {
     // executes as soon as motion gets added
     void addMotion(std::unique_ptr<MotionBase> motion) override;
 
-    void update();
+    // main update logic
+    void update() override;
 
-    // start the async task
-    void init();
+    // exit current motion, moves onto next motion immediately
+    void exitCurrent() override;
 
-    // blocks until all the motions in the queue have finished
-    void wait();
-
-    // moves on to the next motion immediately
-    void exitCurrent();
-
-    // clears all motions that were gonna be executed from queue
-    void exitAll();
-
-    // waits until the function returns true, after which it exists all queued
-    // motions
-    void waitUntil(std::function<bool()> condition);
+    // returns number of queued motions
+    size_t numQueuedMotions() override;
 };
 
 struct ChainOptions {
@@ -79,7 +116,7 @@ struct ChainOptions {
 // similar to the async executor, however instead of immediately going from one
 // motion to another, it gradually takes the input from two motions and blends
 // them to have one smooth motion
-class ChainedExecutor : public Executor {
+class ChainedExecutor : public AsyncExecutorBase {
   private:
     std::list<std::unique_ptr<MotionBase>> motions;
     std::optional<Time> fuse_start_time = std::nullopt;
@@ -103,22 +140,13 @@ class ChainedExecutor : public Executor {
     // executes as soon as motion gets added
     void addMotion(std::unique_ptr<MotionBase> motion) override;
 
-    void update();
-
-    // start the async task
-    void init();
-
-    // blocks until all the motions in the queue have finished
-    void wait();
+    // main update logic
+    void update() override;
 
     // exit current motion, moves onto next motion immediately
-    void exitCurrent();
+    void exitCurrent() override;
 
-    // exits all motions that were gonna be executed from queue
-    void exitAll();
-
-    // waits until the function returns true, after which it exists all queued
-    // motions
-    void waitUntil(std::function<bool()> condition);
+    // returns number of queued motions
+    size_t numQueuedMotions() override;
 };
 } // namespace blazing

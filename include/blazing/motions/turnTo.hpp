@@ -17,8 +17,6 @@
 namespace blazing {
 
 struct TurnToState {
-    Length initial_distance_traveled;
-
     Time start_time;
     std::optional<Time> last_time;
 
@@ -56,9 +54,7 @@ class turnTo : public Motion<ControllersType,
 
     std::optional<motionExecutionResult> execute() override {
         if (!m_state.has_value()) {
-            m_state = { .initial_distance_traveled =
-                          this->tracker.getForwardTravel(),
-                        .start_time = now(),
+            m_state = { .start_time = now(),
                         .last_time = now(),
                         .settled = false,
                         .settling = false,
@@ -148,12 +144,11 @@ class turnTo : public Motion<ControllersType,
         result.finished = state.settled;
 
         // check timeout
-        result.finished |=
-          m_timeout
-            .transform([state](Time timeout) -> bool {
-                return now() - state.start_time > timeout;
-            })
-            .value_or(false);
+        result.finished |= m_timeout
+                             .transform([state](Time timeout) -> bool {
+                                 return now() - state.start_time > timeout;
+                             })
+                             .value_or(false);
 
         // finished if any of the available tolerances or timeout are
         // triggered

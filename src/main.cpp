@@ -1,25 +1,9 @@
-#include "main.h"
-#include "blazing/chassis.hpp"
-#include "blazing/controllers/controllers.hpp"
-#include "blazing/controllers/feedback/pid.hpp"
-#include "blazing/controllers/slew.hpp"
-#include "blazing/controllers/voltage_clamp.hpp"
-#include "blazing/drivetrains/differential.hpp"
-#include "blazing/executor.hpp"
-#include "blazing/motion_builder.hpp"
-#include "blazing/motions/distance_at_heading.hpp"
-#include "blazing/motions/moveTo.hpp"
-#include "blazing/motions/turnTo.hpp"
-#include "blazing/tolerances.hpp"
-#include "blazing/trackers/arc_odom.hpp"
-#include "blazing/trackers/simple_odom.hpp"
+// this should always be first
 #include "blazing/utils.hpp"
-#include "pros/misc.h"
-#include "pros/motor_group.hpp"
-#include <cstdio>
-#include <iostream>
-#include <ostream>
-#include <span>
+#include "pch.h"
+//
+#include "blazing/api.hpp"
+#include "main.h"
 
 /**
  * A callback function for LLEMU's center button.
@@ -157,11 +141,11 @@ ArcOdomTracker arc_pose_tracker({ forwards_tracker,
                                 { TrackingImu(&imu) });
 
 // controller stuff
-PID<Length, Voltage> linear_pid(6,
-                                0,
-                                3,
+PID<Length, Voltage> linear_pid(4.7,
+                                0.0,
+                                1,
                                 5,
-                                // std::nullopt,
+                                // std::null8opt,
                                 127,
                                 50_msec,
                                 1_in,
@@ -176,7 +160,7 @@ Controllers controllers(
   PIDAngularController(angular_pid),
 
   // slew controllers
-  LinearSlewController(0.3_volt),
+  LinearSlewController(0.2_volt),
   AngularSlewController(0.3_volt),
 
   // voltage constraints controllers
@@ -184,26 +168,28 @@ Controllers controllers(
   AngularVoltageClampController());
 
 // tolerance stuff
-Tolerances linearTolerances(200_msec,
-                            ErrorTolerance { 3_in },
-                            VelocityTolerance { 10_inps });
+Tolerances linearTolerances(150_msec, ErrorTolerance { 2.5_in }
+                            // VelocityTolerance { 20_inps });
+);
 // HalfCircleTolerance { 1_in });
 
-Tolerances angularTolerances(100_msec,
-                             ErrorTolerance { 4_stDeg },
-                             VelocityTolerance { 50_degps });
+Tolerances angularTolerances(150_msec, ErrorTolerance { 4_stDeg }
+                             // VelocityTolerance { 20_degps });
+);
 
 // large tolerances
-Tolerances largeLinearTolerances(1_sec,
-                                 ErrorTolerance { 5_in },
-                                 VelocityTolerance { 30_inps });
+Tolerances largeLinearTolerances(1_sec, ErrorTolerance { 6_in }
+                                 // VelocityTolerance { 40_inps }
+);
 
-Tolerances largeAngularTolerances(1_sec, ErrorTolerance { 20_stDeg });
+Tolerances largeAngularTolerances(1_sec, ErrorTolerance { 15_stDeg });
 
 // chain tolerances
-Tolerances chainLinearTolerances(1_sec, ErrorTolerance { 14_in });
+Tolerances chainLinearTolerances(1_sec, ErrorTolerance { 6_in });
+Tolerances chainAngularTolerances(1_sec, ErrorTolerance { 15_stDeg });
 
-Tolerances chainAngularTolerances(1_sec, ErrorTolerance { 30_stDeg });
+// Tolerances chainLinearTolerances(1_sec, ErrorTolerance { 0_in });
+// Tolerances chainAngularTolerances(1_sec, ErrorTolerance { 0_stDeg });
 
 normalLargeChainTolerances tolerances(linearTolerances,
                                       angularTolerances,
@@ -268,6 +254,7 @@ void initialize() {
 }
 
 void opcontrol() {
+
     // needed for async/chain motions to run
     async.init();
     chain.init();
@@ -286,14 +273,24 @@ void opcontrol() {
         }
     });
 
-    // change all moveTo movements to use custom angularLinear function and go
-    // in reverse
+    // default a timeout
+    mb.setTurnToModifier([](auto turnTo) {
+        return turnTo.timeout(5_sec);
+    });
+
+    mb.setDistanceAtHeadingModifier([](auto distanceAtHeading) {
+        return distanceAtHeading.timeout(5_sec);
+    });
+
     mb.setMoveToModifier([](auto moveTo) {
-        return moveTo.customAngularLinearFunc(angular_linear_func);
+        // return moveTo.customAngularLinearFunc(angular_linear_func);
+        return moveTo.k_lat(0.3 * rad / m).timeout(5_sec);
     });
 
     mb.setBoomerangModifier([](auto boomerang) {
-        return boomerang.customAngularLinearFunc(angular_linear_func);
+        // return boomerang.customAngularLinearFunc(angular_linear_func);
+        // return boomerang.k_lat();
+        return boomerang.timeout(7_sec);
     });
 
     pros::delay(100);
@@ -310,15 +307,15 @@ void opcontrol() {
                 // print results
                 std::cout << "\n\nposes:\n";
                 for (auto pose : poses) {
-                    std::cout << pose.x << "," << pose.y << ","
-                              << pose.orientation << '\n';
+                    std::cout << to_in(pose.x) << "," << to_in(pose.y) << ","
+                              << to_stDeg(pose.orientation) << '\n';
                 }
                 break;
             }
 
             if (!disabled) {
-                poses.push_back(
-                  { pose_tracker.getPosition(), pose_tracker.getAngle() });
+                poses.push_back({ arc_pose_tracker.getPosition(),
+                                  arc_pose_tracker.getAngle() });
             }
 
             pros::delay(20);
@@ -327,51 +324,218 @@ void opcontrol() {
 
     pros::delay(100);
 
-    // pose_tracker.setPose({ 0_in, 0_in, 0_stDeg });
-
-    arc_pose_tracker.setPose({ 0_in, 0_in, 0_stDeg });
-
-    mb.turnTo(90) | run;
-    // mb.moveTo(24, 24).reverse() | chain;
-    // mb.moveTo(-24, 24) | chain;
-    // mb.moveTo(0, 0).reverse() | chain;
-    // mb.boomerang(-24, 24, 180)
-    //     .withLead(0.6)
-    //     .closeThreshold(8_in)
-    //     .linear_clampMaxVoltage(1.0_volt) |
+    // mb.arc(24_in, arc_pose_tracker.getAngle(), 90_stDeg)
+    //     .angular_clampMaxVoltage(0.5_volt) |
+    //     // .angular_clampMaxVoltage(0.5_volt) |
     //   run;
 
-    mb.boomerang(-24, 48, 180)
-        .lead(0.4)
-        .closeThreshold(14_in)
-        // new to try
-        .lead2DistThreshold(4_in)
-        .linear_clampMaxVoltage(1.0_volt) |
-      run;
+    // mb.boomerang(-24, 48, 180)
+    //     .lead(0.4, 0.38)
+    //     .lead2DistThreshold(7_in)
+    //     .closeThreshold(7_in)
+    //     .timeout(7_sec)
+    //     .linear_kd(linear_pid.get_kd() * 0.7) |
+    //   run;
 
-    mb.boomerang(0, 0, 270)
-        .reverse()
-        .lead(0.4)
-        .closeThreshold(4_in)
-        .linear_clampMaxVoltage(1.0_volt) |
-      run;
+    Time start_time = now();
+
+    arc_pose_tracker.setPose({ -63_in, -17.5_in, 90_stDeg });
+
+    // pull matchloader down
+    mb.moveTo(-63, 17.5) | chain;
 
     // chain.wait();
-    // chain.waitUntil([&]() -> bool {
-    // 	return pose_tracker.getDistanceTraveled() > 80_in;
-    // });
 
-    // mb.moveTo(20, -20).setChainTime(10_msec) | run;
-    // mb.moveTo(20, -20) | run;
+    // while (true) {
+    //     pros::lcd::print(0,
+    //                      "%f %f %f",
+    //                      to_in(arc_pose_tracker.getPosition().x),
+    //                      to_in(arc_pose_tracker.getPosition().y),
+    //                      to_stDeg(arc_pose_tracker.getAngle()));
+    //     pros::delay(10);
+    // }
+
+    // go towards top left ball cluster
+    mb.boomerang(-30.5, 27, 340).lead(0.3).linear_clampMaxVoltage(0.7_volt) |
+      chain;
+    size_t top_left_cluster = chain.getCurrentIndex();
+
+    // go to top center
+    // mb.boomerang(-13, 12, 315) | chain;
+    mb.moveTo(-13, 12) | chain;
+
+    // pros::delay(1000);
+    // pull matchloader up
+
+    // wait for boomerang to finish
+    chain.waitUntilIndex(top_left_cluster);
+
+    // finished the boomerang, pull matchloader down
+
+    // wait to get to goal
+    chain.wait();
+
+    // while (true) {
+    //     pros::lcd::print(0,
+    //                      "%f %f %f",
+    //                      to_in(arc_pose_tracker.getPosition().x),
+    //                      to_in(arc_pose_tracker.getPosition().y),
+    //                      to_stDeg(arc_pose_tracker.getAngle()));
+    //     pros::delay(10);
+    // }
+
+    // score top center
+
+    // back up and go to bottom right cluster
+    mb.arc(-10_in,
+           arc_pose_tracker.getAngle(),
+           270_stDeg,
+           AngularDirection::RIGHT)
+        .angular_clampMaxVoltage(0.6_volt) |
+      chain;
+
+    // bottom-left middle ball cluster
+    mb.boomerang(-21.5, -13.4, 260) | chain;
+
+    size_t bottom_left_cluster_index = chain.getCurrentIndex();
+
+    // go to matchloader
+    mb.boomerang(-52.4, -46.7, 180).linear_clampMaxVoltage(0.5_volt) | chain;
+    // the matchloader is already pulled down at this point,
+    // don't have to worry about it
+    mb.moveTo(-57, -46.7) | chain;
+
+    // waits until gets to cluster to pull matchloader down
+    chain.waitUntilIndex(bottom_left_cluster_index);
+
+    // pull matchloader down
+
+    // wait until all queued motions stop
+    chain.wait();
+
+    pros::delay(1000);
+
+    mb.moveTo(-30.8, -47.1).reverse().linear_accelSlew(0.1_volt) | run;
     //
-    // mb.moveTo(20, -20) | run;
-    // mb.moveTo(24, 24) | run;
+    // score on long goal
+    //
+
+    // turn around and go towards matchloader
+    mb.arc(track_width,
+           arc_pose_tracker.getAngle(),
+           0_stDeg,
+           AngularDirection::LEFT)
+        .angular_clampMaxVoltage(1.0_volt) |
+      chain;
+
+    chain.wait();
+
+    // while (true) {
+    //     pros::lcd::print(0,
+    //                      "%f %f %f",
+    //                      to_in(arc_pose_tracker.getPosition().x),
+    //                      to_in(arc_pose_tracker.getPosition().y),
+    //                      to_stDeg(arc_pose_tracker.getAngle()));
+    //     pros::delay(10);
+    // }
+
+    // go to other side of the field, close to the wall
+    mb.moveTo(22.41, -60) | chain;
+
+    // go to matchloader
+    mb.boomerang(52.4, -46.7, 0) | chain;
+    mb.moveTo(57, -46.7) | chain;
+    chain.wait();
+
+    // matchload
+
+    mb.moveTo(30.8, -47.1).reverse() | run;
+    //
+    // score
+    //
+
+    mb.boomerang(62.2, -17, 90) | chain;
+    // matchload down?
+    mb.moveTo(63.4, -17) | chain;
+
+    mb.boomerang(30.5, 27, 200) | chain;
+    size_t top_right_cluster = chain.getCurrentIndex();
+
+    chain.waitUntilIndex(top_right_cluster);
+
+    // matchload down
+    //
+    // wait a bit, matchload up
+    // pros::delay(100);
+
+    // wait for all motions to complete
+    chain.wait();
+
+    // score bottom
+
+    // back up
+    mb.moveTo(30, 33) | chain;
+    mb.boomerang(52.4, 46.7, 0) | chain;
+    size_t top_right_matchloader = chain.getCurrentIndex();
+
+    mb.moveTo(57, 46.7) | chain;
+
+    chain.waitUntilIndex(top_right_matchloader);
+    // pull matchloader down
+
+    chain.wait();
+    // get matchloader
+    // pros::delay(1000);
+
+    mb.moveTo(30.8, 47.1).reverse() | run;
+
+    // go score on long goal, pull matchloader up
+    // pros::delay(1000);
+
+    // go to other side of long goal and matchloader
+    mb.arc(track_width / 2 + 2_in,
+           arc_pose_tracker.getAngle(),
+           180_stDeg,
+           AngularDirection::LEFT)
+        .angular_clampMaxVoltage(0.9_volt) |
+      chain;
+
+    // go to other side of the field, close to the wall
+    mb.moveTo(-22.41, 60) | chain;
+
+    // go to matchloader
+    mb.boomerang(-52.4, 46.7, 180) | chain;
+    size_t top_left_matchloader = chain.getCurrentIndex();
+
+    mb.moveTo(-57, 46.7) | chain;
+
+    chain.waitUntilIndex(top_right_matchloader);
+    // pull matchloader down
+
+    chain.wait();
+
+    // matchload
+
+    mb.moveTo(-30.8, 47.1).reverse() | run;
+    //
+    // score
+    //
+
+    // finish, go to park :)
+    mb.boomerang(-63, 24.5, 270) | chain;
+    mb.moveTo(-63, 0) | chain;
+
+    chain.wait();
+
+    std::cout << "finished run in time: " << now() - start_time << std::endl;
 
     pros::delay(30);
 
     while (true) {
-        Voltage dir = from_volt(master.get_analog(ANALOG_LEFT_Y) / 127.0);
-        Voltage turn = -from_volt(master.get_analog(ANALOG_RIGHT_X) / 127.0);
+        Voltage dir = from_volt(
+          master.get_analog(pros::E_CONTROLLER_ANALOG_LEFT_Y) / 127.0);
+        Voltage turn = -from_volt(
+          master.get_analog(pros::E_CONTROLLER_ANALOG_RIGHT_X) / 127.0);
 
         drivetrain.moveArcade(dir, turn);
 

@@ -6,10 +6,13 @@
 namespace blazing {
 
 class SlewController {
+  private:
     std::optional<Voltage> last_output = std::nullopt;
 
     std::optional<Divided<Voltage, Time>> decel_slew;
     std::optional<Divided<Voltage, Time>> accel_slew;
+
+    Time targeted_delta_time = 10_msec;
 
   public:
     SlewController(
@@ -21,19 +24,38 @@ class SlewController {
     SlewController(std::optional<Voltage> accel_slew = std::nullopt,
                    std::optional<Voltage> decel_slew = std::nullopt,
                    Time delta_time = 10_msec)
-        : accel_slew(accel_slew.transform([delta_time](Voltage slew) {
+        : targeted_delta_time(delta_time),
+          accel_slew(accel_slew.transform([delta_time](Voltage slew) {
               return slew / delta_time;
           })),
           decel_slew(decel_slew.transform([delta_time](Voltage slew) {
               return slew / delta_time;
           })) {}
 
+    void set_accel(std::optional<Divided<Voltage, Time>> accel_slew) {
+        this->accel_slew = accel_slew;
+    }
+
+    void set_decel(std::optional<Divided<Voltage, Time>> decel_slew) {
+        this->decel_slew = decel_slew;
+    }
+
+    void set_accel(std::optional<Voltage> accel_slew) {
+        this->accel_slew = accel_slew.transform([this](Voltage slew) {
+            return slew / targeted_delta_time;
+        });
+    }
+
+    void set_decel(std::optional<Voltage> decel_slew) {
+        this->decel_slew = decel_slew.transform([this](Voltage slew) {
+            return slew / targeted_delta_time;
+        });
+    }
+
     // output should be signed, indicating its direction of travel
     Voltage apply(Voltage output, Time delta_time) {
         if (!last_output) {
-            // last_output = output;
             last_output = 0_volt;
-            // return output;
         }
 
         auto output_vel = delta_time == 0_sec ?
