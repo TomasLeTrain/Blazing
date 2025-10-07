@@ -34,8 +34,8 @@ template<typename ControllersType,
          typename TolerancesType>
     requires poseTracker<TrackerType> && linearVelocityTracker<TrackerType> &&
              ArcadeDrivetrain<DrivetrainType> &&
-             hasAngularFeedbackController<ControllersType> &&
-             hasLinearFeedbackController<ControllersType>
+             hasAngularFeedback<ControllersType> &&
+             hasLinearFeedback<ControllersType>
 class boomerang : public Motion<ControllersType,
                                 DrivetrainType,
                                 TrackerType,
@@ -64,6 +64,7 @@ class boomerang : public Motion<ControllersType,
 
     std::optional<BoomerangState> m_state;
 
+  public:
     int getLoopDelayTime() override {
         return 10;
     }
@@ -133,7 +134,7 @@ class boomerang : public Motion<ControllersType,
             if (state.crossed_sideways ||
                 abs_sideways_error < lead2_dist_threshold || m_lead2 == 0.0) {
                 state.crossed_sideways = true;
-				// TODO: make configurable?? 
+                // TODO: make configurable??
                 m_k_lat = 0.7 * rad / m;
                 return carrot;
             }
@@ -214,11 +215,7 @@ class boomerang : public Motion<ControllersType,
         }
 
         // check timeout
-        result.finished |= m_timeout
-                             .transform([state](Time timeout) -> bool {
-                                 return now() - state.start_time > timeout;
-                             })
-                             .value_or(false);
+        result.finished |= timeoutDone(m_timeout, state.start_time);
 
         // finished if any of the available tolerances or timeout are triggered
         if (result.finished) {
@@ -228,14 +225,14 @@ class boomerang : public Motion<ControllersType,
         }
 
         Voltage angular_output =
-          this->controllers.angular_feedback_controller.update(-angular_error,
-                                                               0_stRad,
-                                                               delta_time);
+          this->controllers.angular_feedback.update(-angular_error,
+                                                    0_stRad,
+                                                    delta_time);
 
         Voltage linear_output =
-          this->controllers.linear_feedback_controller.update(-linear_error,
-                                                              0.0_in,
-                                                              delta_time);
+          this->controllers.linear_feedback.update(-linear_error,
+                                                   0.0_in,
+                                                   delta_time);
 
         if (m_k_lat) {
             angular_output =
@@ -258,15 +255,13 @@ class boomerang : public Motion<ControllersType,
         }
 
         // apply min voltage constraints
-        if constexpr (hasLinearVoltageClampController<ControllersType>) {
+        if constexpr (hasLinearVoltageClamp<ControllersType>) {
             linear_output =
-              this->controllers.linear_voltage_clamp_controller.applyMin(
-                linear_output);
+              this->controllers.linear_voltage_clamp.applyMin(linear_output);
         }
-        if constexpr (hasAngularVoltageClampController<ControllersType>) {
+        if constexpr (hasAngularVoltageClamp<ControllersType>) {
             angular_output =
-              this->controllers.angular_voltage_clamp_controller.applyMin(
-                angular_output);
+              this->controllers.angular_voltage_clamp.applyMin(angular_output);
         }
 
         if (max_overturn_output) {
@@ -281,27 +276,23 @@ class boomerang : public Motion<ControllersType,
         }
 
         // apply max voltage constraints
-        if constexpr (hasLinearVoltageClampController<ControllersType>) {
+        if constexpr (hasLinearVoltageClamp<ControllersType>) {
             linear_output =
-              this->controllers.linear_voltage_clamp_controller.applyMax(
-                linear_output);
+              this->controllers.linear_voltage_clamp.applyMax(linear_output);
         }
-        if constexpr (hasAngularVoltageClampController<ControllersType>) {
+        if constexpr (hasAngularVoltageClamp<ControllersType>) {
             angular_output =
-              this->controllers.angular_voltage_clamp_controller.applyMax(
-                angular_output);
+              this->controllers.angular_voltage_clamp.applyMax(angular_output);
         }
 
         // apply slew
-        if constexpr (hasLinearSlewController<ControllersType>) {
+        if constexpr (hasLinearSlew<ControllersType>) {
             linear_output =
-              this->controllers.linear_slew_controller.apply(linear_output,
-                                                             delta_time);
+              this->controllers.linear_slew.apply(linear_output, delta_time);
         }
-        if constexpr (hasAngularSlewController<ControllersType>) {
+        if constexpr (hasAngularSlew<ControllersType>) {
             angular_output =
-              this->controllers.angular_slew_controller.apply(angular_output,
-                                                              delta_time);
+              this->controllers.angular_slew.apply(angular_output, delta_time);
         }
 
         this->drivetrain.moveArcade(linear_output, angular_output);
@@ -309,7 +300,6 @@ class boomerang : public Motion<ControllersType,
         return result;
     }
 
-  public:
     boomerang(ControllersType controllers,
               Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
               units::Pose pose)

@@ -23,32 +23,6 @@ Angle reverseAngle(Angle angle) {
     return units::constrainAngle2pi(angle + 180_stDeg);
 }
 
-template<isQuantity T, size_t size>
-std::array<T, size> desaturate(std::array<T, size> saturated, T max) {
-
-    auto abs_compare = [](T a, T b) {
-        return units::abs(a) < units::abs(b);
-    };
-
-    T largest_magnitude = *std::ranges::max_element(saturated, abs_compare);
-
-    if (largest_magnitude > max) {
-        std::transform(saturated.cbegin(),
-                       saturated.cend(),
-                       saturated.begin(),
-                       [max, largest_magnitude](T num) {
-                           return num * max / largest_magnitude;
-                       });
-    };
-
-    return saturated;
-}
-
-// explicit instantiation to avoid linking errors
-// TODO: move desaturate to header file to avoid having to do this
-template std::array<Voltage, 2>
-desaturate<Voltage, 2>(std::array<Voltage, 2> saturated, Voltage max);
-
 Time deltaTime(std::optional<Time>& last_time) {
     Time current_time = now();
 
@@ -62,6 +36,28 @@ Time deltaTime(std::optional<Time>& last_time) {
     last_time = current_time;
 
     return result;
+}
+
+// returns time since program started
+// uses pros::millis to get the information
+Time now() {
+    return from_msec(pros::millis());
+}
+
+Divided<Number, Angle> sinc(Angle theta) {
+    if (units::abs(theta) < 1e-6 * rad) {
+        return (1.0 - theta.internal() * theta.internal() / 6.0) / rad;
+    } else {
+        return units::sin(theta) / theta;
+    }
+};
+
+bool timeoutDone(std::optional<Time> timeout, Time start_time) {
+    return timeout
+      .transform([start_time](Time timeout) -> bool {
+          return now() - start_time > timeout;
+      })
+      .value_or(false);
 }
 
 } // namespace blazing

@@ -57,7 +57,7 @@ class AsyncExecutorBase : public Executor {
     // returns number of queued motions
     virtual size_t numQueuedMotions() = 0;
 
-	// returns true of there are no motions to execute
+    // returns true of there are no motions to execute
     virtual bool hasMotions();
 
     // start the async task
@@ -69,11 +69,12 @@ class AsyncExecutorBase : public Executor {
     // exits all motions that were gonna be executed from queue
     virtual void exitAll();
 
-    // blocks until the function returns true
+    // blocks until the function returns true. Also exists if there are no
+    // motions queued.
     virtual void waitUntil(std::function<bool()> condition);
 
-    // blocks until the function returns true, after which it exists all queued
-    // motions
+    // blocks until the function returns true, after which it exists all queued.
+    // Also exist if no motions are queued. motions
     virtual void stopIf(std::function<bool()> condition);
 
     // gets index of latest added motion

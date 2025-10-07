@@ -51,9 +51,10 @@ EOF
 
 		  alias mut="pros --no-sentry --no-analytics mut --after run"
 		  alias mu="pros --no-sentry --no-analytics mu"
+		  alias m="pros --no-sentry --no-analytics build-compile-commands"
 
 		  alias u="pros --no-sentry --no-analytics u"
-		  alias m="pros --no-sentry --no-analytics build-compile-commands"
+		  alias mc="make clean && m"
 		  alias t="pros --no-sentry --no-analytics t"
 		  alias ut="pros --no-sentry --no-analytics ut"
         '';

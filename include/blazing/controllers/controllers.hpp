@@ -14,22 +14,22 @@ template<typename Controller>
     requires Feedback<Controller, Length, Voltage>
 struct LinearFeedbackController : virtual ControllerBase {
   public:
-    Controller linear_feedback_controller;
+    Controller linear_feedback;
 
     LinearFeedbackController(Controller linear_feedback_controller)
-        : linear_feedback_controller(linear_feedback_controller) {}
+        : linear_feedback(linear_feedback_controller) {}
 };
 
 template<typename Controller>
     requires Feedback<Controller, Angle, Voltage>
 struct AngularFeedbackController : virtual ControllerBase {
   public:
-    Controller angular_feedback_controller;
+    Controller angular_feedback;
 
-    AngularFeedbackController(Controller angular_feedback_controller)
-        : angular_feedback_controller(angular_feedback_controller) {
-		std::cout << "controller constructor called" << std::endl;
-	}
+    AngularFeedbackController(Controller angular_feedback)
+        : angular_feedback(angular_feedback) {
+        std::cout << "controller constructor called" << std::endl;
+    }
 };
 
 using PIDLinearController = LinearFeedbackController<PID<Length, Voltage>>;
@@ -43,16 +43,16 @@ struct Controllers : virtual ControllerBase,
   public:
     Controllers(ControllerTypes&&... controllers)
         : ControllerTypes(std::move(controllers))... {
-		std::cout << "controllers constructor called" << std::endl;
-	}
+        std::cout << "controllers constructor called" << std::endl;
+    }
 };
 
 // Linear/Angular Feedback Concepts
 template<typename Controller>
-concept hasLinearFeedbackController =
-  requires(Controller controller) { controller.linear_feedback_controller; };
+concept hasLinearFeedback =
+  requires(Controller controller) { controller.linear_feedback; };
 
 template<typename Controller>
-concept hasAngularFeedbackController =
-  requires(Controller controller) { controller.angular_feedback_controller; };
+concept hasAngularFeedback =
+  requires(Controller controller) { controller.angular_feedback; };
 } // namespace blazing

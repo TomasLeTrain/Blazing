@@ -31,7 +31,7 @@ template<typename ControllersType,
          typename TolerancesType>
     requires angleTracker<TrackerType> && angularVelocityTracker<TrackerType> &&
              ArcadeDrivetrain<DrivetrainType> &&
-             hasAngularFeedbackController<ControllersType>
+             hasAngularFeedback<ControllersType>
 class turnTo : public Motion<ControllersType,
                              DrivetrainType,
                              TrackerType,
@@ -48,6 +48,7 @@ class turnTo : public Motion<ControllersType,
 
     std::optional<TurnToState> m_state;
 
+  public:
     int getLoopDelayTime() override {
         return 10;
     }
@@ -135,20 +136,16 @@ class turnTo : public Motion<ControllersType,
               this->tolerances.large_angular.withinTolerance();
             state.settled |= this->tolerances.large_angular.finished();
         }
-        // dont use to check if we have finished
         if constexpr (hasChainAngularTolerance<TolerancesType>) {
             result.inChainTolerance =
               this->tolerances.chain_angular.withinTolerance();
+            // doesn't get used to check if finished
         }
 
         result.finished = state.settled;
 
         // check timeout
-        result.finished |= m_timeout
-                             .transform([state](Time timeout) -> bool {
-                                 return now() - state.start_time > timeout;
-                             })
-                             .value_or(false);
+        result.finished |= timeoutDone(m_timeout, state.start_time);
 
         // finished if any of the available tolerances or timeout are
         // triggered
@@ -159,27 +156,25 @@ class turnTo : public Motion<ControllersType,
         }
 
         Voltage angular_output =
-          this->controllers.angular_feedback_controller.update(-angular_error,
-                                                               0_stRad,
-                                                               delta_time);
+          this->controllers.angular_feedback.update(-angular_error,
+                                                    0_stRad,
+                                                    delta_time);
 
         Voltage linear_output = 0_volt;
         // std::cout << "ang " << angular_output << std::endl;
 
         // apply voltage constraints
-        if constexpr (hasAngularVoltageClampController<ControllersType>) {
+        if constexpr (hasAngularVoltageClamp<ControllersType>) {
             // std::cout << "not happening" << std::endl;
             angular_output =
-              this->controllers.angular_voltage_clamp_controller.apply(
-                angular_output);
+              this->controllers.angular_voltage_clamp.apply(angular_output);
         }
 
         // apply slew
-        if constexpr (hasAngularSlewController<ControllersType>) {
+        if constexpr (hasAngularSlew<ControllersType>) {
             // std::cout << "not happening" << std::endl;
             angular_output =
-              this->controllers.angular_slew_controller.apply(angular_output,
-                                                              delta_time);
+              this->controllers.angular_slew.apply(angular_output, delta_time);
         }
 
         this->drivetrain.moveArcade(linear_output, angular_output);
@@ -187,7 +182,6 @@ class turnTo : public Motion<ControllersType,
         return result;
     }
 
-  public:
     turnTo(ControllersType controllers,
            Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
            Length x,

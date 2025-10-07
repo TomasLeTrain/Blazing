@@ -56,15 +56,15 @@ class ScaledIMU : public pros::IMU {
   public:
     ScaledIMU(int port, double scalar = 1.0)
         : pros::IMU(port),
-          m_port(port),
-          m_scalar(scalar) {}
+          m_scalar(scalar),
+          m_port() {}
 
     ScaledIMU(const pros::IMU& other, double scalar = 1.0)
         : pros::IMU(other),
-          m_port(other.get_port()),
-          m_scalar(scalar) {}
+          m_scalar(scalar),
+          m_port(other.get_port()) {}
 
-    int32_t reset(bool blocking = false) {
+    virtual int32_t reset(bool blocking = false) {
         std::lock_guard lock(m_mutex);
 
         m_offset = 0;
@@ -339,10 +339,10 @@ void opcontrol() {
 
     Time start_time = now();
 
-    arc_pose_tracker.setPose({ -63_in, -17.5_in, 90_stDeg });
+    arc_pose_tracker.setPose({ -63_in, -16.7_in, 90_stDeg });
 
     // pull matchloader down
-    mb.moveTo(-63, 17.5) | chain;
+    mb.moveTo(-63, 18) | chain;
 
     // chain.wait();
 
@@ -356,7 +356,7 @@ void opcontrol() {
     // }
 
     // go towards top left ball cluster
-    mb.boomerang(-30.5, 27, 340).lead(0.3).linear_clampMaxVoltage(0.7_volt) |
+    mb.boomerang(-32, 31.7, 315).lead(0.35).linear_clampMaxVoltage(0.7_volt) |
       chain;
     size_t top_left_cluster = chain.getCurrentIndex();
 
@@ -509,7 +509,7 @@ void opcontrol() {
 
     mb.moveTo(-57, 46.7) | chain;
 
-    chain.waitUntilIndex(top_right_matchloader);
+    chain.waitUntilIndex(top_left_matchloader);
     // pull matchloader down
 
     chain.wait();

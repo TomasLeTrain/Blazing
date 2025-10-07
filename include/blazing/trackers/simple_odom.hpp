@@ -43,10 +43,10 @@ class SimpleOdomTracker {
                       AngularVelocity final_rpm)
         : left_motors(left_motors),
           right_motors(right_motors),
+          imu(imu),
           track_width(track_width),
           wheel_diameter(wheel_diameter),
-          final_rpm(final_rpm),
-          imu(imu) {}
+          final_rpm(final_rpm) {}
 
     Angle getAngle() {
         // std::cout << "returned angle: " << pose.orientation << std::endl;

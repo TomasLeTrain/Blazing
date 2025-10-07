@@ -183,13 +183,13 @@ class ArcOdomTracker {
         // check that there are enough tracking wheels
         if (trackingWheels.size() < 2) return std::nullopt;
         // get data
-        for (int i = 0; i < trackingWheels.size(); i++) {
+        for (size_t i = 0; i < trackingWheels.size(); i++) {
             const Length distance1 = trackingWheels.at(i).getDelta();
             const Length offset1 = trackingWheels.at(i).getOffset();
 
             if (!std::isfinite(distance1.internal())) continue;
 
-            for (int j = i + 1; j < trackingWheels.size(); j++) {
+            for (size_t j = i + 1; j < trackingWheels.size(); j++) {
                 const Length distance2 = trackingWheels.at(j).getDelta();
                 const Length offset2 = trackingWheels.at(j).getOffset();
 
@@ -227,8 +227,8 @@ class ArcOdomTracker {
     ArcOdomTracker(std::initializer_list<ForwardsTracker> forwards_trackers,
                    std::initializer_list<SidewaysTracker> sideways_trackers,
                    std::initializer_list<TrackingImu> imus)
-        : sideways_trackers(sideways_trackers),
-          forwards_trackers(forwards_trackers),
+        : forwards_trackers(forwards_trackers),
+          sideways_trackers(sideways_trackers),
           imus(imus) {}
 
     Angle getAngle() {
@@ -343,9 +343,14 @@ class ArcOdomTracker {
         // TODO: check if the delta is 0, and if so then don't update. (would
         // need to check if that actually fixes the issue or if an epsilon check
         // is required)
-        if (local_position_delta.y > 0.001_in) {
-            velocity_vector = local_position_delta / delta_time;
-        }
+        //
+        // this is actually a horrible fix because it does not update velocity
+        // if the robot is still. Maybe an equality check would help?
+        // if (local_position_delta.y > 0.001_in) {
+        //     velocity_vector = local_position_delta / delta_time;
+        // }
+        //
+        velocity_vector = local_position_delta / delta_time;
 
         // TODO: maybe do the same with heading_delta?
         angular_velocity = heading_delta / delta_time;

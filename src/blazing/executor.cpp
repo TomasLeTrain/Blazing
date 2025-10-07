@@ -9,6 +9,7 @@ namespace blazing {
 // executes as soon as motion gets added
 void RunExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
     while (true) {
+        uint32_t start_time = pros::millis();
         // std::cout << "evaluating motion!" << std::endl;
         std::optional<motionExecutionResult> result = motion->execute();
 
@@ -21,7 +22,7 @@ void RunExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
             break;
         }
 
-        pros::delay(motion->getLoopDelayTime());
+        pros::c::task_delay_until(&start_time, motion->getLoopDelayTime());
     }
 }
 
@@ -92,6 +93,8 @@ void AsyncExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
 }
 
 void AsyncExecutor::update() {
+    uint32_t start_time = pros::millis();
+
     // there is a motion to perform
     mutex.take();
 
@@ -119,9 +122,10 @@ void AsyncExecutor::update() {
 
         finished_index++;
 
-        pros::delay(10);
+        // don't sleep to execute next motion immediately
     } else {
-        pros::delay(current_motion->getLoopDelayTime());
+        pros::c::task_delay_until(&start_time,
+                                  current_motion->getLoopDelayTime());
     }
 }
 
@@ -156,6 +160,8 @@ void ChainedExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
 }
 
 void ChainedExecutor::update() {
+    uint32_t start_time = pros::millis();
+
     // there is a motion to perform
     mutex.take();
 
@@ -273,9 +279,10 @@ void ChainedExecutor::update() {
 
         fuse_start_time = std::nullopt;
 
-        pros::delay(10);
+        // don't sleep to execute next motion immediately
     } else {
-        pros::delay(current_motion->getLoopDelayTime());
+        pros::c::task_delay_until(&start_time,
+                                  current_motion->getLoopDelayTime());
     }
 }
 

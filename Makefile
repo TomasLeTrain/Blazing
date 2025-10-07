@@ -16,7 +16,7 @@ WARNFLAGS+=
 EXTRA_CFLAGS=
 # module support (incappable of building some pros screen code)
 # EXTRA_CXXFLAGS=-fmodules-ts
-EXTRA_CXXFLAGS=
+EXTRA_CXXFLAGS=-Wunused-variable
 
 # Set to 1 to enable hot/cold linking
 USE_PACKAGE:=1

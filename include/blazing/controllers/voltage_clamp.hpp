@@ -5,8 +5,8 @@
 namespace blazing {
 
 class VoltageClampController {
-    std::optional<Voltage> min_voltage = std::nullopt;
     std::optional<Voltage> max_voltage = std::nullopt;
+    std::optional<Voltage> min_voltage = std::nullopt;
 
   public:
     VoltageClampController(std::optional<Voltage> max_voltage = std::nullopt,
@@ -23,70 +23,68 @@ class VoltageClampController {
     }
 
     Voltage applyMin(Voltage output) {
-        if (!min_voltage) {
-            return output;
-        } else {
-            return units::sgn(output) *
-                   units::max(units::abs(output), *min_voltage);
-        }
+        auto clamp_func = units::max<Voltage, Voltage>;
+
+        return min_voltage
+          .transform([output, clamp_func](Voltage min_voltage) -> Voltage {
+              return units::sgn(output) *
+                     clamp_func(units::abs(output), min_voltage);
+          })
+          .value_or(output);
     }
 
     Voltage applyMax(Voltage output) {
-        if (!max_voltage) {
-            return output;
-        } else {
-            return units::sgn(output) *
-                   units::min(units::abs(output), *max_voltage);
-        }
+        auto clamp_func = units::min<Voltage, Voltage>;
+
+        return max_voltage
+          .transform([output, clamp_func](Voltage max_voltage) -> Voltage {
+              return units::sgn(output) *
+                     clamp_func(units::abs(output), max_voltage);
+          })
+          .value_or(output);
     }
 
     // output should be signed, indicating its direction of travel
     Voltage apply(Voltage output) {
+        output = applyMin(output);
+        output = applyMax(output);
 
-        Voltage adjusted_output = output;
-        adjusted_output = applyMin(adjusted_output);
-        adjusted_output = applyMax(adjusted_output);
-
-        return adjusted_output;
+        return output;
     }
 };
 
 class LinearVoltageClampController : virtual ControllerBase {
   public:
-    VoltageClampController linear_voltage_clamp_controller;
+    VoltageClampController linear_voltage_clamp;
 
-    LinearVoltageClampController(
-      VoltageClampController linear_voltage_clamp_controller)
-        : linear_voltage_clamp_controller(linear_voltage_clamp_controller) {}
+    LinearVoltageClampController(VoltageClampController linear_voltage_clamp)
+        : linear_voltage_clamp(linear_voltage_clamp) {}
 
     LinearVoltageClampController(
       std::optional<Voltage> max_voltage = std::nullopt,
       std::optional<Voltage> min_voltage = std::nullopt)
-        : linear_voltage_clamp_controller(max_voltage, min_voltage) {}
+        : linear_voltage_clamp(max_voltage, min_voltage) {}
 };
 
 class AngularVoltageClampController : virtual ControllerBase {
   public:
-    VoltageClampController angular_voltage_clamp_controller;
+    VoltageClampController angular_voltage_clamp;
 
-    AngularVoltageClampController(
-      VoltageClampController angular_voltage_clamp_controller)
-        : angular_voltage_clamp_controller(angular_voltage_clamp_controller) {}
+    AngularVoltageClampController(VoltageClampController angular_voltage_clamp)
+        : angular_voltage_clamp(angular_voltage_clamp) {}
 
     AngularVoltageClampController(
       std::optional<Voltage> max_voltage = std::nullopt,
       std::optional<Voltage> min_voltage = std::nullopt)
-        : angular_voltage_clamp_controller(max_voltage, min_voltage) {}
+        : angular_voltage_clamp(max_voltage, min_voltage) {}
 };
 
 // voltage clamp constraints
 template<typename Controller>
-concept hasLinearVoltageClampController = requires(Controller controller) {
-    controller.linear_voltage_clamp_controller;
-};
+concept hasLinearVoltageClamp =
+  requires(Controller controller) { controller.linear_voltage_clamp; };
 template<typename Controller>
-concept hasAngularVoltageClampController = requires(Controller controller) {
-    controller.angular_voltage_clamp_controller;
-};
+concept hasAngularVoltageClamp =
+  requires(Controller controller) { controller.angular_voltage_clamp; };
 
 } // namespace blazing

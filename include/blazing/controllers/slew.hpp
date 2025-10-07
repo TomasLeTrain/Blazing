@@ -9,10 +9,10 @@ class SlewController {
   private:
     std::optional<Voltage> last_output = std::nullopt;
 
-    std::optional<Divided<Voltage, Time>> decel_slew;
-    std::optional<Divided<Voltage, Time>> accel_slew;
-
     Time targeted_delta_time = 10_msec;
+
+    std::optional<Divided<Voltage, Time>> accel_slew;
+    std::optional<Divided<Voltage, Time>> decel_slew;
 
   public:
     SlewController(
@@ -86,45 +86,45 @@ class SlewController {
 
 class LinearSlewController : virtual ControllerBase {
   public:
-    SlewController linear_slew_controller;
+    SlewController linear_slew;
 
-    LinearSlewController(SlewController linear_slew_controller)
-        : linear_slew_controller(linear_slew_controller) {}
+    LinearSlewController(SlewController linear_slew)
+        : linear_slew(linear_slew) {}
 
     LinearSlewController(
       std::optional<Divided<Voltage, Time>> accel_slew = std::nullopt,
       std::optional<Divided<Voltage, Time>> decel_slew = std::nullopt)
-        : linear_slew_controller(accel_slew, decel_slew) {}
+        : linear_slew(accel_slew, decel_slew) {}
 
     LinearSlewController(std::optional<Voltage> accel_slew = std::nullopt,
                          std::optional<Voltage> decel_slew = std::nullopt,
                          Time delta_time = 10_msec)
-        : linear_slew_controller(accel_slew, decel_slew, delta_time) {}
+        : linear_slew(accel_slew, decel_slew, delta_time) {}
 };
 
 class AngularSlewController : virtual ControllerBase {
   public:
-    SlewController angular_slew_controller;
+    SlewController angular_slew;
 
-    AngularSlewController(SlewController angular_slew_controller)
-        : angular_slew_controller(angular_slew_controller) {}
+    AngularSlewController(SlewController angular_slew)
+        : angular_slew(angular_slew) {}
 
     AngularSlewController(
       std::optional<Divided<Voltage, Time>> accel_slew = std::nullopt,
       std::optional<Divided<Voltage, Time>> decel_slew = std::nullopt)
-        : angular_slew_controller(accel_slew, decel_slew) {}
+        : angular_slew(accel_slew, decel_slew) {}
 
     AngularSlewController(std::optional<Voltage> accel_slew = std::nullopt,
                           std::optional<Voltage> decel_slew = std::nullopt,
                           Time delta_time = 10_msec)
-        : angular_slew_controller(accel_slew, decel_slew, delta_time) {}
+        : angular_slew(accel_slew, decel_slew, delta_time) {}
 };
 
 template<typename Controller>
-concept hasLinearSlewController =
-  requires(Controller controller) { controller.linear_slew_controller; };
+concept hasLinearSlew =
+  requires(Controller controller) { controller.linear_slew; };
 template<typename Controller>
-concept hasAngularSlewController =
-  requires(Controller controller) { controller.angular_slew_controller; };
+concept hasAngularSlew =
+  requires(Controller controller) { controller.angular_slew; };
 
 } // namespace blazing

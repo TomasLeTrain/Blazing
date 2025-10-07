@@ -15,6 +15,17 @@ using KD_t = Divided<Multiplied<Output, Time>, Input>;
 
 template<typename Input, typename Output>
 class PID {
+  public:
+    // units used to convert doubles (since specyfing the units every time can
+    // become annoying)
+    Time m_timeUnits = 1_sec;
+    Input m_inputUnits = Input(1);
+    Output m_outputUnits = Output(1);
+
+    KP_t<Input, Output> UKP { 1 };
+    KI_t<Input, Output> UKI { 1 };
+    KD_t<Input, Output> UKD { 1 };
+
   private:
     KP_t<Input, Output> m_kp;
     KI_t<Input, Output> m_ki;
@@ -30,16 +41,6 @@ class PID {
     std::optional<Time> previousTime = std::nullopt;
 
   public:
-    // units used to convert doubles (since specyfing the units every time can
-    // become annoying)
-    Time m_timeUnits = 1_sec;
-    Input m_inputUnits = Input(1);
-    Output m_outputUnits = Output(1);
-
-    KP_t<Input, Output> UKP;
-    KI_t<Input, Output> UKI;
-    KD_t<Input, Output> UKD;
-
     PID(KP_t<Input, Output> kp,
         KI_t<Input, Output> ki,
         KD_t<Input, Output> kd,
@@ -51,9 +52,9 @@ class PID {
           m_windupRange(windupRange),
           m_maxVoltage(maxVoltage) {}
 
-    PID(double mkP,
-        double mkI,
-        double mkD,
+    PID(double kp,
+        double ki,
+        double kd,
         std::optional<double> windupRange = std::nullopt,
         std::optional<double> maxVoltage = std::nullopt,
         Time timeUnits = 1_sec,
@@ -63,11 +64,11 @@ class PID {
           m_inputUnits(inputUnits),
           m_outputUnits(outputUnits),
           UKP(outputUnits / inputUnits),
-          UKI((outputUnits / timeUnits) / inputUnits),
-          UKD((outputUnits * timeUnits) / inputUnits),
-          m_kp(mkP * (outputUnits / inputUnits)),
-          m_ki(mkI * ((outputUnits / timeUnits) / inputUnits)),
-          m_kd(mkD * ((outputUnits * timeUnits) / inputUnits)),
+          UKI(UKP / timeUnits),
+          UKD(UKP * timeUnits),
+          m_kp(kp * UKP),
+          m_ki(ki * UKI),
+          m_kd(kd * UKD),
           m_windupRange(
             windupRange.transform([inputUnits](double windupRange) -> Input {
                 return windupRange * inputUnits;
@@ -77,6 +78,8 @@ class PID {
                 return maxVoltage * outputUnits;
             })) {}
 
+    // motions don't call this since they always copy the object,
+    // however any other usage does need to call it
     void reset() {
         integral = 0;
         previousTime = std::nullopt;

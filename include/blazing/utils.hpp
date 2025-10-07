@@ -12,6 +12,12 @@ enum class AngularDirection {
     RIGHT
 };
 
+// returns time since program started
+// uses pros::millis to get the information
+Time now();
+
+Divided<Number, Angle> sinc(Angle theta);
+
 Angle angleError(Angle target,
                  Angle heading,
                  std::optional<AngularDirection> direction = std::nullopt);
@@ -19,34 +25,41 @@ Angle angleError(Angle target,
 // returns opposite angle, in the range [0,2pi)
 Angle reverseAngle(Angle angle);
 
-template<isQuantity T, size_t size>
-std::array<T, size> desaturate(std::array<T, size> saturated, T max);
-
 // calculates delta time given some last time (which can be nullopt)
 // also updates last_time to equal current time
 // NOTE: returns 0 if last_time is nullopt!
 Time deltaTime(std::optional<Time>& last_time);
 
+// determines if a timeout has triggered given a start time
+bool timeoutDone(std::optional<Time> timeout, Time start_time);
+
 // same as units::sgn, but returns 1.0 if the number is equal to zero (never
 // returns 0 for the sign)
-
 template<isQuantity Q>
 Number signed_sgn(Q num) {
-    return units::sgn(num) == 0 ? Number(1.0) : units::sgn(num);
+    return num.internal() >= 0.0 ? Number(1.0) : Number(-1.0);
 }
 
-// returns time since program started
-// uses pros::millis to get the information
-inline Time now() {
-    return from_msec(pros::millis());
-}
+template<isQuantity T, size_t size>
+std::array<T, size> desaturate(std::array<T, size> saturated, T max) {
 
-inline Divided<Number, Angle> sinc(Angle theta) {
-    if (units::abs(theta) < 1e-6 * rad) {
-        return (1.0 - theta.internal() * theta.internal() / 6.0) / rad;
-    } else {
-        return units::sin(theta) / theta;
-    }
-};
+    auto abs_compare = [](T a, T b) {
+        return units::abs(a) < units::abs(b);
+    };
+
+    T largest_magnitude = *std::ranges::max_element(saturated, abs_compare);
+    Number multiplier = max / largest_magnitude;
+
+    if (largest_magnitude > max) {
+        std::transform(saturated.cbegin(),
+                       saturated.cend(),
+                       saturated.begin(),
+                       [multiplier](T num) {
+                           return num * multiplier;
+                       });
+    };
+
+    return saturated;
+}
 
 } // namespace blazing

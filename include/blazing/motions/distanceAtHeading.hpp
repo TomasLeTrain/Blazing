@@ -35,8 +35,8 @@ template<typename ControllersType,
     requires velocityTracker<TrackerType> &&
              forwardTravelTracker<TrackerType> &&
              ArcadeDrivetrain<DrivetrainType> &&
-             hasAngularFeedbackController<ControllersType> &&
-             hasLinearFeedbackController<ControllersType>
+             hasAngularFeedback<ControllersType> &&
+             hasLinearFeedback<ControllersType>
 class distanceAtHeading : public Motion<ControllersType,
                                         DrivetrainType,
                                         TrackerType,
@@ -52,6 +52,7 @@ class distanceAtHeading : public Motion<ControllersType,
 
     std::optional<DistanceAtHeadingState> m_state;
 
+  public:
     int getLoopDelayTime() override {
         return 10;
     }
@@ -173,11 +174,7 @@ class distanceAtHeading : public Motion<ControllersType,
         result.finished = state.linear_settled && state.angular_settled;
 
         // check timeout
-        result.finished |= m_timeout
-                             .transform([state](Time timeout) -> bool {
-                                 return now() - state.start_time > timeout;
-                             })
-                             .value_or(false);
+        result.finished |= timeoutDone(m_timeout, state.start_time);
 
         // finished if any of the available tolerances or timeout are
         // triggered
@@ -188,37 +185,33 @@ class distanceAtHeading : public Motion<ControllersType,
         }
 
         Voltage angular_output =
-          this->controllers.angular_feedback_controller.update(-angular_error,
-                                                               0_stRad,
-                                                               delta_time);
+          this->controllers.angular_feedback.update(-angular_error,
+                                                    0_stRad,
+                                                    delta_time);
 
         Voltage linear_output =
-          this->controllers.linear_feedback_controller.update(-linear_error,
-                                                              0_in,
-                                                              delta_time);
+          this->controllers.linear_feedback.update(-linear_error,
+                                                   0_in,
+                                                   delta_time);
 
         // apply voltage constraints
-        if constexpr (hasLinearVoltageClampController<ControllersType>) {
+        if constexpr (hasLinearVoltageClamp<ControllersType>) {
             linear_output =
-              this->controllers.linear_voltage_clamp_controller.apply(
-                linear_output);
+              this->controllers.linear_voltage_clamp.apply(linear_output);
         }
-        if constexpr (hasAngularVoltageClampController<ControllersType>) {
+        if constexpr (hasAngularVoltageClamp<ControllersType>) {
             angular_output =
-              this->controllers.angular_voltage_clamp_controller.apply(
-                angular_output);
+              this->controllers.angular_voltage_clamp.apply(angular_output);
         }
 
         // apply slew
-        if constexpr (hasLinearSlewController<ControllersType>) {
+        if constexpr (hasLinearSlew<ControllersType>) {
             linear_output =
-              this->controllers.linear_slew_controller.apply(linear_output,
-                                                             delta_time);
+              this->controllers.linear_slew.apply(linear_output, delta_time);
         }
-        if constexpr (hasAngularSlewController<ControllersType>) {
+        if constexpr (hasAngularSlew<ControllersType>) {
             angular_output =
-              this->controllers.angular_slew_controller.apply(angular_output,
-                                                              delta_time);
+              this->controllers.angular_slew.apply(angular_output, delta_time);
         }
 
         this->drivetrain.moveArcade(linear_output, angular_output);
@@ -226,7 +219,6 @@ class distanceAtHeading : public Motion<ControllersType,
         return result;
     }
 
-  public:
     distanceAtHeading(
       ControllersType controllers,
       Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
