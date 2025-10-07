@@ -387,12 +387,11 @@ void opcontrol() {
     // score top center
 
     // back up and go to bottom right cluster
-    mb.arc(-10_in,
-           arc_pose_tracker.getAngle(),
-           270_stDeg,
-           AngularDirection::RIGHT)
-        .angular_clampMaxVoltage(0.6_volt) |
-      chain;
+    mb.turnTo(270_stDeg)
+        .reverse()
+        .direction(AngularDirection::RIGHT)
+        .radius(1.0) // makes it a swing
+      | chain;
 
     // bottom-left middle ball cluster
     mb.boomerang(-21.5, -13.4, 260) | chain;
@@ -415,18 +414,16 @@ void opcontrol() {
 
     pros::delay(1000);
 
-    mb.moveTo(-30.8, -47.1).reverse().linear_accelSlew(0.1_volt) | run;
+    mb.moveTo(-30.8, -47.1).reverse().linear_accelSlew(0.01_volt) | run;
     //
     // score on long goal
     //
 
     // turn around and go towards matchloader
-    mb.arc(track_width,
-           arc_pose_tracker.getAngle(),
-           0_stDeg,
-           AngularDirection::LEFT)
-        .angular_clampMaxVoltage(1.0_volt) |
-      chain;
+    mb.turnTo(0_stDeg)
+        .direction(AngularDirection::LEFT)
+        .radius(1.0) // makes it a swing
+      | chain;
 
     chain.wait();
 
@@ -493,12 +490,10 @@ void opcontrol() {
     // pros::delay(1000);
 
     // go to other side of long goal and matchloader
-    mb.arc(track_width / 2 + 2_in,
-           arc_pose_tracker.getAngle(),
-           180_stDeg,
-           AngularDirection::LEFT)
-        .angular_clampMaxVoltage(0.9_volt) |
-      chain;
+    mb.turnTo(180_stDeg)
+        .direction(AngularDirection::LEFT)
+        .radius(1.0) // makes it a swing
+      | chain;
 
     // go to other side of the field, close to the wall
     mb.moveTo(-22.41, 60) | chain;

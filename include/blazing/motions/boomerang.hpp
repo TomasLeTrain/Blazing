@@ -55,6 +55,7 @@ class boomerang : public Motion<ControllersType,
     std::optional<Voltage> max_overturn_output = std::nullopt;
 
     std::optional<Divided<Angle, Length>> m_k_lat = std::nullopt;
+    bool k_lat_only_settling = false;
 
     // defaults to cosine of angle
     std::function<double(Angle)> angular_linear_func =
@@ -132,10 +133,13 @@ class boomerang : public Motion<ControllersType,
             Length abs_sideways_error = units::abs(sideways_error);
 
             if (state.crossed_sideways ||
-                abs_sideways_error < lead2_dist_threshold || m_lead2 == 0.0) {
+                abs_sideways_error < lead2_dist_threshold) {
                 state.crossed_sideways = true;
-                // TODO: make configurable??
-                m_k_lat = 0.7 * rad / m;
+
+                return carrot;
+            }
+
+            if (m_lead2 == 0.0) {
                 return carrot;
             }
 
@@ -234,7 +238,8 @@ class boomerang : public Motion<ControllersType,
                                                    0.0_in,
                                                    delta_time);
 
-        if (m_k_lat) {
+        if (m_k_lat && (!k_lat_only_settling ||
+                        (k_lat_only_settling && state.crossed_sideways))) {
             angular_output =
               angular_output + *m_k_lat * linear_output *
                                  (target - position).rotatedBy(-heading).y *
@@ -366,8 +371,10 @@ class boomerang : public Motion<ControllersType,
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
-    auto k_lat(std::optional<Divided<Angle, Length>> k_lat = std::nullopt) {
+    auto k_lat(std::optional<Divided<Angle, Length>> k_lat = std::nullopt,
+               bool only_when_settling = true) {
         this->m_k_lat = k_lat;
+        this->k_lat_only_settling = only_when_settling;
 
         return this->getReference();
     }

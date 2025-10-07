@@ -48,6 +48,9 @@ class turnTo : public Motion<ControllersType,
 
     std::optional<TurnToState> m_state;
 
+    // radius / track_width
+    Number ratio = 0.0;
+
   public:
     int getLoopDelayTime() override {
         return 10;
@@ -72,10 +75,8 @@ class turnTo : public Motion<ControllersType,
 
         const Angle heading = [&] -> Angle {
             const Angle heading = this->tracker.getAngle();
-            // std::cout << "turnToHeading: " << heading  << std::endl;
             return reversed ? reverseAngle(heading) : heading;
         }();
-        // std::cout << "turnToHeading: " << heading  << std::endl;
 
         // defalts to std::nullopt if tracker does not implements getPosition
         const std::optional<units::V2Position> position = [this] {
@@ -114,9 +115,6 @@ class turnTo : public Motion<ControllersType,
                      directionless_error :
                      angleError(target_heading, heading, m_direction);
         }();
-
-        // std::cout << "turnTo: err angular/vel: " << angular_error << " "
-        //           << this->tracker.getAngularVelocity() << std::endl;
 
         // update tolerances
         this->tolerances.angularErrorToleranceUpdate(angular_error);
@@ -160,22 +158,21 @@ class turnTo : public Motion<ControllersType,
                                                     0_stRad,
                                                     delta_time);
 
-        Voltage linear_output = 0_volt;
-        // std::cout << "ang " << angular_output << std::endl;
-
         // apply voltage constraints
         if constexpr (hasAngularVoltageClamp<ControllersType>) {
-            // std::cout << "not happening" << std::endl;
             angular_output =
               this->controllers.angular_voltage_clamp.apply(angular_output);
         }
 
         // apply slew
         if constexpr (hasAngularSlew<ControllersType>) {
-            // std::cout << "not happening" << std::endl;
             angular_output =
               this->controllers.angular_slew.apply(angular_output, delta_time);
         }
+
+        // done after voltage constraints / slew
+        Voltage linear_output =
+          angular_output * ratio * (reversed ? -1.0 : 1.0);
 
         this->drivetrain.moveArcade(linear_output, angular_output);
 
@@ -222,6 +219,13 @@ class turnTo : public Motion<ControllersType,
     [[nodiscard("motion won't be executed unless an executor is used!")]]
     auto reverse() {
         this->reversed = true;
+
+        return this->getReference();
+    }
+
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
+    auto radius(Number ratio = 1.0) {
+        this->ratio = ratio;
 
         return this->getReference();
     }
