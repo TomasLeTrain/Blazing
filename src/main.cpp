@@ -1,8 +1,9 @@
 // this should always be first
-#include "blazing/utils.hpp"
 #include "pch.h"
 //
+
 #include "blazing/api.hpp"
+#include "blazing/utils.hpp"
 #include "main.h"
 
 /**
@@ -57,14 +58,14 @@ class ScaledIMU : public pros::IMU {
     ScaledIMU(int port, double scalar = 1.0)
         : pros::IMU(port),
           m_scalar(scalar),
-          m_port() {}
+          m_port(port) {}
 
     ScaledIMU(const pros::IMU& other, double scalar = 1.0)
         : pros::IMU(other),
           m_scalar(scalar),
           m_port(other.get_port()) {}
 
-    virtual int32_t reset(bool blocking = false) {
+    int32_t reset(bool blocking = false) {
         std::lock_guard lock(m_mutex);
 
         m_offset = 0;
@@ -131,8 +132,8 @@ ForwardsTracker right_motor_tracker(&right_motors,
 pros::Rotation forwards_rotation_sensor(-20);
 pros::Rotation sideways_rotation_sensor(5);
 
-ForwardsTracker forwards_tracker(&forwards_rotation_sensor, -0.55_in, 1.996_in);
-SidewaysTracker sideways_tracker(&sideways_rotation_sensor, -0.2_in, 1.96_in);
+ForwardsTracker forwards_tracker(&forwards_rotation_sensor, -0.44_in, 1.996_in);
+SidewaysTracker sideways_tracker(&sideways_rotation_sensor, -0.15_in, 1.96_in);
 
 ArcOdomTracker arc_pose_tracker({ forwards_tracker,
                                   left_motor_tracker,
@@ -160,7 +161,7 @@ Controllers controllers(
   PIDAngularController(angular_pid),
 
   // slew controllers
-  LinearSlewController(0.2_volt),
+  LinearSlewController(0.2_volt, 0.08_volt),
   AngularSlewController(0.3_volt),
 
   // voltage constraints controllers
@@ -290,7 +291,7 @@ void opcontrol() {
     mb.setBoomerangModifier([](auto boomerang) {
         // return boomerang.customAngularLinearFunc(angular_linear_func);
         // return boomerang.k_lat();
-        return boomerang.timeout(7_sec);
+        return boomerang.k_lat(0.2 * rad / m, true).timeout(7_sec);
     });
 
     pros::delay(100);
@@ -358,6 +359,7 @@ void opcontrol() {
     // go towards top left ball cluster
     mb.boomerang(-32, 31.7, 315).lead(0.35).linear_clampMaxVoltage(0.7_volt) |
       chain;
+
     size_t top_left_cluster = chain.getCurrentIndex();
 
     // go to top center
@@ -388,9 +390,8 @@ void opcontrol() {
 
     // back up and go to bottom right cluster
     mb.turnTo(270_stDeg)
-        .reverse()
         .direction(AngularDirection::RIGHT)
-        .radius(1.0) // makes it a swing
+        .radius(-1.0) // makes it a swing
       | chain;
 
     // bottom-left middle ball cluster
@@ -414,7 +415,7 @@ void opcontrol() {
 
     pros::delay(1000);
 
-    mb.moveTo(-30.8, -47.1).reverse().linear_accelSlew(0.01_volt) | run;
+    mb.moveTo(-30.8, -47.1).reverse() | run;
     //
     // score on long goal
     //
@@ -452,6 +453,17 @@ void opcontrol() {
     //
 
     mb.boomerang(62.2, -17, 90) | chain;
+
+    chain.wait();
+    while (true) {
+        pros::lcd::print(0,
+                         "%f %f %f",
+                         to_in(arc_pose_tracker.getPosition().x),
+                         to_in(arc_pose_tracker.getPosition().y),
+                         to_stDeg(arc_pose_tracker.getAngle()));
+        pros::delay(10);
+    }
+
     // matchload down?
     mb.moveTo(63.4, -17) | chain;
 

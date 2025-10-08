@@ -103,7 +103,7 @@ class turnTo : public Motion<ControllersType,
               angleError(target_heading, heading);
 
             // check for sign change in directionless error, if so then settling
-            if (!state.settling && state.prev_directionless_error &&
+            if (state.prev_directionless_error &&
                 units::sgn(directionless_error) !=
                   units::sgn(*state.prev_directionless_error)) {
                 state.settling = true;
@@ -140,6 +140,13 @@ class turnTo : public Motion<ControllersType,
             // doesn't get used to check if finished
         }
 
+        // when chaining we would like to chain immediately
+        result.inChainTolerance = result.inChainTolerance
+                                    .transform([&](auto tolerance) {
+                                        return tolerance | state.settling;
+                                    })
+                                    .value_or(false);
+
         result.finished = state.settled;
 
         // check timeout
@@ -171,8 +178,10 @@ class turnTo : public Motion<ControllersType,
         }
 
         // done after voltage constraints / slew
-        Voltage linear_output =
-          angular_output * ratio * (reversed ? -1.0 : 1.0);
+        Voltage linear_output = 0_volt;
+        // if (!state.settling) {
+        linear_output = units::abs(angular_output) * ratio;
+        // }
 
         this->drivetrain.moveArcade(linear_output, angular_output);
 
