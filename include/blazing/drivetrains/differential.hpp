@@ -2,6 +2,7 @@
 
 #include "blazing/drivetrains/drivetrain.hpp"
 #include "blazing/utils.hpp"
+#include "pros/abstract_motor.hpp"
 #include "pros/motor_group.hpp"
 #include "units/units.hpp"
 #include <array>
@@ -14,6 +15,8 @@ class DifferentialDrivetrain : public ChainableDrivetrain {
     pros::MotorGroup* right_motors;
 
     std::array<Voltage, 2> voltages { 0_volt, 0_volt };
+
+	bool m_brakeMode;
 
   public:
     DifferentialDrivetrain(pros::MotorGroup* left_motors,
@@ -55,5 +58,11 @@ class DifferentialDrivetrain : public ChainableDrivetrain {
 
         moveTank(left_voltage, right_voltage);
     }
+
+	void setBrakeMode(pros::MotorBrake brake_mode){
+		left_motors->set_brake_mode_all(brake_mode);
+		right_motors->set_brake_mode_all(brake_mode);
+	}
+
 };
 } // namespace blazing

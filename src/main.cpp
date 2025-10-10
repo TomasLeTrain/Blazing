@@ -114,12 +114,12 @@ Length track_width = 10.5_in;
 Length wheel_diameter = 3.25_in;
 AngularVelocity final_rpm = 450_rpm;
 
-SimpleOdomTracker pose_tracker(&left_motors,
-                               &right_motors,
-                               &imu,
-                               track_width,
-                               wheel_diameter,
-                               final_rpm);
+// SimpleOdomTracker pose_tracker(&left_motors,
+//                                &right_motors,
+//                                &imu,
+//                                track_width,
+//                                wheel_diameter,
+//                                final_rpm);
 
 ForwardsTracker
   left_motor_tracker(&left_motors, -track_width / 2, wheel_diameter, final_rpm);
@@ -146,7 +146,7 @@ PID<Length, Voltage> linear_pid(4.7,
                                 0.0,
                                 1,
                                 5,
-                                // std::null8opt,
+                                // std::nullopt,
                                 127,
                                 50_msec,
                                 1_in,
@@ -165,32 +165,27 @@ Controllers controllers(
   AngularSlewController(0.3_volt),
 
   // voltage constraints controllers
+  // (included just so they can be set per motion)
   LinearVoltageClampController(),
   AngularVoltageClampController());
 
 // tolerance stuff
-Tolerances linearTolerances(150_msec, ErrorTolerance { 2.5_in }
-                            // VelocityTolerance { 20_inps });
-);
+Tolerances linearTolerances(150_msec,
+                            ErrorTolerance { 2.5_in },
+                            VelocityTolerance { 20_inps });
 // HalfCircleTolerance { 1_in });
 
-Tolerances angularTolerances(150_msec, ErrorTolerance { 4_stDeg }
-                             // VelocityTolerance { 20_degps });
-);
+Tolerances angularTolerances(150_msec,
+                             ErrorTolerance { 4_stDeg },
+                             VelocityTolerance { 20_degps });
 
 // large tolerances
-Tolerances largeLinearTolerances(1_sec, ErrorTolerance { 6_in }
-                                 // VelocityTolerance { 40_inps }
-);
-
+Tolerances largeLinearTolerances(1_sec, ErrorTolerance { 6_in });
 Tolerances largeAngularTolerances(1_sec, ErrorTolerance { 15_stDeg });
 
 // chain tolerances
 Tolerances chainLinearTolerances(1_sec, ErrorTolerance { 6_in });
 Tolerances chainAngularTolerances(1_sec, ErrorTolerance { 15_stDeg });
-
-// Tolerances chainLinearTolerances(1_sec, ErrorTolerance { 0_in });
-// Tolerances chainAngularTolerances(1_sec, ErrorTolerance { 0_stDeg });
 
 normalLargeChainTolerances tolerances(linearTolerances,
                                       angularTolerances,
@@ -260,12 +255,12 @@ void opcontrol() {
     async.init();
     chain.init();
 
-    pros::Task([&]() {
-        while (true) {
-            pose_tracker.update();
-            pros::delay(10);
-        }
-    });
+    // pros::Task([&]() {
+    //     while (true) {
+    //         pose_tracker.update();
+    //         pros::delay(10);
+    //     }
+    // });
 
     pros::Task([&]() {
         while (true) {
