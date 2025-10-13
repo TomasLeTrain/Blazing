@@ -27,9 +27,7 @@ struct AngularFeedbackController : virtual ControllerBase {
     Controller angular_feedback;
 
     AngularFeedbackController(Controller angular_feedback)
-        : angular_feedback(angular_feedback) {
-        std::cout << "controller constructor called" << std::endl;
-    }
+        : angular_feedback(angular_feedback) {}
 };
 
 using PIDLinearController = LinearFeedbackController<PID<Length, Voltage>>;
@@ -41,11 +39,17 @@ template<typename... ControllerTypes>
 struct Controllers : virtual ControllerBase,
                      public ControllerTypes... {
   public:
-    Controllers(ControllerTypes&&... controllers)
-        : ControllerTypes(std::move(controllers))... {
-        std::cout << "controllers constructor called" << std::endl;
-    }
+    template<typename... U>
+        requires(sizeof...(U) == sizeof...(ControllerTypes) &&
+                 (std::is_constructible_v<ControllerTypes, U> && ...))
+    Controllers(U&&... controllers)
+        : ControllerTypes(std::forward<U>(controllers))... {}
 };
+
+// deduction guide allows specifying tolerance types from constructor
+template<typename... ControllerTypes>
+Controllers(ControllerTypes&&...)
+  -> Controllers<std::remove_cvref_t<ControllerTypes>...>;
 
 // Linear/Angular Feedback Concepts
 template<typename Controller>

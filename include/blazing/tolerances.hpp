@@ -40,8 +40,6 @@ class ErrorTolerance : virtual ToleranceBase {
                                            return units::abs(error) < tolerance;
                                        })
                                        .value_or(false);
-        // std::cout << "[tol]err: " << error << " " << curr_tolerance_active
-        //           << std::endl;
         update_in_tolerance(curr_tolerance_active);
     }
 };
@@ -66,8 +64,6 @@ class VelocityTolerance : virtual ToleranceBase {
                 return units::abs(velocity) < tolerance;
             })
             .value_or(false);
-        // std::cout << "[tol]vel: " << velocity << " "
-        //           << curr_tolerance_active << std::endl;
 
         update_in_tolerance(curr_tolerance_active);
     }
@@ -120,9 +116,12 @@ class Tolerances : virtual ToleranceBase,
     std::optional<Time> duration = std::nullopt;
 
   public:
-    Tolerances(Time duration, ToleranceTypes&&... bases)
+    template<typename... U>
+        requires(sizeof...(U) == sizeof...(ToleranceTypes) &&
+                 (std::is_constructible_v<ToleranceTypes, U> && ...))
+    Tolerances(Time duration, U&&... bases)
         : duration(duration),
-          ToleranceTypes(std::move(bases))... {}
+          ToleranceTypes(std::forward<U>(bases))... {}
 
     void setDuration(Time duration) {
         this->duration = duration;
@@ -160,6 +159,11 @@ class Tolerances : virtual ToleranceBase,
         return false;
     }
 };
+
+// deduction guide allows specifying tolerance types from constructor
+template<typename... ToleranceTypes>
+Tolerances(Time, ToleranceTypes&&...)
+  -> Tolerances<std::remove_cvref_t<ToleranceTypes>...>;
 
 // tolerance concepts
 template<typename TolerancesType>
