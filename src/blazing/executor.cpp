@@ -1,4 +1,5 @@
 #include "blazing/executor.hpp"
+#include "pros/misc.hpp"
 #include <mutex>
 #include <optional>
 
@@ -8,8 +9,16 @@ namespace blazing {
 
 // executes as soon as motion gets added
 void RunExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
+    auto m_originalCompStatus = pros::competition::get_status();
+
     while (true) {
+        if (pros::competition::get_status() != m_originalCompStatus) {
+            // should break out of motion
+            break;
+        }
+
         uint32_t start_time = pros::millis();
+
         // std::cout << "evaluating motion!" << std::endl;
         std::optional<motionExecutionResult> result = motion->execute();
 
@@ -43,6 +52,7 @@ bool AsyncExecutorBase::hasMotions() {
 }
 
 void AsyncExecutorBase::exitAll() {
+    std::lock_guard lock(m_mutex);
     while (hasMotions()) {
         exitCurrent();
     }
@@ -86,21 +96,38 @@ void AsyncExecutorBase::waitUntilIndex(size_t index) {
 // executes as soon as motion gets added
 void AsyncExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
     // wait until the queue is available
-    std::lock_guard lock(mutex);
+    std::lock_guard lock(m_mutex);
+
+    // in case a motion is added in a different competition state
+    if (pros::competition::get_status() != m_currentCompStatus) {
+        // should break out of all motions
+        exitAll();
+        m_currentCompStatus = pros::competition::get_status();
+    }
+
     motions.push(std::move(motion));
 
     latest_motion_index++;
 }
 
 void AsyncExecutor::update() {
+    {
+        std::lock_guard lock(m_mutex);
+        if (pros::competition::get_status() != m_currentCompStatus) {
+            // should break out of all motions
+            exitAll();
+            m_currentCompStatus = pros::competition::get_status();
+        }
+    }
+
     uint32_t start_time = pros::millis();
 
     // there is a motion to perform
-    mutex.take();
+    m_mutex.take();
 
     if (motions.empty()) {
         // delay until a new motion is available
-        mutex.give();
+        m_mutex.give();
         pros::delay(20);
         return;
     }
@@ -108,7 +135,7 @@ void AsyncExecutor::update() {
     std::unique_ptr<MotionBase>& current_motion = motions.front();
     auto result = current_motion->execute();
 
-    mutex.give();
+    m_mutex.give();
 
     auto result_finished = [](auto result) -> std::optional<bool> {
         return result.finished;
@@ -116,9 +143,9 @@ void AsyncExecutor::update() {
 
     if (result.and_then(result_finished).value_or(false)) {
         // remove motion from queue, need to take the mutex again
-        mutex.take();
+        m_mutex.take();
         motions.pop();
-        mutex.give();
+        m_mutex.give();
 
         finished_index++;
 
@@ -130,12 +157,12 @@ void AsyncExecutor::update() {
 }
 
 void AsyncExecutor::exitCurrent() {
-    std::lock_guard lock(mutex);
+    std::lock_guard lock(m_mutex);
     motions.pop();
 }
 
 size_t AsyncExecutor::numQueuedMotions() {
-    std::lock_guard lock(mutex);
+    std::lock_guard lock(m_mutex);
     return motions.size();
 }
 
@@ -153,21 +180,38 @@ ChainedExecutor::ChainedExecutor(
 // executes as soon as motion gets added
 void ChainedExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
     // wait until the queue is available
-    std::lock_guard lock(mutex);
+    std::lock_guard lock(m_mutex);
+
+    // in case a motion is added in a different competition state
+    if (pros::competition::get_status() != m_currentCompStatus) {
+        // should break out of all motions
+        exitAll();
+        m_currentCompStatus = pros::competition::get_status();
+    }
+
     motions.push_back(std::move(motion));
 
     latest_motion_index++;
 }
 
 void ChainedExecutor::update() {
+    {
+        std::lock_guard lock(m_mutex);
+        if (pros::competition::get_status() != m_currentCompStatus) {
+            // should break out of all motions
+            exitAll();
+            m_currentCompStatus = pros::competition::get_status();
+        }
+    }
+
     uint32_t start_time = pros::millis();
 
     // there is a motion to perform
-    mutex.take();
+    m_mutex.take();
 
     if (motions.empty()) {
         // delay until a new motion is available
-        mutex.give();
+        m_mutex.give();
         pros::delay(20);
         return;
     }
@@ -260,7 +304,7 @@ void ChainedExecutor::update() {
     }
 
     // not using the queue anymore
-    mutex.give();
+    m_mutex.give();
 
     auto result_finished = [](auto result) -> std::optional<bool> {
         std::cout << "finished? " << (result.finished ? "ye" : "nah")
@@ -271,9 +315,9 @@ void ChainedExecutor::update() {
     if (fusing_finished || result.and_then(result_finished).value_or(false)) {
         // remove motion from queue, need to take the mutex again
         std::cout << "finished motion " << fusing_finished << std::endl;
-        mutex.take();
+        m_mutex.take();
         motions.pop_front();
-        mutex.give();
+        m_mutex.give();
 
         finished_index++;
 
@@ -287,12 +331,12 @@ void ChainedExecutor::update() {
 }
 
 void ChainedExecutor::exitCurrent() {
-    std::lock_guard lock(mutex);
+    std::lock_guard lock(m_mutex);
     motions.pop_front();
 }
 
 size_t ChainedExecutor::numQueuedMotions() {
-    std::lock_guard lock(mutex);
+    std::lock_guard lock(m_mutex);
     return motions.size();
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "blazing/motions/motion.hpp"
+#include "pros/misc.hpp"
 #include "pros/rtos.hpp"
 #include "units/units.hpp"
 #include <cstddef>
@@ -46,6 +47,8 @@ class AsyncExecutorBase : public Executor {
   protected:
     size_t finished_index = 0;
     size_t latest_motion_index = 0;
+    pros::RecursiveMutex m_mutex;
+    std::uint8_t m_currentCompStatus;
 
   public:
     // main update logic
@@ -91,9 +94,6 @@ class AsyncExecutor : public AsyncExecutorBase {
   private:
     std::queue<std::unique_ptr<MotionBase>> motions;
 
-  protected:
-    pros::Mutex mutex;
-
   public:
     AsyncExecutor() {}
 
@@ -127,9 +127,6 @@ class ChainedExecutor : public AsyncExecutorBase {
       [](Voltage a, Voltage b, double t) {
           return (1 - t) * a + t * b;
       };
-
-  protected:
-    pros::Mutex mutex;
 
   public:
     ChainedExecutor(Time fusing_time);
