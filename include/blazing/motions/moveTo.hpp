@@ -153,19 +153,13 @@ class moveTo : public Motion<ControllersType,
           this->controllers.linear_feedback.update(-linear_error,
                                                    0.0_in,
                                                    delta_time);
-        // std::cout << "pids: " << linear_output << " " << angular_output
-        //           << std::endl;
-        //
-        //
-        //
 
-        // if(m_k_lat){
-        // 	angular_output =
-        // 	  angular_output + *m_k_lat * linear_output *
-        // 						 (target -
-        // position).rotatedBy(-heading).y *
-        // sinc(angular_error);
-        // }
+        if (m_k_lat) {
+            angular_output =
+              angular_output + *m_k_lat * linear_output *
+                                 (target - position).rotatedBy(-heading).y *
+                                 sinc(angular_error);
+        }
 
         // sign was already applied to error, only applies cosine scaling
         // component

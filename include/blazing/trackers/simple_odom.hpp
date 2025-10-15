@@ -49,7 +49,6 @@ class SimpleOdomTracker {
           final_rpm(final_rpm) {}
 
     Angle getAngle() {
-        // std::cout << "returned angle: " << pose.orientation << std::endl;
         return pose.orientation;
     }
 
@@ -118,8 +117,6 @@ class SimpleOdomTracker {
 
         const Angle heading = from_cDeg(imu->get_rotation());
         if (!last_heading) last_heading = heading;
-
-        // std::cout << "[odom] heading " << heading << std::endl;
 
         Angle heading_theta = heading - *last_heading;
         angular_velocity = delta_time == 0_sec ? AngularVelocity(INFINITY) :

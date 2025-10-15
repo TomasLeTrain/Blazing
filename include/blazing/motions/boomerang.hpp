@@ -107,7 +107,6 @@ class boomerang : public Motion<ControllersType,
         if (units::abs(pose_target_distance) < close_threshold &&
             !state.close) {
             state.close = true;
-            std::cout << "now close!" << std::endl;
         }
 
         const units::V2Position carrot = [&] -> units::V2Position {

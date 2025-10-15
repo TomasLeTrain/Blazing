@@ -19,7 +19,6 @@ void RunExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
 
         uint32_t start_time = pros::millis();
 
-        // std::cout << "evaluating motion!" << std::endl;
         std::optional<motionExecutionResult> result = motion->execute();
 
         auto result_finished = [](auto result) -> std::optional<bool> {
@@ -235,7 +234,6 @@ void ChainedExecutor::update() {
     if (!fuse_start_time.has_value() &&
         result.and_then(result_inTolerance).value_or(false)) {
         fuse_start_time = now();
-        std::cout << "start fusing!" << std::endl;
     }
 
     // get current voltages
@@ -243,8 +241,6 @@ void ChainedExecutor::update() {
       current_motion->getVoltagesDrivetrain();
 
     bool fusing_finished = false;
-
-    // std::cout << "cant fuse: " << disabled_result << std::endl;
 
     if (motions.size() >= 2 && fuse_start_time.has_value() &&
         // makes sure we actually disabled the drivetrain
@@ -276,8 +272,6 @@ void ChainedExecutor::update() {
             double normalized_time =
               units::clamp(elapsed_time / fusing_duration, 0.0, 1.0);
 
-            std::cout << "fusing " << normalized_time << std::endl;
-
             for (size_t i = 0; i < current_voltages->size(); i++) {
                 // interpolates between the two voltages
                 fused_voltages[i] = chain_interpolation(current_voltages->at(i),
@@ -307,14 +301,11 @@ void ChainedExecutor::update() {
     m_mutex.give();
 
     auto result_finished = [](auto result) -> std::optional<bool> {
-        std::cout << "finished? " << (result.finished ? "ye" : "nah")
-                  << std::endl;
         return result.finished;
     };
 
     if (fusing_finished || result.and_then(result_finished).value_or(false)) {
         // remove motion from queue, need to take the mutex again
-        std::cout << "finished motion " << fusing_finished << std::endl;
         m_mutex.take();
         motions.pop_front();
         m_mutex.give();

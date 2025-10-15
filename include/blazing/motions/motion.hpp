@@ -81,9 +81,7 @@ class Motion : public MotionBase {
 
     // attempt to override chain functions
     bool setEnabledDrivetrain(bool enabled) override {
-        // std::cout << "enabled called\n";
         if constexpr (MotionChainableDrivetrain<DrivetrainType>) {
-            // std::cout << "enabled good\n";
             drivetrain.setEnabled(enabled);
             return true;
         }
@@ -91,9 +89,7 @@ class Motion : public MotionBase {
     };
 
     std::optional<std::vector<Voltage>> getVoltagesDrivetrain() override {
-        // std::cout << "get volts called\n";
         if constexpr (MotionChainableDrivetrain<DrivetrainType>) {
-            // std::cout << "get volts good\n";
             return drivetrain.getVoltages();
         }
         return std::nullopt;

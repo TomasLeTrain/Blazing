@@ -363,9 +363,6 @@ class ArcOdomTracker {
         pose +=
           local_position_delta.rotatedBy(pose.orientation + heading_delta / 2);
         pose.orientation += heading_delta;
-
-        // std::cout << pose.x << " " << pose.y << " " << pose.orientation
-        //           << std::endl;
     }
 };
 } // namespace blazing

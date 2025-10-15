@@ -23,6 +23,7 @@ struct TurnToState {
     bool settled;
     bool settling;
     std::optional<Angle> prev_directionless_error;
+    std::optional<Angle> prev_directed_error;
 };
 
 template<typename ControllersType,
@@ -62,7 +63,8 @@ class turnTo : public Motion<ControllersType,
                         .last_time = now(),
                         .settled = false,
                         .settling = false,
-                        .prev_directionless_error = std::nullopt };
+                        .prev_directionless_error = std::nullopt,
+                        .prev_directed_error = std::nullopt };
             // done to prevent values like delta_time being 0
             return std::nullopt;
         }
@@ -102,18 +104,22 @@ class turnTo : public Motion<ControllersType,
             const Angle directionless_error =
               angleError(target_heading, heading);
 
+            const Angle directed_error =
+              angleError(target_heading, heading, m_direction);
+
             // check for sign change in directionless error, if so then settling
-            if (state.prev_directionless_error &&
+            if (state.prev_directionless_error && state.prev_directed_error &&
+                // if this is not true it might cross signs on the opposite side
+                units::abs(*state.prev_directed_error) < 180_stDeg &&
                 units::sgn(directionless_error) !=
                   units::sgn(*state.prev_directionless_error)) {
                 state.settling = true;
             }
 
             state.prev_directionless_error = directionless_error;
+            state.prev_directed_error = directed_error;
 
-            return state.settling ?
-                     directionless_error :
-                     angleError(target_heading, heading, m_direction);
+            return state.settling ? directionless_error : directed_error;
         }();
 
         // update tolerances
@@ -178,10 +184,7 @@ class turnTo : public Motion<ControllersType,
         }
 
         // done after voltage constraints / slew
-        Voltage linear_output = 0_volt;
-        // if (!state.settling) {
-        linear_output = units::abs(angular_output) * ratio;
-        // }
+        Voltage linear_output = units::abs(angular_output) * ratio;
 
         this->drivetrain.moveArcade(linear_output, angular_output);
 
