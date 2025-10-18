@@ -506,7 +506,17 @@ void opcontrol() {
     mb.moveTo(-22.41, 60) | chain;
 
     // go to matchloader
-    mb.boomerang(-52.4, 46.7, 180) | chain;
+    mb.boomerang(-52.4, 46.7, 180)
+        .executeBeforeMotion([] {
+            printf("executed before motion!\n");
+        })
+        .executeDuringMotion([] {
+            printf("executing during!\n");
+        })
+        .executeAfterMotion([] {
+            printf("finished motion!\n");
+        }) |
+      chain;
     size_t top_left_matchloader = chain.getCurrentIndex();
 
     mb.moveTo(-57, 46.7) | chain;

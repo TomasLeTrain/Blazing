@@ -21,6 +21,9 @@ void RunExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
 
         std::optional<motionExecutionResult> result = motion->execute();
 
+        // run during function
+        motion->during_motion_func();
+
         auto result_finished = [](auto result) -> std::optional<bool> {
             return result.finished;
         };
@@ -32,6 +35,8 @@ void RunExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
 
         pros::c::task_delay_until(&start_time, motion->getLoopDelayTime());
     }
+    // run after function
+    motion->after_motion_func();
 }
 
 // Some async methods used for both AsyncExecutor and ChainedExecutor
@@ -134,6 +139,9 @@ void AsyncExecutor::update() {
     std::unique_ptr<MotionBase>& current_motion = motions.front();
     auto result = current_motion->execute();
 
+    // run during function
+    current_motion->during_motion_func();
+
     m_mutex.give();
 
     auto result_finished = [](auto result) -> std::optional<bool> {
@@ -141,6 +149,9 @@ void AsyncExecutor::update() {
     };
 
     if (result.and_then(result_finished).value_or(false)) {
+        // run after function
+        current_motion->after_motion_func();
+
         // remove motion from queue, need to take the mutex again
         m_mutex.take();
         motions.pop();
@@ -297,6 +308,9 @@ void ChainedExecutor::update() {
         current_motion->moveVoltagesDrivetrain(*current_voltages);
     }
 
+    // run during function (only for the current motion?)
+    current_motion->during_motion_func();
+
     // not using the queue anymore
     m_mutex.give();
 
@@ -306,6 +320,10 @@ void ChainedExecutor::update() {
 
     if (fusing_finished || result.and_then(result_finished).value_or(false)) {
         // remove motion from queue, need to take the mutex again
+
+        // run after function
+        current_motion->after_motion_func();
+
         m_mutex.take();
         motions.pop_front();
         m_mutex.give();

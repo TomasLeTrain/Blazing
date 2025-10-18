@@ -186,6 +186,18 @@ class turnTo : public Motion<ControllersType,
         // done after voltage constraints / slew
         Voltage linear_output = units::abs(angular_output) * ratio;
 
+        // apply linear constraints and slew
+        if constexpr (hasLinearVoltageClamp<ControllersType>) {
+            linear_output =
+              this->controllers.linear_voltage_clamp.apply(linear_output);
+        }
+
+        // apply slew
+        if constexpr (hasLinearSlew<ControllersType>) {
+            linear_output =
+              this->controllers.linear_slew.apply(linear_output, delta_time);
+        }
+
         this->drivetrain.moveArcade(linear_output, angular_output);
 
         return result;

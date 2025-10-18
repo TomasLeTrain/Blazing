@@ -28,6 +28,7 @@ class TrackingWheel {
     Length offset;
     Length wheel_diameter;
     std::optional<AngularVelocity> final_rpm = std::nullopt;
+    bool enabled = true;
 
     Length last_distance = INFINITY * m;
     Length m_delta = INFINITY * m;
@@ -42,12 +43,27 @@ class TrackingWheel {
           wheel_diameter(wheel_diameter),
           final_rpm(final_rpm) {}
 
+    void setEnabled(bool enabled) {
+        this->enabled = enabled;
+    }
+
+    void disable() {
+        setEnabled(false);
+    }
+
+    void enable() {
+        setEnabled(true);
+    }
+
     Length getOffset() {
         return offset;
     }
 
     Length getDelta() {
-        return m_delta;
+        if (enabled)
+            return m_delta;
+        else
+            return INFINITY * m;
     }
 
     void update() {
@@ -304,16 +320,27 @@ class ArcOdomTracker {
         // the drive instead of just one
 
         // use first tracker that gives good delta
+
+        bool first_failed = false;
+        double forwards_count = 0.0;
+
         for (auto& tracker : forwards_trackers) {
             Length current_delta = tracker.getDelta();
             if (!std::isfinite(current_delta.internal())) {
                 printf("forward tracker returned infinity!\n");
+                first_failed = true;
                 continue;
             }
-            deltas.x = current_delta;
-            offsets.x = tracker.getOffset();
-            break;
+            deltas.x += current_delta;
+            offsets.x += tracker.getOffset();
+            forwards_count += 1.0;
+            if (!first_failed) break;
+            // break;
         }
+        // if its 0.0 then deltas and such would be zero anyway
+        if (first_failed && forwards_count != 0.0)
+            deltas.x /= forwards_count, offsets.x /= forwards_count;
+
         for (auto& tracker : sideways_trackers) {
             Length current_delta = tracker.getDelta();
             if (!std::isfinite(current_delta.internal())) {
