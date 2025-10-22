@@ -23,6 +23,10 @@ namespace blazing {
     template<typename Self, typename T>                                        \
     [[nodiscard("motion won't be executed unless an executor is used!")]] auto
 
+#define motionChangerTU                                                        \
+    template<typename Self, typename T, typename U>                            \
+    [[nodiscard("motion won't be executed unless an executor is used!")]] auto
+
 struct motionExecutionResult {
     std::optional<bool> inLargeTolerance = std::nullopt;
     std::optional<bool> inSmallTolerance = std::nullopt;
@@ -294,7 +298,7 @@ class Motion : public MotionBase {
         return self.getReference();
     }
 
-    motionChangerT linear_PIDmaxVoltage(this Self&& self, T maxVoltage)
+    motionChangerT linear_PIDmaxVolt(this Self&& self, T maxVoltage)
         requires std::derived_from<ControllersType, PIDLinearController>
     {
         self.controllers.linear_feedback.set_maxVoltage(maxVoltage);
@@ -330,14 +334,25 @@ class Motion : public MotionBase {
         return self.getReference();
     }
 
-    motionChangerT angular_PIDmaxVoltage(this Self&& self, T maxVoltage)
+    motionChangerT angular_PIDmaxVolt(this Self&& self, T maxVoltage)
         requires std::derived_from<ControllersType, PIDAngularController>
     {
         self.controllers.angular_feedback.set_maxVoltage(maxVoltage);
         return self.getReference();
     }
 
-    motionChangerT linear_clampMinVoltage(this Self&& self, T minVoltage)
+    // linear voltage constraints
+    motionChangerTU
+    linear_minMaxVolt(this Self&& self, T minVoltage, U maxVoltage)
+        requires std::derived_from<ControllersType,
+                                   LinearVoltageClampController>
+    {
+        self.controllers.linear_voltage_clamp.setMin(minVoltage);
+        self.controllers.linear_voltage_clamp.setMax(maxVoltage);
+        return self.getReference();
+    }
+
+    motionChangerT linear_minVolt(this Self&& self, T minVoltage)
         requires std::derived_from<ControllersType,
                                    LinearVoltageClampController>
     {
@@ -345,7 +360,7 @@ class Motion : public MotionBase {
         return self.getReference();
     }
 
-    motionChangerT linear_clampMaxVoltage(this Self&& self, T maxVoltage)
+    motionChangerT linear_maxVolt(this Self&& self, T maxVoltage)
         requires std::derived_from<ControllersType,
                                    LinearVoltageClampController>
     {
@@ -353,7 +368,18 @@ class Motion : public MotionBase {
         return self.getReference();
     }
 
-    motionChangerT angular_clampMinVoltage(this Self&& self, T minVoltage)
+    // angular voltage constraints
+    motionChangerTU
+    angular_minMaxVolt(this Self&& self, T minVoltage, U maxVoltage)
+        requires std::derived_from<ControllersType,
+                                   AngularVoltageClampController>
+    {
+        self.controllers.angular_voltage_clamp.setMin(minVoltage);
+        self.controllers.angular_voltage_clamp.setMax(maxVoltage);
+        return self.getReference();
+    }
+
+    motionChangerT angular_minVolt(this Self&& self, T minVoltage)
         requires std::derived_from<ControllersType,
                                    AngularVoltageClampController>
     {
@@ -361,7 +387,7 @@ class Motion : public MotionBase {
         return self.getReference();
     }
 
-    motionChangerT angular_clampMaxVoltage(this Self&& self, T maxVoltage)
+    motionChangerT angular_maxVolt(this Self&& self, T maxVoltage)
         requires std::derived_from<ControllersType,
                                    AngularVoltageClampController>
     {
@@ -369,13 +395,11 @@ class Motion : public MotionBase {
         return self.getReference();
     }
 
-    motionChangerT linear_slew(this Self&& self,
-                               T accelSlew = std::nullopt,
-                               T decelSlew = std::nullopt)
+    // linear slew changers
+    motionChangerT linear_slew(this Self&& self, LinearSlewController new_slew)
         requires hasLinearSlew<ControllersType>
     {
-        self.controllers.linear_slew.set_accel(accelSlew);
-        self.controllers.linear_slew.set_decel(decelSlew);
+        self.controllers.linear_slew = new_slew;
         return self.getReference();
     }
 
@@ -393,13 +417,12 @@ class Motion : public MotionBase {
         return self.getReference();
     }
 
+    // angular slew changers
     motionChangerT angular_slew(this Self&& self,
-                                T accelSlew = std::nullopt,
-                                T decelSlew = std::nullopt)
+                                AngularSlewController new_slew)
         requires hasAngularSlew<ControllersType>
     {
-        self.controllers.angular_slew.set_accel(accelSlew);
-        self.controllers.angular_slew.set_decel(decelSlew);
+        self.controllers.angular_slew = new_slew;
         return self.getReference();
     }
 
@@ -410,10 +433,26 @@ class Motion : public MotionBase {
         return self.getReference();
     }
 
+    motionChangerT angular_backwardsAccelSlew(this Self&& self,
+                                              T backwardsAccelSlew)
+        requires hasAngularSlew<ControllersType>
+    {
+        self.controllers.angular_slew.set_backwards_accel(backwardsAccelSlew);
+        return self.getReference();
+    }
+
     motionChangerT angular_decelSlew(this Self&& self, T decelSlew)
         requires hasAngularSlew<ControllersType>
     {
         self.controllers.angular_slew.set_decel(decelSlew);
+        return self.getReference();
+    }
+
+    motionChangerT angular_backwardsDecelSlew(this Self&& self,
+                                              T backwardsDecelSlew)
+        requires hasAngularSlew<ControllersType>
+    {
+        self.controllers.angular_slew.set_backwards_decel(backwardsDecelSlew);
         return self.getReference();
     }
 };

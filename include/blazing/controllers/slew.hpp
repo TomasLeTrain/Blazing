@@ -2,95 +2,71 @@
 
 #include "blazing/controllers/controllers.hpp"
 #include "units/units.hpp"
+#include <optional>
+#include <variant>
 
 namespace blazing {
 
 class SlewController {
   public:
-    using slew_t = std::optional<Divided<Voltage, Time>>;
+    using slew_t = Divided<Voltage, Time>;
+    using slew_variant_t = std::optional<std::variant<slew_t, Voltage>>;
 
   private:
     std::optional<Voltage> last_output = std::nullopt;
 
     Time targeted_delta_time = 10_msec;
 
-    slew_t accel_slew;
-    slew_t backwards_accel_slew;
+    std::optional<slew_t> accel_slew;
+    std::optional<slew_t> backwards_accel_slew;
 
-    slew_t decel_slew;
-    slew_t backwards_decel_slew;
+    std::optional<slew_t> decel_slew;
+    std::optional<slew_t> backwards_decel_slew;
+
+    std::optional<slew_t> process_parameter(slew_variant_t optional_variant,
+                                            Time delta_time) {
+        if (!optional_variant)
+            return std::nullopt;
+        else {
+            const auto& variant = optional_variant.value();
+            if (std::holds_alternative<Voltage>(variant)) {
+                return std::get<Voltage>(variant) / delta_time;
+            } else if (std::holds_alternative<slew_t>(variant)) {
+                return std::get<slew_t>(variant);
+            }
+        }
+    }
 
   public:
-    SlewController(slew_t accel_slew = std::nullopt,
-                   slew_t backwards_accel_slew = std::nullopt,
-                   slew_t decel_slew = std::nullopt,
-                   slew_t backwards_decel_slew = std::nullopt)
-        : accel_slew(accel_slew),
-          backwards_accel_slew(backwards_accel_slew),
-          decel_slew(decel_slew),
-          backwards_decel_slew(backwards_decel_slew) {}
-
-    SlewController(std::optional<Voltage> accel_slew = std::nullopt,
-                   std::optional<Voltage> backwards_accel_slew = std::nullopt,
-                   std::optional<Voltage> decel_slew = std::nullopt,
-                   std::optional<Voltage> backwards_decel_slew = std::nullopt,
+    SlewController(slew_variant_t accel_slew,
+                   slew_variant_t backwards_accel_slew,
+                   slew_variant_t decel_slew,
+                   slew_variant_t backwards_decel_slew,
                    Time delta_time = 10_msec)
         : targeted_delta_time(delta_time),
-          accel_slew(accel_slew.transform([delta_time](Voltage slew) {
-              return slew / delta_time;
-          })),
+          accel_slew(process_parameter(accel_slew, delta_time)),
           backwards_accel_slew(
-            backwards_accel_slew.transform([delta_time](Voltage slew) {
-                return slew / delta_time;
-            })),
-          decel_slew(decel_slew.transform([delta_time](Voltage slew) {
-              return slew / delta_time;
-          })),
+            process_parameter(backwards_accel_slew, delta_time)),
+          decel_slew(process_parameter(decel_slew, delta_time)),
           backwards_decel_slew(
-            backwards_decel_slew.transform([delta_time](Voltage slew) {
-                return slew / delta_time;
-            })) {}
+            process_parameter(backwards_decel_slew, delta_time)) {}
 
-    void set_accel(slew_t accel_slew) {
-        this->accel_slew = accel_slew;
+    void set_accel(slew_variant_t accel_slew) {
+        this->accel_slew = process_parameter(accel_slew, targeted_delta_time);
     }
 
-    void set_backwards_accel(slew_t backwards_accel_slew) {
-        this->backwards_accel_slew = backwards_accel_slew;
+    void set_backwards_accel(slew_variant_t backwards_accel_slew) {
+        this->backwards_accel_slew =
+          process_parameter(backwards_accel_slew, targeted_delta_time);
     }
 
-    void set_decel(slew_t decel_slew) {
-        this->decel_slew = decel_slew;
+    void set_decel(slew_variant_t decel_slew) {
+        this->decel_slew = process_parameter(decel_slew, targeted_delta_time);
     }
 
-    void set_backwards_decel(slew_t backwards_decel_slew) {
-        this->backwards_decel_slew = backwards_decel_slew;
-    }
-
-    void set_accel(std::optional<Voltage> accel_slew) {
-        set_accel(accel_slew.transform([this](Voltage slew) {
-            return slew / targeted_delta_time;
-        }));
-    }
-
-    void set_backwards_accel(std::optional<Voltage> backwards_accel_slew) {
-        set_backwards_accel(
-          backwards_accel_slew.transform([this](Voltage slew) {
-              return slew / targeted_delta_time;
-          }));
-    }
-
-    void set_decel(std::optional<Voltage> decel_slew) {
-        set_decel(decel_slew.transform([this](Voltage slew) {
-            return slew / targeted_delta_time;
-        }));
-    }
-
-    void set_backwards_decel(std::optional<Voltage> backwards_decel_slew) {
-        set_backwards_decel(
-          backwards_decel_slew.transform([this](Voltage slew) {
-              return slew / targeted_delta_time;
-          }));
+    void set_backwards_decel(slew_variant_t backwards_decel_slew) {
+        this->backwards_decel_slew =
+          process_parameter(backwards_decel_slew, targeted_delta_time);
     }
 
     // output should be signed, indicating its direction of travel
@@ -106,7 +82,7 @@ class SlewController {
         bool accelerating = units::sgn(output) == units::sgn(output_vel);
         bool forwards = units::sgn(output) >= 0.0;
 
-        auto applySlew = [&](SlewController::slew_t slew) {
+        auto applySlew = [&](std::optional<slew_t> slew) {
             output_vel = units::sgn(output_vel) *
                          units::min(units::abs(output_vel), *slew);
         };
@@ -145,20 +121,10 @@ class LinearSlewController : virtual ControllerBase {
         : linear_slew(linear_slew) {}
 
     LinearSlewController(
-      SlewController::slew_t accel_slew = std::nullopt,
-      SlewController::slew_t backwards_accel_slew = std::nullopt,
-      SlewController::slew_t decel_slew = std::nullopt,
-      SlewController::slew_t backwards_decel_slew = std::nullopt)
-        : linear_slew(accel_slew,
-                      backwards_accel_slew,
-                      decel_slew,
-                      backwards_decel_slew) {}
-
-    LinearSlewController(
-      std::optional<Voltage> accel_slew = std::nullopt,
-      std::optional<Voltage> backwards_accel_slew = std::nullopt,
-      std::optional<Voltage> decel_slew = std::nullopt,
-      std::optional<Voltage> backwards_decel_slew = std::nullopt,
+      SlewController::slew_variant_t accel_slew = std::nullopt,
+      SlewController::slew_variant_t backwards_accel_slew = std::nullopt,
+      SlewController::slew_variant_t decel_slew = std::nullopt,
+      SlewController::slew_variant_t backwards_decel_slew = std::nullopt,
       Time delta_time = 10_msec)
         : linear_slew(accel_slew,
                       backwards_accel_slew,
@@ -175,20 +141,10 @@ class AngularSlewController : virtual ControllerBase {
         : angular_slew(angular_slew) {}
 
     AngularSlewController(
-      SlewController::slew_t accel_slew = std::nullopt,
-      SlewController::slew_t backwards_accel_slew = std::nullopt,
-      SlewController::slew_t decel_slew = std::nullopt,
-      SlewController::slew_t backwards_decel_slew = std::nullopt)
-        : angular_slew(accel_slew,
-                       backwards_accel_slew,
-                       decel_slew,
-                       backwards_decel_slew) {}
-
-    AngularSlewController(
-      std::optional<Voltage> accel_slew = std::nullopt,
-      std::optional<Voltage> backwards_accel_slew = std::nullopt,
-      std::optional<Voltage> decel_slew = std::nullopt,
-      std::optional<Voltage> backwards_decel_slew = std::nullopt,
+      SlewController::slew_variant_t accel_slew = std::nullopt,
+      SlewController::slew_variant_t backwards_accel_slew = std::nullopt,
+      SlewController::slew_variant_t decel_slew = std::nullopt,
+      SlewController::slew_variant_t backwards_decel_slew = std::nullopt,
       Time delta_time = 10_msec)
         : angular_slew(accel_slew,
                        backwards_accel_slew,

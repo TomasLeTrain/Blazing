@@ -137,23 +137,14 @@ class MotionBuilder {
                                      target_heading));
     }
 
+    template<typename T>
     [[nodiscard("motion won't be executed unless an executor is used!")]]
-    distanceAtHeadingType
-    arc(Length radius,
-        Angle current_heading,
-        Angle target_heading,
-        std::optional<AngularDirection> direction = std::nullopt) {
-        // calculate target distance from radius
-        Length distance =
-          units::abs(radius *
-                     angleError(target_heading, current_heading, direction)) /
-          rad;
-        return distanceAtHeadingModifier(
-          blazing::distanceAtHeading(controllers,
-                                     chassis,
-                                     distance * units::sgn(radius),
-                                     target_heading)
-            .direction(direction));
+    turnToType arc(T heading,
+                   double radius = 1.0,
+                   std::optional<AngularDirection> direction = std::nullopt) {
+        return turnToModifier(blazing::turnTo(controllers, chassis, heading)
+                                .radius(radius)
+                                .direction(direction));
     }
 
     // boomerang
