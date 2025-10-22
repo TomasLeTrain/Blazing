@@ -11,9 +11,12 @@ namespace blazing {
 void RunExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
     auto m_originalCompStatus = pros::competition::get_status();
 
+    bool finished_halfway = false;
+
     while (true) {
         if (pros::competition::get_status() != m_originalCompStatus) {
             // should break out of motion
+            finished_halfway = true;
             break;
         }
 
@@ -22,7 +25,7 @@ void RunExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
         std::optional<motionExecutionResult> result = motion->execute();
 
         // run during function
-        motion->during_motion_func();
+        if (motion->during_motion_func) motion->during_motion_func();
 
         auto result_finished = [](auto result) -> std::optional<bool> {
             return result.finished;
@@ -35,8 +38,10 @@ void RunExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
 
         pros::c::task_delay_until(&start_time, motion->getLoopDelayTime());
     }
+
     // run after function
-    motion->after_motion_func();
+    if (!finished_halfway && motion->after_motion_func)
+        motion->after_motion_func();
 }
 
 // Some async methods used for both AsyncExecutor and ChainedExecutor
@@ -140,7 +145,8 @@ void AsyncExecutor::update() {
     auto result = current_motion->execute();
 
     // run during function
-    current_motion->during_motion_func();
+    if (current_motion->during_motion_func)
+        current_motion->during_motion_func();
 
     m_mutex.give();
 
@@ -150,7 +156,8 @@ void AsyncExecutor::update() {
 
     if (result.and_then(result_finished).value_or(false)) {
         // run after function
-        current_motion->after_motion_func();
+        if (current_motion->after_motion_func)
+            current_motion->after_motion_func();
 
         // remove motion from queue, need to take the mutex again
         m_mutex.take();
@@ -309,7 +316,8 @@ void ChainedExecutor::update() {
     }
 
     // run during function (only for the current motion?)
-    current_motion->during_motion_func();
+    if (current_motion->during_motion_func)
+        current_motion->during_motion_func();
 
     // not using the queue anymore
     m_mutex.give();
@@ -322,7 +330,8 @@ void ChainedExecutor::update() {
         // remove motion from queue, need to take the mutex again
 
         // run after function
-        current_motion->after_motion_func();
+        if (current_motion->after_motion_func)
+            current_motion->after_motion_func();
 
         m_mutex.take();
         motions.pop_front();
