@@ -13,6 +13,8 @@ void RunExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
 
     bool finished_halfway = false;
 
+    motion->start_motion_callback();
+
     while (true) {
         if (pros::competition::get_status() != m_originalCompStatus) {
             // should break out of motion
@@ -23,9 +25,6 @@ void RunExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
         uint32_t start_time = pros::millis();
 
         std::optional<motionExecutionResult> result = motion->execute();
-
-        // run during function
-        if (motion->during_motion_func) motion->during_motion_func();
 
         auto result_finished = [](auto result) -> std::optional<bool> {
             return result.finished;
@@ -38,10 +37,7 @@ void RunExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
 
         pros::c::task_delay_until(&start_time, motion->getLoopDelayTime());
     }
-
-    // run after function
-    if (!finished_halfway && motion->after_motion_func)
-        motion->after_motion_func();
+    motion->end_motion_callback();
 }
 
 // Some async methods used for both AsyncExecutor and ChainedExecutor
@@ -120,6 +116,10 @@ void AsyncExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
 }
 
 void AsyncExecutor::update() {
+    uint32_t start_time = pros::millis();
+    uint32_t delay_time = 10;
+
+    // mutex is taken care of automatically in this scope
     {
         std::lock_guard lock(m_mutex);
         if (pros::competition::get_status() != m_currentCompStatus) {
@@ -127,50 +127,41 @@ void AsyncExecutor::update() {
             exitAll();
             m_currentCompStatus = pros::competition::get_status();
         }
+
+        if (motions.empty()) {
+            delay_time = 20;
+            goto endupdate;
+        }
+
+        std::unique_ptr<MotionBase>& current_motion = motions.front();
+
+        if (start_of_motion) {
+            current_motion->start_motion_callback();
+            start_of_motion = false;
+        }
+
+        delay_time = current_motion->getLoopDelayTime();
+        auto result = current_motion->execute();
+
+        auto result_finished = [](auto result) -> std::optional<bool> {
+            return result.finished;
+        };
+
+        if (result.and_then(result_finished).value_or(false)) {
+            current_motion->end_motion_callback();
+            motions.pop();
+
+            start_of_motion = true;
+            finished_index++;
+
+            // don't sleep to execute next motion immediately
+            delay_time = 0;
+        }
     }
 
-    uint32_t start_time = pros::millis();
-
-    // there is a motion to perform
-    m_mutex.take();
-
-    if (motions.empty()) {
-        // delay until a new motion is available
-        m_mutex.give();
-        pros::delay(20);
-        return;
-    }
-
-    std::unique_ptr<MotionBase>& current_motion = motions.front();
-    auto result = current_motion->execute();
-
-    // run during function
-    if (current_motion->during_motion_func)
-        current_motion->during_motion_func();
-
-    m_mutex.give();
-
-    auto result_finished = [](auto result) -> std::optional<bool> {
-        return result.finished;
-    };
-
-    if (result.and_then(result_finished).value_or(false)) {
-        // run after function
-        if (current_motion->after_motion_func)
-            current_motion->after_motion_func();
-
-        // remove motion from queue, need to take the mutex again
-        m_mutex.take();
-        motions.pop();
-        m_mutex.give();
-
-        finished_index++;
-
-        // don't sleep to execute next motion immediately
-    } else {
-        pros::c::task_delay_until(&start_time,
-                                  current_motion->getLoopDelayTime());
-    }
+    // delay until next update
+endupdate:
+    pros::c::task_delay_until(&start_time, delay_time);
 }
 
 void AsyncExecutor::exitCurrent() {
@@ -212,6 +203,10 @@ void ChainedExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
 }
 
 void ChainedExecutor::update() {
+    uint32_t start_time = pros::millis();
+    uint32_t delay_time = 10;
+
+    // mutex is taken care of automatically in this scope
     {
         std::lock_guard lock(m_mutex);
         if (pros::competition::get_status() != m_currentCompStatus) {
@@ -219,133 +214,126 @@ void ChainedExecutor::update() {
             exitAll();
             m_currentCompStatus = pros::competition::get_status();
         }
-    }
 
-    uint32_t start_time = pros::millis();
+        if (motions.empty()) {
+            // delay until a new motion is available
+            delay_time = 20;
+            goto endupdate;
+        }
 
-    // there is a motion to perform
-    m_mutex.take();
+        std::unique_ptr<MotionBase>& current_motion = motions.front();
 
-    if (motions.empty()) {
-        // delay until a new motion is available
-        m_mutex.give();
-        pros::delay(20);
-        return;
-    }
+        if (start_of_motion) {
+            current_motion->start_motion_callback();
+            start_of_motion = false;
+        }
 
-    std::unique_ptr<MotionBase>& current_motion = motions.front();
+        delay_time = current_motion->getLoopDelayTime();
 
-    // attempt to disable the drivetrain
-    bool disabled_result = current_motion->setEnabledDrivetrain(false);
+        // attempt to disable the drivetrain
+        bool disabled_result = current_motion->setEnabledDrivetrain(false);
 
-    // run motion logic
-    std::optional<motionExecutionResult> result = current_motion->execute();
+        // run motion logic
+        std::optional<motionExecutionResult> result = current_motion->execute();
 
-    auto result_inTolerance =
-      [](motionExecutionResult result) -> std::optional<bool> {
-        return result.inSmallTolerance.value_or(false) ||
-               result.inLargeTolerance.value_or(false) ||
-               result.inChainTolerance.value_or(false);
-    };
+        auto result_inTolerance =
+          [](motionExecutionResult result) -> std::optional<bool> {
+            return result.inSmallTolerance.value_or(false) ||
+                   result.inLargeTolerance.value_or(false) ||
+                   result.inChainTolerance.value_or(false);
+        };
 
-    // starts fusing if any tolerance gets hit
-    if (!fuse_start_time.has_value() &&
-        result.and_then(result_inTolerance).value_or(false)) {
-        fuse_start_time = now();
-    }
+        // starts fusing if any tolerance gets hit
+        if (!fuse_start_time.has_value() &&
+            result.and_then(result_inTolerance).value_or(false)) {
+            fuse_start_time = now();
+        }
 
-    // get current voltages
-    std::optional<std::vector<Voltage>> current_voltages =
-      current_motion->getVoltagesDrivetrain();
+        // get current voltages
+        std::optional<std::vector<Voltage>> current_voltages =
+          current_motion->getVoltagesDrivetrain();
 
-    bool fusing_finished = false;
+        bool fusing_finished = false;
 
-    if (motions.size() >= 2 && fuse_start_time.has_value() &&
-        // makes sure we actually disabled the drivetrain
-        disabled_result) {
-        std::unique_ptr<MotionBase>& next_motion = *next(motions.begin());
+        if (motions.size() >= 2 && fuse_start_time.has_value() &&
+            // makes sure we actually disabled the drivetrain
+            disabled_result) {
+            std::unique_ptr<MotionBase>& next_motion = *next(motions.begin());
 
-        // NOTE: disables next drivetrain in case its different from the one of
-        // the current motion (this should never really happen)
-        next_motion->setEnabledDrivetrain(false);
+            // NOTE: disables next drivetrain in case its different from the one
+            // of the current motion (this should never really happen)
+            next_motion->setEnabledDrivetrain(false);
 
-        // compute next motion (dont care about its results?)
-        next_motion->execute();
+            // compute next motion (dont care about its results?)
+            next_motion->execute();
 
-        // get its voltages
-        std::optional<std::vector<Voltage>> next_voltages =
-          next_motion->getVoltagesDrivetrain();
+            // get its voltages
+            std::optional<std::vector<Voltage>> next_voltages =
+              next_motion->getVoltagesDrivetrain();
 
-        if (current_voltages && next_voltages &&
-            current_voltages->size() == next_voltages->size()) {
+            if (current_voltages && next_voltages &&
+                current_voltages->size() == next_voltages->size()) {
 
-            std::vector<Voltage> fused_voltages(current_voltages->size());
+                std::vector<Voltage> fused_voltages(current_voltages->size());
 
-            Time elapsed_time = now() - *fuse_start_time;
+                Time elapsed_time = now() - *fuse_start_time;
 
-            // use custom chain time from next motion if specified
-            Time fusing_duration =
-              next_motion->getChainTime().value_or(default_fusing_duration);
+                // use custom chain time from next motion if specified
+                Time fusing_duration =
+                  next_motion->getChainTime().value_or(default_fusing_duration);
 
-            double normalized_time =
-              units::clamp(elapsed_time / fusing_duration, 0.0, 1.0);
+                double normalized_time =
+                  units::clamp(elapsed_time / fusing_duration, 0.0, 1.0);
 
-            for (size_t i = 0; i < current_voltages->size(); i++) {
-                // interpolates between the two voltages
-                fused_voltages[i] = chain_interpolation(current_voltages->at(i),
-                                                        next_voltages->at(i),
-                                                        normalized_time);
+                for (size_t i = 0; i < current_voltages->size(); i++) {
+                    // interpolates between the two voltages
+                    fused_voltages[i] =
+                      chain_interpolation(current_voltages->at(i),
+                                          next_voltages->at(i),
+                                          normalized_time);
+                }
+
+                // move drivetrain based on these fused voltages
+                current_motion->setEnabledDrivetrain(true);
+                current_motion->moveVoltagesDrivetrain(fused_voltages);
+
+                // if we have spent enough time fusing, then just finish the
+                // previous motion
+                fusing_finished = elapsed_time > fusing_duration;
+            } else {
+                // mismatch in drivetrains, just perform the current one as
+                // usual
+                current_motion->setEnabledDrivetrain(true);
+                current_motion->moveVoltagesDrivetrain(*current_voltages);
             }
-
-            // move drivetrain based on these fused voltages
-            current_motion->setEnabledDrivetrain(true);
-            current_motion->moveVoltagesDrivetrain(fused_voltages);
-
-            // if we have spent enough time fusing, then just finish the
-            // previous motion
-            fusing_finished = elapsed_time > fusing_duration;
         } else {
-            // mismatch in drivetrains, just perform the current one as usual
+            // perform everything current motion normally
             current_motion->setEnabledDrivetrain(true);
             current_motion->moveVoltagesDrivetrain(*current_voltages);
         }
-    } else {
-        // perform everything current motion normally
-        current_motion->setEnabledDrivetrain(true);
-        current_motion->moveVoltagesDrivetrain(*current_voltages);
+
+        auto result_finished = [](auto result) -> std::optional<bool> {
+            return result.finished;
+        };
+
+        if (fusing_finished ||
+            result.and_then(result_finished).value_or(false)) {
+            current_motion->end_motion_callback();
+            motions.pop_front();
+
+            finished_index++;
+            start_of_motion = true;
+
+            fuse_start_time = std::nullopt;
+
+            // execute next motion immediately
+            delay_time = 0;
+        }
     }
 
-    // run during function (only for the current motion?)
-    if (current_motion->during_motion_func)
-        current_motion->during_motion_func();
-
-    // not using the queue anymore
-    m_mutex.give();
-
-    auto result_finished = [](auto result) -> std::optional<bool> {
-        return result.finished;
-    };
-
-    if (fusing_finished || result.and_then(result_finished).value_or(false)) {
-        // remove motion from queue, need to take the mutex again
-
-        // run after function
-        if (current_motion->after_motion_func)
-            current_motion->after_motion_func();
-
-        m_mutex.take();
-        motions.pop_front();
-        m_mutex.give();
-
-        finished_index++;
-
-        fuse_start_time = std::nullopt;
-
-        // don't sleep to execute next motion immediately
-    } else {
-        pros::c::task_delay_until(&start_time,
-                                  current_motion->getLoopDelayTime());
-    }
+    // delay until next update
+endupdate:
+    pros::c::task_delay_until(&start_time, delay_time);
 }
 
 void ChainedExecutor::exitCurrent() {

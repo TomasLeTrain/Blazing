@@ -31,7 +31,7 @@ class SlewController {
             const auto& variant = optional_variant.value();
             if (std::holds_alternative<Voltage>(variant)) {
                 return std::get<Voltage>(variant) / delta_time;
-            } else if (std::holds_alternative<slew_t>(variant)) {
+            } else {
                 return std::get<slew_t>(variant);
             }
         }

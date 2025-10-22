@@ -44,6 +44,8 @@ class RunExecutor : public Executor {
 // virtual class that implements some async-specific methods
 class AsyncExecutorBase : public Executor {
   protected:
+    bool start_of_motion = true;
+
     size_t finished_index = 0;
     size_t latest_motion_index = 0;
     pros::RecursiveMutex m_mutex;

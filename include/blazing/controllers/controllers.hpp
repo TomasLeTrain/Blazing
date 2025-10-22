@@ -18,6 +18,16 @@ struct LinearFeedbackController : virtual ControllerBase {
 
     LinearFeedbackController(Controller linear_feedback_controller)
         : linear_feedback(linear_feedback_controller) {}
+
+    // creates a copy of the controller with different linear feedback
+    // controller
+    template<typename Self>
+    Self with_linear_feedback(this Self&& self,
+                              Controller new_linear_feedback) {
+        Self new_self = self;
+        new_self.linear_feedback = new_linear_feedback;
+        return new_self;
+    }
 };
 
 template<typename Controller>
@@ -28,6 +38,16 @@ struct AngularFeedbackController : virtual ControllerBase {
 
     AngularFeedbackController(Controller angular_feedback)
         : angular_feedback(angular_feedback) {}
+
+    // creates a copy of the controller with different angular feedback
+    // controller
+    template<typename Self>
+    Self with_angular_feedback(this Self&& self,
+                               Controller new_angular_feedback) {
+        Self new_self = self;
+        new_self.angular_feedback = new_angular_feedback;
+        return new_self;
+    }
 };
 
 using PIDLinearController = LinearFeedbackController<PID<Length, Voltage>>;

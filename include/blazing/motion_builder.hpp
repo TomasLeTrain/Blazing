@@ -6,6 +6,7 @@
 #include "blazing/utils.hpp"
 #include "motions/boomerang.hpp"
 #include <iterator>
+#include <variant>
 
 namespace blazing {
 
@@ -53,6 +54,16 @@ class MotionBuilder {
         return boomerang;
     };
 
+    template<typename T>
+    auto castToUnit(std::variant<T, double, int> variant, T units) {
+        if (std::holds_alternative<T>(variant))
+            return std::get<T>(variant);
+        else if (std::holds_alternative<double>(variant))
+            return std::get<double>(variant) * units;
+        else
+            return std::get<int>(variant) * units;
+    }
+
   public:
     MotionBuilder(Chassis chassis, Controllers controllers)
         : chassis(chassis),
@@ -76,75 +87,61 @@ class MotionBuilder {
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
-    moveToType moveTo(Length x, Length y) {
-        return moveToModifier(blazing::moveTo(controllers, chassis, x, y));
+    moveToType moveTo(std::variant<Length, double, int> x,
+                      std::variant<Length, double, int> y) {
+        Length new_x = castToUnit(x, in);
+        Length new_y = castToUnit(y, in);
+
+        return moveToModifier(
+          blazing::moveTo(controllers, chassis, new_x, new_y));
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
-    moveToType moveTo(double x, double y) {
-        return moveToModifier(blazing::moveTo(controllers, chassis, x, y));
+    turnToType turnTo(std::variant<Length, double, int> x,
+                      std::variant<Length, double, int> y) {
+        Length new_x = castToUnit(x, in);
+        Length new_y = castToUnit(y, in);
+
+        return turnToModifier(
+          blazing::turnTo(controllers, chassis, new_x, new_y));
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
-    turnToType turnTo(Length x, Length y) {
-        return turnToModifier(blazing::turnTo(controllers, chassis, x, y));
+    turnToType turnTo(std::variant<Angle, double, int> heading) {
+        Angle new_heading = castToUnit(heading, deg);
+
+        return turnToModifier(
+          blazing::turnTo(controllers, chassis, new_heading));
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
-    turnToType turnTo(double x, double y) {
-        return turnToModifier(blazing::turnTo(controllers, chassis, x, y));
-    }
+    distanceAtHeadingType
+    distanceAtHeading(std::variant<Length, double, int> distance) {
+        Length new_distance = castToUnit(distance, in);
 
-    [[nodiscard("motion won't be executed unless an executor is used!")]]
-    turnToType turnTo(Angle heading) {
-        return turnToModifier(blazing::turnTo(controllers, chassis, heading));
-    }
-
-    [[nodiscard("motion won't be executed unless an executor is used!")]]
-    turnToType turnTo(double heading) {
-        return blazing::turnTo(controllers, chassis, heading);
-    }
-
-    [[nodiscard("motion won't be executed unless an executor is used!")]]
-    distanceAtHeadingType distanceAtHeading(Length target_distance) {
         return distanceAtHeadingModifier(
-          blazing::distanceAtHeading(controllers, chassis, target_distance));
+          blazing::distanceAtHeading(controllers, chassis, new_distance));
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
-    distanceAtHeadingType distanceAtHeading(double target_distance) {
-        return distanceAtHeadingModifier(
-          blazing::distanceAtHeading(controllers, chassis, target_distance));
-    }
+    distanceAtHeadingType
+    distanceAtHeading(std::variant<Length, double, int> distance,
+                      std::variant<Angle, double, int> heading) {
+        Length new_distance = castToUnit(distance, in);
+        Angle new_heading = castToUnit(heading, deg);
 
-    [[nodiscard("motion won't be executed unless an executor is used!")]]
-    distanceAtHeadingType distanceAtHeading(Length target_distance,
-                                            Angle target_heading) {
-        return distanceAtHeadingModifier(
-          blazing::distanceAtHeading(controllers,
-                                     chassis,
-                                     target_distance,
-                                     target_heading));
-    }
-
-    [[nodiscard("motion won't be executed unless run or async are used!")]]
-    distanceAtHeadingType distanceAtHeading(double target_distance,
-                                            double target_heading) {
         return distanceAtHeadingModifier(
           blazing::distanceAtHeading(controllers,
                                      chassis,
-                                     target_distance,
-                                     target_heading));
+                                     new_distance,
+                                     new_heading));
     }
 
     template<typename T>
     [[nodiscard("motion won't be executed unless an executor is used!")]]
-    turnToType arc(T heading,
-                   double radius = 1.0,
-                   std::optional<AngularDirection> direction = std::nullopt) {
-        return turnToModifier(blazing::turnTo(controllers, chassis, heading)
-                                .radius(radius)
-                                .direction(direction));
+    turnToType arc(T heading, double radius = 1.0) {
+        return turnToModifier(
+          blazing::turnTo(controllers, chassis, heading).radius(radius));
     }
 
     // boomerang
@@ -155,15 +152,15 @@ class MotionBuilder {
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
-    boomerangType boomerang(Length x, Length y, Angle heading) {
-        return boomerangModifier(
-          blazing::boomerang(controllers, chassis, x, y, heading));
-    }
+    boomerangType boomerang(std::variant<Length, double, int> x,
+                            std::variant<Length, double, int> y,
+                            std::variant<Angle, double, int> heading) {
+        Length new_x = castToUnit(x, in);
+        Length new_y = castToUnit(y, in);
+        Angle new_heading = castToUnit(heading, deg);
 
-    [[nodiscard("motion won't be executed unless an executor is used!")]]
-    boomerangType boomerang(double x, double y, double heading) {
         return boomerangModifier(
-          blazing::boomerang(controllers, chassis, x, y, heading));
+          blazing::boomerang(controllers, chassis, new_x, new_y, new_heading));
     }
 };
 } // namespace blazing

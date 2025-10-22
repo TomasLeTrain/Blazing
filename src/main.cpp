@@ -286,7 +286,7 @@ void opcontrol() {
     mb.setBoomerangModifier([](auto boomerang) {
         // return boomerang.customAngularLinearFunc(angular_linear_func);
         // return boomerang.k_lat();
-        return boomerang.k_lat(0.2 * rad / m, true).timeout(7_sec);
+        return boomerang.k_lat(0.2, true).timeout(7_sec);
     });
 
     arc_pose_tracker.setPose({ -63_in, -16.7_in, 90_stDeg });

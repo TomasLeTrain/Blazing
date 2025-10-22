@@ -6,6 +6,7 @@
 #include "blazing/controllers/voltage_clamp.hpp"
 #include "blazing/drivetrains/drivetrain.hpp"
 #include "blazing/tolerances.hpp"
+#include "pros/rtos.hpp"
 #include "units/units.hpp"
 #include <concepts>
 #include <functional>
@@ -37,8 +38,9 @@ struct motionExecutionResult {
 // untemplated class to allow pointers
 class MotionBase {
   public:
-    std::function<void()> during_motion_func;
-    std::function<void()> after_motion_func;
+    virtual void start_motion_callback() {}
+
+    virtual void end_motion_callback() {}
 
     virtual int getLoopDelayTime() = 0;
     virtual std::optional<motionExecutionResult> execute() = 0;
@@ -78,6 +80,12 @@ class Motion : public MotionBase {
     DrivetrainType& drivetrain;
 
     std::optional<Time> chain_time = std::nullopt;
+
+    std::function<void()> before_motion_func;
+    std::function<void()> during_motion_func;
+    std::function<void()> after_motion_func;
+
+    std::optional<pros::Task> custom_functions_task;
 
   public:
     Motion(ControllersType controllers,
@@ -454,6 +462,27 @@ class Motion : public MotionBase {
     {
         self.controllers.angular_slew.set_backwards_decel(backwardsDecelSlew);
         return self.getReference();
+    }
+
+    void start_motion_callback() override {
+        custom_functions_task = pros::Task([&] {
+            before_motion_func();
+            during_motion_func();
+        });
+    }
+
+    void end_motion_callback() override {
+        if (custom_functions_task) custom_functions_task->remove();
+
+        // run it on a separate task
+        pros::Task([&] {
+            after_motion_func();
+        });
+    }
+
+    ~Motion() override {
+        // stops spawned task, but don't doesn't run after_motion_func
+        if (custom_functions_task) custom_functions_task->remove();
     }
 };
 

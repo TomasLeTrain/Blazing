@@ -13,6 +13,7 @@
 #include "units/Vector2D.hpp"
 #include <functional>
 #include <iostream>
+#include <optional>
 
 namespace blazing {
 struct MoveToState {
@@ -260,8 +261,20 @@ class moveTo : public Motion<ControllersType,
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
-    auto k_lat(std::optional<Divided<Angle, Length>> k_lat = std::nullopt) {
-        this->m_k_lat = k_lat;
+    auto k_lat(std::optional<std::variant<Divided<Angle, Length>, double, int>>
+                 k_lat = std::nullopt) {
+        if (!k_lat)
+            this->m_k_lat = std::nullopt;
+        else {
+            const auto& variant = k_lat.value();
+            if (std::holds_alternative<Divided<Angle, Length>>(variant)) {
+                this->m_k_lat = std::get<Divided<Angle, Length>>(variant);
+            } else if (std::holds_alternative<double>(variant)) {
+                this->m_k_lat = std::get<double>(variant) * (rad / m);
+            } else if (std::holds_alternative<int>(variant)) {
+                this->m_k_lat = std::get<int>(variant) * (rad / m);
+            }
+        }
 
         return this->getReference();
     }
