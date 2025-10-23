@@ -298,7 +298,7 @@ void ChainedExecutor::update() {
                 current_motion->moveVoltagesDrivetrain(fused_voltages);
 
                 // if we have spent enough time fusing, then just finish the
-                // previous motion
+                // motion
                 fusing_finished = elapsed_time > fusing_duration;
             } else {
                 // mismatch in drivetrains, just perform the current one as
@@ -318,6 +318,8 @@ void ChainedExecutor::update() {
 
         if (fusing_finished ||
             result.and_then(result_finished).value_or(false)) {
+            // finish motion
+
             current_motion->end_motion_callback();
             motions.pop_front();
 
