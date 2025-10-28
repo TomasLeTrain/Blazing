@@ -40,7 +40,9 @@ template<typename ControllersType,
 class distanceAtHeading : public Motion<ControllersType,
                                         DrivetrainType,
                                         TrackerType,
-                                        TolerancesType> {
+                                        TolerancesType>,
+                  public LinearMotion,
+                  public AngularMotion {
   private:
     Length target_distance;
     std::optional<Angle> given_target_heading = std::nullopt;
@@ -219,6 +221,7 @@ class distanceAtHeading : public Motion<ControllersType,
         return result;
     }
 
+    [[nodiscard("motion won't be executed unless run or async are used!")]]
     distanceAtHeading(
       ControllersType controllers,
       Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
@@ -228,12 +231,14 @@ class distanceAtHeading : public Motion<ControllersType,
             chassis),
           target_distance(target_distance) {}
 
+    [[nodiscard("motion won't be executed unless run or async are used!")]]
     distanceAtHeading(
       ControllersType controllers,
       Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
       double target_distance)
         : distanceAtHeading(controllers, chassis, from_in(target_distance)) {}
 
+    [[nodiscard("motion won't be executed unless run or async are used!")]]
     distanceAtHeading(
       ControllersType controllers,
       Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
@@ -245,6 +250,7 @@ class distanceAtHeading : public Motion<ControllersType,
           target_distance(target_distance),
           given_target_heading(target_heading) {}
 
+    [[nodiscard("motion won't be executed unless run or async are used!")]]
     distanceAtHeading(
       ControllersType controllers,
       Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,

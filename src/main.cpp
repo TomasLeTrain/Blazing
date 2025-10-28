@@ -5,6 +5,7 @@
 #include "blazing/api.hpp"
 #include "blazing/utils.hpp"
 #include "main.h"
+#include <sys/types.h>
 
 /**
  * A callback function for LLEMU's center button.
@@ -295,11 +296,26 @@ void opcontrol() {
       // .angular_clampMaxVoltage(0.5_volt) |
       run;
 
+    mb.moveTo(50, 50_in)
+        .withLinearFeedbackController(linear_pid)
+        .closeThreshold(10_in) |
+      run;
+
     mb.boomerang(-24, 48, 180)
         .lead(0.4, 0.38)
         .lead2DistThreshold(7_in)
         .closeThreshold(7_in)
         .timeout(7_sec)
+        .executeBeforeMotion([] {
+            printf("executed before motion!\n");
+        })
+        .executeDuringMotion([] {
+            pros::delay(300);
+            printf("waited after motion started!\n");
+        })
+        .executeAfterMotion([] {
+            printf("ended motion!\n");
+        })
         .linear_kd(linear_pid.get_kd() * 0.7) |
       run;
 

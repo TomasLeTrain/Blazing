@@ -31,12 +31,13 @@ template<typename ControllersType,
          typename TrackerType,
          typename TolerancesType>
     requires angleTracker<TrackerType> && angularVelocityTracker<TrackerType> &&
-             ArcadeDrivetrain<DrivetrainType> &&
-             hasAngularFeedback<ControllersType>
+               ArcadeDrivetrain<DrivetrainType> &&
+               hasAngularFeedback<ControllersType>
 class turnTo : public Motion<ControllersType,
                              DrivetrainType,
                              TrackerType,
-                             TolerancesType> {
+                             TolerancesType>,
+               public AngularMotion {
   private:
     // std::optional<units::V2Position> target_point = std::nullopt;
     // std::optional<Angle> given_target_heading = std::nullopt;
@@ -203,6 +204,7 @@ class turnTo : public Motion<ControllersType,
         return result;
     }
 
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
     turnTo(ControllersType controllers,
            Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
            Length x,
@@ -215,12 +217,13 @@ class turnTo : public Motion<ControllersType,
             chassis),
           target(units::V2Position(x, y)) {}
 
-    turnTo(ControllersType controllers,
-           Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
-           double x,
-           double y)
-        : turnTo(controllers, chassis, from_in(x), from_in(y)) {}
-
+    // turnTo(ControllersType controllers,
+    //        Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
+    //        double x,
+    //        double y)
+    //     : turnTo(controllers, chassis, from_in(x), from_in(y)) {}
+    //
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
     turnTo(ControllersType controllers,
            Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
            Angle target_heading)
@@ -229,10 +232,11 @@ class turnTo : public Motion<ControllersType,
             chassis),
           target(target_heading) {}
 
-    turnTo(ControllersType controllers,
-           Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
-           double target_heading)
-        : turnTo(controllers, chassis, from_stDeg(target_heading)) {}
+    //
+    // turnTo(ControllersType controllers,
+    //        Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
+    //        double target_heading)
+    //     : turnTo(controllers, chassis, from_stDeg(target_heading)) {}
 
     turnTo& getReference() {
         return *this;
@@ -266,6 +270,35 @@ class turnTo : public Motion<ControllersType,
         this->m_direction = direction;
 
         return this->getReference();
+    }
+};
+
+// done as a different class to be able to inherit from linear motion
+template<typename ControllersType,
+         typename DrivetrainType,
+         typename TrackerType,
+         typename TolerancesType>
+    requires angleTracker<TrackerType> && angularVelocityTracker<TrackerType> &&
+               ArcadeDrivetrain<DrivetrainType> &&
+               hasAngularFeedback<ControllersType> &&
+               hasLinearFeedback<ControllersType>
+class arc : public turnTo<ControllersType,
+                          DrivetrainType,
+                          TrackerType,
+                          TolerancesType>,
+            public LinearMotion {
+  public:
+    [[nodiscard("motion won't be executed unless run or async are used!")]]
+    arc(ControllersType controllers,
+        Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
+        Angle target_heading,
+        double radius = 1.0)
+        : turnTo<ControllersType, DrivetrainType, TrackerType, TolerancesType>(
+            controllers,
+            chassis,
+            target_heading) {
+        // set radius (avoids nodiscard warning)
+        std::ignore = this->radius(radius);
     }
 };
 } // namespace blazing

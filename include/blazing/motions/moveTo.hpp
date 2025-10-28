@@ -34,7 +34,9 @@ template<typename ControllersType,
 class moveTo : public Motion<ControllersType,
                              DrivetrainType,
                              TrackerType,
-                             TolerancesType> {
+                             TolerancesType>,
+                  public LinearMotion,
+                  public AngularMotion {
   private:
     units::V2Position target;
 
@@ -232,13 +234,6 @@ class moveTo : public Motion<ControllersType,
             controllers,
             chassis),
           target(x, y) {}
-
-    [[nodiscard("motion won't be executed unless run or async are used!")]]
-    moveTo(ControllersType controllers,
-           Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
-           double x,
-           double y)
-        : moveTo(controllers, chassis, from_in(x), from_in(y)) {}
 
     moveTo& getReference() {
         return *this;

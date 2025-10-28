@@ -33,13 +33,15 @@ template<typename ControllersType,
          typename TrackerType,
          typename TolerancesType>
     requires poseTracker<TrackerType> && linearVelocityTracker<TrackerType> &&
-             ArcadeDrivetrain<DrivetrainType> &&
-             hasAngularFeedback<ControllersType> &&
-             hasLinearFeedback<ControllersType>
+               ArcadeDrivetrain<DrivetrainType> &&
+               hasAngularFeedback<ControllersType> &&
+               hasLinearFeedback<ControllersType>
 class boomerang : public Motion<ControllersType,
                                 DrivetrainType,
                                 TrackerType,
-                                TolerancesType> {
+                                TolerancesType>,
+                  public LinearMotion,
+                  public AngularMotion {
   private:
     units::Pose target;
 
@@ -304,6 +306,7 @@ class boomerang : public Motion<ControllersType,
         return result;
     }
 
+    [[nodiscard("motion won't be executed unless run or async are used!")]]
     boomerang(ControllersType controllers,
               Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
               units::Pose pose)
@@ -312,6 +315,7 @@ class boomerang : public Motion<ControllersType,
             chassis),
           target(pose) {}
 
+    [[nodiscard("motion won't be executed unless run or async are used!")]]
     boomerang(ControllersType controllers,
               Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
               Length x,
@@ -319,6 +323,7 @@ class boomerang : public Motion<ControllersType,
               Angle heading)
         : boomerang(controllers, chassis, { x, y, heading }) {}
 
+    [[nodiscard("motion won't be executed unless run or async are used!")]]
     boomerang(ControllersType controllers,
               Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
               double x,

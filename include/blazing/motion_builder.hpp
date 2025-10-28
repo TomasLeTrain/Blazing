@@ -24,6 +24,10 @@ class MotionBuilder {
                                        typename Chassis::drivetrainType,
                                        typename Chassis::trackerType,
                                        typename Chassis::tolerancesType>;
+    using arcType = blazing::turnTo<Controllers,
+                                    typename Chassis::drivetrainType,
+                                    typename Chassis::trackerType,
+                                    typename Chassis::tolerancesType>;
     using distanceAtHeadingType =
       blazing::distanceAtHeading<Controllers,
                                  typename Chassis::drivetrainType,
@@ -36,6 +40,7 @@ class MotionBuilder {
 
     using MoveToModifier = std::function<moveToType(moveToType)>;
     using TurnToModifier = std::function<turnToType(turnToType)>;
+    using ArcModifier = std::function<arcType(turnToType)>;
     using DistanceAtHeadingModifier =
       std::function<distanceAtHeadingType(distanceAtHeadingType)>;
     using BoomerangModifier = std::function<boomerangType(boomerangType)>;
@@ -46,6 +51,11 @@ class MotionBuilder {
     TurnToModifier turnToModifier = [](turnToType turnTo) {
         return turnTo;
     };
+
+    ArcModifier arcModifier = [](arcType arc) {
+        return arc;
+    };
+
     DistanceAtHeadingModifier distanceAtHeadingModifier =
       [](distanceAtHeadingType distanceAtHeading) {
           return distanceAtHeading;
@@ -137,11 +147,11 @@ class MotionBuilder {
                                      new_heading));
     }
 
-    template<typename T>
     [[nodiscard("motion won't be executed unless an executor is used!")]]
-    turnToType arc(T heading, double radius = 1.0) {
-        return turnToModifier(
-          blazing::turnTo(controllers, chassis, heading).radius(radius));
+    arcType arc(std::variant<Angle, double, int> heading, double radius = 1.0) {
+        Angle new_heading = castToUnit(heading, deg);
+        return arcModifier(
+          blazing::arc(controllers, chassis, new_heading, radius));
     }
 
     // boomerang
