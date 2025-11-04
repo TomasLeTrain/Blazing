@@ -292,7 +292,7 @@ void opcontrol() {
 
     arc_pose_tracker.setPose({ -63_in, -16.7_in, 90_stDeg });
 
-    mb.arc(90, 2).angular_maxVolt(0.5_volt) |
+    mb.arc(90, 2).turn_maxVolt(0.5_volt) |
       // .angular_clampMaxVoltage(0.5_volt) |
       run;
 
@@ -316,7 +316,7 @@ void opcontrol() {
         .executeAfterMotion([] {
             printf("ended motion!\n");
         })
-        .linear_kd(linear_pid.get_kd() * 0.7) |
+        .drive_kd(linear_pid.get_kd() * 0.7) |
       run;
 
     // pull matchloader down

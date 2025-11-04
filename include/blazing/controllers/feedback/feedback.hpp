@@ -9,10 +9,10 @@ namespace blazing {
 template<typename Controller, typename Input, typename Output>
 concept Feedback = requires(Controller controller,
                             Input measurement,
-                            Input setpoint,
+                            Input target,
                             Time duration) {
     {
-        controller.update(measurement, setpoint, duration)
+        controller.update(measurement, target, duration)
     } -> std::same_as<Output>;
 };
 }; // namespace blazing

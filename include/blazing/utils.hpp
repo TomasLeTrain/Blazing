@@ -12,6 +12,17 @@ enum class AngularDirection {
     RIGHT
 };
 
+
+struct DifferentialVoltages {
+    Voltage left_voltage;
+    Voltage right_voltage;
+};
+
+struct DifferentialSpeeds {
+    LinearVelocity linear_velocity;
+    AngularVelocity angular_velocity;
+};
+
 // returns time since program started
 // uses pros::millis to get the information
 Time now();

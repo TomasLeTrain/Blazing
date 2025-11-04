@@ -229,7 +229,7 @@ class Motion : public MotionBase {
 class AngularMotion {
   public:
     // angular pid changers
-    motionChangerT angular_kp(this Self&& self, T kp)
+    motionChangerT turn_kp(this Self&& self, T kp)
         requires std::derived_from<typename Self::controllersType,
                                    PIDAngularController>
     {
@@ -237,7 +237,7 @@ class AngularMotion {
         return self.getReference();
     }
 
-    motionChangerT angular_ki(this Self&& self, T ki)
+    motionChangerT turn_ki(this Self&& self, T ki)
         requires std::derived_from<typename Self::controllersType,
                                    PIDAngularController>
     {
@@ -245,7 +245,7 @@ class AngularMotion {
         return self.getReference();
     }
 
-    motionChangerT angular_kd(this Self&& self, T kd)
+    motionChangerT turn_kd(this Self&& self, T kd)
         requires std::derived_from<typename Self::controllersType,
                                    PIDAngularController>
     {
@@ -253,7 +253,7 @@ class AngularMotion {
         return self.getReference();
     }
 
-    motionChangerT angular_windupRange(this Self&& self, T windupRange)
+    motionChangerT turn_windupRange(this Self&& self, T windupRange)
         requires std::derived_from<typename Self::controllersType,
                                    PIDAngularController>
     {
@@ -261,7 +261,7 @@ class AngularMotion {
         return self.getReference();
     }
 
-    motionChangerT angular_PIDmaxVolt(this Self&& self, T maxVoltage)
+    motionChangerT turn_PIDmaxVolt(this Self&& self, T maxVoltage)
         requires std::derived_from<typename Self::controllersType,
                                    PIDAngularController>
     {
@@ -271,7 +271,7 @@ class AngularMotion {
 
     // angular voltage constraints
     motionChangerTU
-    angular_minMaxVolt(this Self&& self, T minVoltage, U maxVoltage)
+    turn_minMaxVolt(this Self&& self, T minVoltage, U maxVoltage)
         requires std::derived_from<typename Self::controllersType,
                                    AngularVoltageClampController>
     {
@@ -280,7 +280,7 @@ class AngularMotion {
         return self.getReference();
     }
 
-    motionChangerT angular_minVolt(this Self&& self, T minVoltage)
+    motionChangerT turn_minVolt(this Self&& self, T minVoltage)
         requires std::derived_from<typename Self::controllersType,
                                    AngularVoltageClampController>
     {
@@ -288,7 +288,7 @@ class AngularMotion {
         return self.getReference();
     }
 
-    motionChangerT angular_maxVolt(this Self&& self, T maxVoltage)
+    motionChangerT turn_maxVolt(this Self&& self, T maxVoltage)
         requires std::derived_from<typename Self::controllersType,
                                    AngularVoltageClampController>
     {
@@ -297,7 +297,7 @@ class AngularMotion {
     }
 
     // angular slew changers
-    motionChangerT angular_slew(this Self&& self,
+    motionChangerT turn_slew(this Self&& self,
                                 AngularSlewController new_slew)
         requires hasAngularSlew<typename Self::controllersType>
     {
@@ -305,14 +305,14 @@ class AngularMotion {
         return self.getReference();
     }
 
-    motionChangerT angular_accelSlew(this Self&& self, T accelSlew)
+    motionChangerT turn_accelSlew(this Self&& self, T accelSlew)
         requires hasAngularSlew<typename Self::controllersType>
     {
         self.controllers.angular_slew.set_accel(accelSlew);
         return self.getReference();
     }
 
-    motionChangerT angular_backwardsAccelSlew(this Self&& self,
+    motionChangerT turn_backwardsAccelSlew(this Self&& self,
                                               T backwardsAccelSlew)
         requires hasAngularSlew<typename Self::controllersType>
     {
@@ -320,14 +320,14 @@ class AngularMotion {
         return self.getReference();
     }
 
-    motionChangerT angular_decelSlew(this Self&& self, T decelSlew)
+    motionChangerT turn_decelSlew(this Self&& self, T decelSlew)
         requires hasAngularSlew<typename Self::controllersType>
     {
         self.controllers.angular_slew.set_decel(decelSlew);
         return self.getReference();
     }
 
-    motionChangerT angular_backwardsDecelSlew(this Self&& self,
+    motionChangerT turn_backwardsDecelSlew(this Self&& self,
                                               T backwardsDecelSlew)
         requires hasAngularSlew<typename Self::controllersType>
     {
@@ -336,49 +336,49 @@ class AngularMotion {
     }
 
     // tolerance changers
-    motionChanger angularToleranceDuration(this Self&& self, Time duration) {
+    motionChanger turn_toleranceDuration(this Self&& self, Time duration) {
         self.tolerances.angular.setDuration(duration);
         return self.getReference();
     }
 
-    motionChanger largeAngularToleranceDuration(this Self&& self,
+    motionChanger turn_largeToleranceDuration(this Self&& self,
                                                 Time duration) {
         self.tolerances.large_angular.setDuration(duration);
         return self.getReference();
     }
 
     // Error tolerance changers
-    motionChanger angularErrorTolerance(this Self&& self, Angle tolerance) {
+    motionChanger turn_ErrorTolerance(this Self&& self, Angle tolerance) {
         self.tolerances.angular.setErrorTolerance(tolerance);
         return self.getReference();
     }
 
-    motionChanger largeAngularErrorTolerance(this Self&& self,
+    motionChanger turn_largeErrorTolerance(this Self&& self,
                                              Angle tolerance) {
         self.tolerances.large_angular.setErrorTolerance(tolerance);
         return self.getReference();
     }
 
-    motionChanger chainAngularErrorTolerance(this Self&& self,
+    motionChanger turn_chainErrorTolerance(this Self&& self,
                                              Angle tolerance) {
         self.tolerances.chain_angular.setErrorTolerance(tolerance);
         return self.getReference();
     }
 
     // velocity tolerance changers
-    motionChanger angularVelocityTolerance(this Self&& self,
+    motionChanger turn_VelocityTolerance(this Self&& self,
                                            AngularVelocity tolerance) {
         self.tolerances.angular.setVelocityTolerance(tolerance);
         return self.getReference();
     }
 
-    motionChanger largeAngularVelocityTolerance(this Self&& self,
+    motionChanger turn_largeVelocityTolerance(this Self&& self,
                                                 AngularVelocity tolerance) {
         self.tolerances.large_angular.setVelocityTolerance(tolerance);
         return self.getReference();
     }
 
-    motionChanger chainAngularVelocityTolerance(this Self&& self,
+    motionChanger turn_chainVelocityTolerance(this Self&& self,
                                                 AngularVelocity tolerance) {
         self.tolerances.chain_angular.setVelocityTolerance(tolerance);
         return self.getReference();
@@ -388,7 +388,7 @@ class AngularMotion {
 class LinearMotion {
   public:
     // linear pid changers
-    motionChangerT linear_kp(this Self&& self, T kp)
+    motionChangerT drive_kp(this Self&& self, T kp)
         requires std::derived_from<typename Self::controllersType,
                                    PIDLinearController>
     {
@@ -396,7 +396,7 @@ class LinearMotion {
         return self.getReference();
     }
 
-    motionChangerT linear_ki(this Self&& self, T ki)
+    motionChangerT drive_ki(this Self&& self, T ki)
         requires std::derived_from<typename Self::controllersType,
                                    PIDLinearController>
     {
@@ -404,7 +404,7 @@ class LinearMotion {
         return self.getReference();
     }
 
-    motionChangerT linear_kd(this Self&& self, T kd)
+    motionChangerT drive_kd(this Self&& self, T kd)
         requires std::derived_from<typename Self::controllersType,
                                    PIDLinearController>
     {
@@ -412,7 +412,7 @@ class LinearMotion {
         return self.getReference();
     }
 
-    motionChangerT linear_windupRange(this Self&& self, T windupRange)
+    motionChangerT drive_windupRange(this Self&& self, T windupRange)
         requires std::derived_from<typename Self::controllersType,
                                    PIDLinearController>
     {
@@ -420,7 +420,7 @@ class LinearMotion {
         return self.getReference();
     }
 
-    motionChangerT linear_PIDmaxVolt(this Self&& self, T maxVoltage)
+    motionChangerT drive_PIDmaxVolt(this Self&& self, T maxVoltage)
         requires std::derived_from<typename Self::controllersType,
                                    PIDLinearController>
     {
@@ -430,7 +430,7 @@ class LinearMotion {
 
     // linear voltage constraints
     motionChangerTU
-    linear_minMaxVolt(this Self&& self, T minVoltage, U maxVoltage)
+    drive_minMaxVolt(this Self&& self, T minVoltage, U maxVoltage)
         requires std::derived_from<typename Self::controllersType,
                                    LinearVoltageClampController>
     {
@@ -439,7 +439,7 @@ class LinearMotion {
         return self.getReference();
     }
 
-    motionChangerT linear_minVolt(this Self&& self, T minVoltage)
+    motionChangerT drive_minVolt(this Self&& self, T minVoltage)
         requires std::derived_from<typename Self::controllersType,
                                    LinearVoltageClampController>
     {
@@ -447,7 +447,7 @@ class LinearMotion {
         return self.getReference();
     }
 
-    motionChangerT linear_maxVolt(this Self&& self, T maxVoltage)
+    motionChangerT drive_maxVolt(this Self&& self, T maxVoltage)
         requires std::derived_from<typename Self::controllersType,
                                    LinearVoltageClampController>
     {
@@ -456,21 +456,21 @@ class LinearMotion {
     }
 
     // linear slew changers
-    motionChangerT linear_slew(this Self&& self, LinearSlewController new_slew)
+    motionChangerT drive_slew(this Self&& self, LinearSlewController new_slew)
         requires hasLinearSlew<typename Self::controllersType>
     {
         self.controllers.linear_slew = new_slew;
         return self.getReference();
     }
 
-    motionChangerT linear_accelSlew(this Self&& self, T accelSlew)
+    motionChangerT drive_accelSlew(this Self&& self, T accelSlew)
         requires hasLinearSlew<typename Self::controllersType>
     {
         self.controllers.linear_slew.set_accel(accelSlew);
         return self.getReference();
     }
 
-    motionChangerT linear_decelSlew(this Self&& self, T decelSlew)
+    motionChangerT drive_decelSlew(this Self&& self, T decelSlew)
         requires hasLinearSlew<typename Self::controllersType>
     {
         self.controllers.linear_slew.set_decel(decelSlew);
@@ -478,47 +478,47 @@ class LinearMotion {
     }
 
     // tolerance changers
-    motionChanger linearToleranceDuration(this Self&& self, Time duration) {
+    motionChanger drive_ToleranceDuration(this Self&& self, Time duration) {
         self.tolerances.linear.setDuration(duration);
         return self.getReference();
     }
 
-    motionChanger largeLinearToleranceDuration(this Self&& self,
+    motionChanger drive_largeToleranceDuration(this Self&& self,
                                                Time duration) {
         self.tolerances.large_linear.setDuration(duration);
         return self.getReference();
     }
 
-    motionChanger linearErrorTolerance(this Self&& self, Length tolerance) {
+    motionChanger drive_ErrorTolerance(this Self&& self, Length tolerance) {
         self.tolerances.linear.setErrorTolerance(tolerance);
         return self.getReference();
     }
 
-    motionChanger largeLinearErrorTolerance(this Self&& self,
+    motionChanger drive_largeErrorTolerance(this Self&& self,
                                             Length tolerance) {
         self.tolerances.large_linear.setErrorTolerance(tolerance);
         return self.getReference();
     }
 
-    motionChanger chainLinearErrorTolerance(this Self&& self,
+    motionChanger drive_chainErrorTolerance(this Self&& self,
                                             Length tolerance) {
         self.tolerances.chain_linear.setErrorTolerance(tolerance);
         return self.getReference();
     }
 
-    motionChanger linearVelocityTolerance(this Self&& self,
+    motionChanger drive_VelocityTolerance(this Self&& self,
                                           LinearVelocity tolerance) {
         self.tolerances.linear.setVelocityTolerance(tolerance);
         return self.getReference();
     }
 
-    motionChanger largeLinearVelocityTolerance(this Self&& self,
+    motionChanger drive_largeVelocityTolerance(this Self&& self,
                                                LinearVelocity tolerance) {
         self.tolerances.large_linear.setVelocityTolerance(tolerance);
         return self.getReference();
     }
 
-    motionChanger chainLinearVelocityTolerance(this Self&& self,
+    motionChanger drive_chainVelocityTolerance(this Self&& self,
                                                LinearVelocity tolerance) {
         self.tolerances.change_linear.setVelocityTolerance(tolerance);
         return self.getReference();
