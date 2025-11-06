@@ -176,10 +176,10 @@ class TrackingImu {
 
 class ArcOdomTracker {
   private:
-    std::vector<ForwardsTracker> forwards_trackers;
-    std::vector<SidewaysTracker> sideways_trackers;
+    std::vector<ForwardsTracker*> forwards_trackers;
+    std::vector<SidewaysTracker*> sideways_trackers;
 
-    std::vector<TrackingImu> imus;
+    std::vector<TrackingImu*> imus;
 
     units::Pose pose {};
     Length forward_travel = 0_in;
@@ -195,19 +195,19 @@ class ArcOdomTracker {
 
     template<TrackerOrientation orientation>
     static std::optional<Angle> calculateWheelHeading(
-      std::vector<TrackingWheel<orientation>>& trackingWheels) {
+      std::vector<TrackingWheel<orientation>*>& trackingWheels) {
         // check that there are enough tracking wheels
         if (trackingWheels.size() < 2) return std::nullopt;
         // get data
         for (size_t i = 0; i < trackingWheels.size(); i++) {
-            const Length distance1 = trackingWheels.at(i).getDelta();
-            const Length offset1 = trackingWheels.at(i).getOffset();
+            const Length distance1 = trackingWheels.at(i)->getDelta();
+            const Length offset1 = trackingWheels.at(i)->getOffset();
 
             if (!std::isfinite(distance1.internal())) continue;
 
             for (size_t j = i + 1; j < trackingWheels.size(); j++) {
-                const Length distance2 = trackingWheels.at(j).getDelta();
-                const Length offset2 = trackingWheels.at(j).getOffset();
+                const Length distance2 = trackingWheels.at(j)->getDelta();
+                const Length offset2 = trackingWheels.at(j)->getOffset();
 
                 if (!std::isfinite(distance2.internal()) || offset1 == offset2)
                     continue;
@@ -225,7 +225,7 @@ class ArcOdomTracker {
         int imu_count = 0;
 
         for (auto& imu : imus) {
-            Angle current = imu.getDelta();
+            Angle current = imu->getDelta();
             if (std::isfinite(current.internal())) {
                 heading_delta += current;
                 imu_count++;
@@ -240,9 +240,9 @@ class ArcOdomTracker {
     }
 
   public:
-    ArcOdomTracker(std::initializer_list<ForwardsTracker> forwards_trackers,
-                   std::initializer_list<SidewaysTracker> sideways_trackers,
-                   std::initializer_list<TrackingImu> imus)
+    ArcOdomTracker(std::initializer_list<ForwardsTracker*> forwards_trackers,
+                   std::initializer_list<SidewaysTracker*> sideways_trackers,
+                   std::initializer_list<TrackingImu*> imus)
         : forwards_trackers(forwards_trackers),
           sideways_trackers(sideways_trackers),
           imus(imus) {}
@@ -291,13 +291,13 @@ class ArcOdomTracker {
         const Time delta_time = deltaTime(last_time);
 
         for (auto& tracker : imus) {
-            tracker.update();
+            tracker->update();
         }
         for (auto& tracker : sideways_trackers) {
-            tracker.update();
+            tracker->update();
         }
         for (auto& tracker : forwards_trackers) {
-            tracker.update();
+            tracker->update();
         }
 
         // almost guaranteed that all trackers are undefined,
@@ -325,14 +325,14 @@ class ArcOdomTracker {
         double forwards_count = 0.0;
 
         for (auto& tracker : forwards_trackers) {
-            Length current_delta = tracker.getDelta();
+            Length current_delta = tracker->getDelta();
             if (!std::isfinite(current_delta.internal())) {
                 printf("forward tracker returned infinity!\n");
                 first_failed = true;
                 continue;
             }
             deltas.x += current_delta;
-            offsets.x += tracker.getOffset();
+            offsets.x += tracker->getOffset();
             forwards_count += 1.0;
             if (!first_failed) break;
             // break;
@@ -342,13 +342,13 @@ class ArcOdomTracker {
             deltas.x /= forwards_count, offsets.x /= forwards_count;
 
         for (auto& tracker : sideways_trackers) {
-            Length current_delta = tracker.getDelta();
+            Length current_delta = tracker->getDelta();
             if (!std::isfinite(current_delta.internal())) {
                 printf("sideways tracker returned infinity!\n");
                 continue;
             }
             deltas.y = current_delta;
-            offsets.y = tracker.getOffset();
+            offsets.y = tracker->getOffset();
             break;
         }
 
