@@ -221,8 +221,9 @@ class Motion : public MotionBase {
         if (custom_functions_task.get_state() != pros::E_TASK_STATE_INVALID &&
             custom_functions_task.get_state() != pros::E_TASK_STATE_DELETED)
             custom_functions_task.remove();
+        printf("after removing custom functions\n");
 
-        // run it on a separate task -
+        // run it on a separate task - take function by copy
         pros::Task([after_motion_func = this->after_motion_func] {
             printf("before2\n");
             if (after_motion_func) after_motion_func();

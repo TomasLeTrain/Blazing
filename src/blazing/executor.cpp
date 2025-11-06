@@ -37,6 +37,7 @@ void RunExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
 
         pros::c::task_delay_until(&start_time, motion->getLoopDelayTime());
     }
+
     motion->end_motion_callback();
 }
 
