@@ -72,7 +72,8 @@ void AsyncExecutorBase::wait() {
 }
 
 void AsyncExecutorBase::waitUntil(std::function<bool()> condition) {
-    while (!condition() || !hasMotions()) {
+	// if condition is true or has motions is false it breaks
+    while (!condition() && hasMotions()) {
         pros::delay(20);
     }
 }
@@ -131,6 +132,7 @@ void AsyncExecutor::update() {
 
         if (motions.empty()) {
             delay_time = 20;
+			// std::cout << "motion is empty, going outside\n";
             goto endupdate;
         }
 
@@ -143,14 +145,17 @@ void AsyncExecutor::update() {
 
         delay_time = current_motion->getLoopDelayTime();
         auto result = current_motion->execute();
+		// std::cout << "exec result\n";
 
         auto result_finished = [](auto result) -> std::optional<bool> {
             return result.finished;
         };
 
         if (result.and_then(result_finished).value_or(false)) {
+			std::cout << "async before callback finished motion!!\n";
             current_motion->end_motion_callback();
             motions.pop();
+			std::cout << "async finished motion!!\n";
 
             start_of_motion = true;
             finished_index++;
