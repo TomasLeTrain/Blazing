@@ -41,8 +41,6 @@ class MotionBase {
   public:
     virtual void start_motion_callback() {}
 
-    virtual void end_motion_callback() {}
-
     virtual int getLoopDelayTime() = 0;
     virtual std::optional<motionExecutionResult> execute() = 0;
 
@@ -205,18 +203,18 @@ class Motion : public MotionBase {
     }
 
     void start_motion_callback() override {
-        printf("wtf\n");
+        // before motion should be blocking - prereq to the motion executing
+        if (before_motion_func) before_motion_func();
+
         custom_functions_task =
-          pros::Task([before_motion_func = this->before_motion_func,
-                      during_motion_func = this->during_motion_func] {
+          pros::Task([during_motion_func = this->during_motion_func] {
               printf("before\n");
-              if (before_motion_func) before_motion_func();
               if (during_motion_func) during_motion_func();
               printf("after\n");
           });
     }
 
-    void end_motion_callback() override {
+    ~Motion() override {
         printf("end motion\n");
         if (custom_functions_task.get_state() != pros::E_TASK_STATE_INVALID &&
             custom_functions_task.get_state() != pros::E_TASK_STATE_DELETED)
@@ -229,13 +227,6 @@ class Motion : public MotionBase {
             if (after_motion_func) after_motion_func();
             printf("after2\n");
         });
-    }
-
-    ~Motion() override {
-        // stops spawned task, but don't doesn't run after_motion_func
-        if (custom_functions_task.get_state() != pros::E_TASK_STATE_INVALID &&
-            custom_functions_task.get_state() != pros::E_TASK_STATE_DELETED)
-            custom_functions_task.remove();
     }
 };
 

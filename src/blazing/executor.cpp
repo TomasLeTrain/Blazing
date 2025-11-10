@@ -37,9 +37,8 @@ void RunExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
 
         pros::c::task_delay_until(&start_time, motion->getLoopDelayTime());
     }
-
-    motion->end_motion_callback();
 }
+
 
 // Some async methods used for both AsyncExecutor and ChainedExecutor
 
@@ -54,7 +53,7 @@ void AsyncExecutorBase::init() {
 }
 
 bool AsyncExecutorBase::hasMotions() {
-    return numQueuedMotions() > 0;
+    return this->numQueuedMotions() > 0;
 }
 
 void AsyncExecutorBase::exitAll() {
@@ -72,7 +71,7 @@ void AsyncExecutorBase::wait() {
 }
 
 void AsyncExecutorBase::waitUntil(std::function<bool()> condition) {
-	// if condition is true or has motions is false it breaks
+    // if condition is true or has motions is false it breaks
     while (!condition() && hasMotions()) {
         pros::delay(20);
     }
@@ -130,9 +129,9 @@ void AsyncExecutor::update() {
             m_currentCompStatus = pros::competition::get_status();
         }
 
-        if (motions.empty()) {
+        if (!hasMotions()) {
             delay_time = 20;
-			// std::cout << "motion is empty, going outside\n";
+            // std::cout << "motion is empty, going outside\n";
             goto endupdate;
         }
 
@@ -144,24 +143,25 @@ void AsyncExecutor::update() {
         }
 
         delay_time = current_motion->getLoopDelayTime();
-        auto result = current_motion->execute();
-		// std::cout << "exec result\n";
+        std::optional<motionExecutionResult> result = current_motion->execute();
+        // std::cout << "exec result\n";
+
+        if (result)
+            std::cout << pros::millis()
+                      << " - result finished: " << result->finished
+                      << std::endl;
 
         auto result_finished = [](auto result) -> std::optional<bool> {
             return result.finished;
         };
 
         if (result.and_then(result_finished).value_or(false)) {
-			std::cout << "async before callback finished motion!!\n";
-            current_motion->end_motion_callback();
-            motions.pop();
-			std::cout << "async finished motion!!\n";
-
-            start_of_motion = true;
-            finished_index++;
+            std::cout << "async before callback finished motion!!\n";
+            exitCurrent();
+            std::cout << "async finished motion!!\n";
 
             // don't sleep to execute next motion immediately
-            delay_time = 0;
+            delay_time = 1;
         }
     }
 
@@ -173,6 +173,8 @@ endupdate:
 void AsyncExecutor::exitCurrent() {
     std::lock_guard lock(m_mutex);
     motions.pop();
+    start_of_motion = true;
+    finished_index++;
 }
 
 size_t AsyncExecutor::numQueuedMotions() {
@@ -221,7 +223,7 @@ void ChainedExecutor::update() {
             m_currentCompStatus = pros::competition::get_status();
         }
 
-        if (motions.empty()) {
+        if (!hasMotions()) {
             // delay until a new motion is available
             delay_time = 20;
             goto endupdate;
@@ -325,17 +327,10 @@ void ChainedExecutor::update() {
         if (fusing_finished ||
             result.and_then(result_finished).value_or(false)) {
             // finish motion
-
-            current_motion->end_motion_callback();
-            motions.pop_front();
-
-            finished_index++;
-            start_of_motion = true;
-
-            fuse_start_time = std::nullopt;
+            exitCurrent();
 
             // execute next motion immediately
-            delay_time = 0;
+            delay_time = 1;
         }
     }
 
@@ -347,6 +342,10 @@ endupdate:
 void ChainedExecutor::exitCurrent() {
     std::lock_guard lock(m_mutex);
     motions.pop_front();
+    start_of_motion = true;
+    finished_index++;
+
+    fuse_start_time = std::nullopt;
 }
 
 size_t ChainedExecutor::numQueuedMotions() {
