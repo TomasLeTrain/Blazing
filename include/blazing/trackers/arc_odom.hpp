@@ -137,6 +137,7 @@ class TrackingImu {
   private:
     double last_heading;
     Angle m_delta = INFINITY * rad;
+    AngularVelocity m_angular_velocity = INFINITY * radps;
     pros::Imu* sensor;
     bool disabled = false;
 
@@ -145,10 +146,16 @@ class TrackingImu {
         return m_delta;
     }
 
+    AngularVelocity getAngularVelocity() {
+        return m_angular_velocity;
+    }
+
     void update() {
         if (sensor == nullptr || !sensor->is_installed() || disabled) {
             last_heading = INFINITY;
             m_delta = Angle(INFINITY);
+            m_angular_velocity = AngularVelocity(INFINITY);
+
             // gets disabled permanently if disconnects, since measurements from
             // now on are effectively useless
             disabled = true;
@@ -168,6 +175,7 @@ class TrackingImu {
         last_heading = current;
 
         m_delta = from_stDeg(result);
+        m_angular_velocity = (-sensor->get_gyro_rate().z) * degps;
     }
 
     TrackingImu(pros::Imu* sensor)
@@ -365,22 +373,13 @@ class ArcOdomTracker {
 
         // NOTE: this is not super accurate, might return 0 due to the
         // polling rate
-
-        // this somehow fixes the noisyness?
-        // TODO: check if the delta is 0, and if so then don't update. (would
-        // need to check if that actually fixes the issue or if an epsilon check
-        // is required)
-        //
-        // this is actually a horrible fix because it does not update velocity
-        // if the robot is still. Maybe an equality check would help?
-        // if (local_position_delta.y > 0.001_in) {
-        //     velocity_vector = local_position_delta / delta_time;
-        // }
-        //
         velocity_vector = local_position_delta / delta_time;
 
-        // TODO: maybe do the same with heading_delta?
         angular_velocity = heading_delta / delta_time;
+
+        // uses imu measurement directly (if available)
+        if (imus.size() > 0 && std::isfinite(imus[0]->getDelta().internal()))
+            angular_velocity = imus[0]->getAngularVelocity();
 
         forward_travel += local_position_delta.x;
         // should be magnitude instead?
