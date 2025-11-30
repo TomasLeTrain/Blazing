@@ -5,7 +5,6 @@
 #include "blazing/api.hpp"
 #include "blazing/utils.hpp"
 #include "main.h"
-#include <sys/types.h>
 
 /**
  * A callback function for LLEMU's center button.
@@ -310,10 +309,6 @@ void opcontrol() {
         .timeout(7_sec)
         .executeBeforeMotion([] {
             printf("executed before motion!\n");
-        })
-        .executeDuringMotion([] {
-            pros::delay(300);
-            printf("waited after motion started!\n");
         })
         .executeAfterMotion([] {
             printf("ended motion!\n");

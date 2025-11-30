@@ -41,6 +41,8 @@ class MotionBase {
   public:
     virtual void start_motion_callback() {}
 
+    virtual void end_motion_callback() {}
+
     virtual int getLoopDelayTime() = 0;
     virtual std::optional<motionExecutionResult> execute() = 0;
 
@@ -194,7 +196,7 @@ class Motion : public MotionBase {
         if (before_motion_func) before_motion_func();
     }
 
-    ~Motion() override {
+    void end_motion_callback() override {
         // run it on a separate task - take function by copy
         pros::Task::create(
           [after_motion_func = this->after_motion_func] {

@@ -37,6 +37,8 @@ void RunExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
 
         pros::c::task_delay_until(&start_time, motion->getLoopDelayTime());
     }
+
+    motion->end_motion_callback();
 }
 
 
@@ -157,6 +159,7 @@ void AsyncExecutor::update() {
 
         if (result.and_then(result_finished).value_or(false)) {
             std::cout << "async before callback finished motion!!\n";
+			motions.front()->end_motion_callback();
             exitCurrent();
             std::cout << "async finished motion!!\n";
 
@@ -327,6 +330,7 @@ void ChainedExecutor::update() {
         if (fusing_finished ||
             result.and_then(result_finished).value_or(false)) {
             // finish motion
+			motions.front()->end_motion_callback();
             exitCurrent();
 
             // execute next motion immediately
