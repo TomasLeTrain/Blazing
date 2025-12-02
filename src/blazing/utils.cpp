@@ -27,15 +27,15 @@ Time deltaTime(std::optional<Time>& last_time) {
     Time current_time = now();
 
     // can't return becaue we need to set last_time!
-    auto result = last_time
-                    .transform([current_time](Time last_time) -> Time {
-                        return current_time - last_time;
-                    })
-                    .value_or(0.0_sec);
+    Time delta_time = last_time
+                        .transform([current_time](Time last_time) -> Time {
+                            return current_time - last_time;
+                        })
+                        .value_or(0.0_sec);
 
     last_time = current_time;
 
-    return result;
+    return delta_time;
 }
 
 // returns time since program started

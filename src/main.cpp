@@ -1,10 +1,7 @@
-// this should always be first
-#include "pch.h"
-//
-
+#include "main.h"
+#include "api.h"
 #include "blazing/api.hpp"
 #include "blazing/utils.hpp"
-#include "main.h"
 
 /**
  * A callback function for LLEMU's center button.
