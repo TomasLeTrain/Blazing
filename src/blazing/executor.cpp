@@ -133,7 +133,6 @@ void AsyncExecutor::update() {
 
         if (!hasMotions()) {
             delay_time = 20;
-            // std::cout << "motion is empty, going outside\n";
             goto endupdate;
         }
 
@@ -146,22 +145,14 @@ void AsyncExecutor::update() {
 
         delay_time = current_motion->getLoopDelayTime();
         std::optional<motionExecutionResult> result = current_motion->execute();
-        // std::cout << "exec result\n";
-
-        if (result)
-            std::cout << pros::millis()
-                      << " - result finished: " << result->finished
-                      << std::endl;
 
         auto result_finished = [](auto result) -> std::optional<bool> {
             return result.finished;
         };
 
         if (result.and_then(result_finished).value_or(false)) {
-            std::cout << "async before callback finished motion!!\n";
 			motions.front()->end_motion_callback();
             exitCurrent();
-            std::cout << "async finished motion!!\n";
 
             // don't sleep to execute next motion immediately
             delay_time = 1;
