@@ -1,11 +1,14 @@
 #include "blazing/utils.hpp"
 #include "pros/rtos.hpp"
+#include "units/Angle.hpp"
 
 namespace blazing {
 
 Angle angleError(Angle target,
                  Angle heading,
                  std::optional<AngularDirection> direction) {
+	target = units::constrainAngle2pi(target);
+	heading = units::constrainAngle2pi(heading);
     Angle error = units::constrainAngle180(target - heading);
 
     if (!direction)

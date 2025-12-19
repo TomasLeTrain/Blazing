@@ -41,7 +41,6 @@ void RunExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
     motion->end_motion_callback();
 }
 
-
 // Some async methods used for both AsyncExecutor and ChainedExecutor
 
 // start the async task
@@ -151,7 +150,7 @@ void AsyncExecutor::update() {
         };
 
         if (result.and_then(result_finished).value_or(false)) {
-			motions.front()->end_motion_callback();
+            motions.front()->end_motion_callback();
             exitCurrent();
 
             // don't sleep to execute next motion immediately
@@ -321,7 +320,7 @@ void ChainedExecutor::update() {
         if (fusing_finished ||
             result.and_then(result_finished).value_or(false)) {
             // finish motion
-			motions.front()->end_motion_callback();
+            motions.front()->end_motion_callback();
             exitCurrent();
 
             // execute next motion immediately
