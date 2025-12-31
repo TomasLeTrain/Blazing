@@ -94,13 +94,13 @@ class boomerang : public Motion<ControllersType,
 
         const Angle heading = [&] {
             const Angle heading = this->tracker.getAngle();
-            // return heading;
             return reversed ? reverseAngle(heading) : heading;
         }();
 
         // takes reverse into account
-        const Angle target_orientation =
-          reversed ? reverseAngle(target.orientation) : target.orientation;
+        // const Angle target_orientation =
+        //   reversed ? reverseAngle(target.orientation) : target.orientation;
+        const Angle target_orientation = target.orientation;
 
         const Length pose_target_distance = position.distanceTo(target);
 

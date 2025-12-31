@@ -48,6 +48,9 @@ class moveTo : public Motion<ControllersType,
 
     std::optional<Divided<Angle, Length>> m_k_lat = std::nullopt;
 
+    bool m_only_x = false;
+    bool m_only_y = false;
+
     // defaults to cosine of angle
     std::function<double(Angle)> angular_linear_func =
       [](Angle angle) -> double {
@@ -83,8 +86,19 @@ class moveTo : public Motion<ControllersType,
             return reversed ? reverseAngle(heading) : heading;
         }();
 
-        Length linear_error =
-          (target - position).magnitude() * (reversed ? -1.0 : 1.0);
+        Length linear_error = [&] -> Length {
+            double reverse_multiplier = reversed ? -1.0 : 1.0;
+
+            if (m_only_x) {
+                return units::abs(target.x - position.x) * reverse_multiplier;
+            }
+            if (m_only_y) {
+                return units::abs(target.y - position.y) * reverse_multiplier;
+            }
+
+            // none active, error like normal
+            return (target - position).magnitude() * reverse_multiplier;
+        }();
 
         Angle position_target_heading = position.angleTo(target);
 
@@ -114,7 +128,7 @@ class moveTo : public Motion<ControllersType,
         this->tolerances.linearErrorToleranceUpdate(linear_error);
         this->tolerances.linearVelocityToleranceUpdate(
           this->tracker.getLinearVelocity());
-		// TODO: does half circle exit make sense here?
+        // TODO: does half circle exit make sense here?
         this->tolerances.linearHalfcircleToleranceUpdate(position,
                                                          target,
                                                          target_heading);
@@ -291,6 +305,20 @@ class moveTo : public Motion<ControllersType,
     [[nodiscard("motion won't be executed unless an executor is used!")]]
     auto timeout(Time timeout) {
         this->m_timeout = timeout;
+
+        return this->getReference();
+    }
+
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
+    auto only_x(bool only_x) {
+        this->m_only_x = only_x;
+
+        return this->getReference();
+    }
+
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
+    auto only_y(bool only_y) {
+        this->m_only_y = only_y;
 
         return this->getReference();
     }
