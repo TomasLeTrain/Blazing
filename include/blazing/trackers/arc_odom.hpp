@@ -260,7 +260,7 @@ class ArcOdomTracker {
     }
 
   public:
-   ArcOdomTracker(std::initializer_list<ForwardsTracker*> forwards_trackers,
+    ArcOdomTracker(std::initializer_list<ForwardsTracker*> forwards_trackers,
                    std::initializer_list<SidewaysTracker*> sideways_trackers,
                    std::initializer_list<TrackingImu*> imus,
                    units::V2Position tracking_center_offsets = { 0_in, 0_in },
@@ -306,7 +306,8 @@ class ArcOdomTracker {
 
     void setPose(units::Pose new_pose) {
         // subtract rotated offsets to get pose of center of rotation
-        pose = new_pose - m_tracking_center_offsets.rotatedBy(getAngle());
+        new_pose -= m_tracking_center_offsets.rotatedBy(getAngle());
+        pose = new_pose;
     }
 
     void update() {
