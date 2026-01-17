@@ -10,10 +10,12 @@
 #include "blazing/trackers/tracker.hpp"
 #include "blazing/utils.hpp"
 #include "units/Angle.hpp"
+#include "units/Pose.hpp"
 #include "units/Vector2D.hpp"
 #include <functional>
 #include <iostream>
 #include <optional>
+#include <variant>
 
 namespace blazing {
 struct MoveToState {
@@ -38,7 +40,8 @@ class moveTo : public Motion<ControllersType,
                public LinearMotion,
                public AngularMotion {
   private:
-    units::V2Position target;
+    using point_func_t = std::function<units::V2Position()>;
+    std::variant<units::V2Position, point_func_t> target;
 
     // moveTo-specific properties
     std::optional<Time> m_timeout = std::nullopt;
@@ -86,21 +89,29 @@ class moveTo : public Motion<ControllersType,
             return reversed ? reverseAngle(heading) : heading;
         }();
 
+        auto target_point = std::holds_alternative<units::V2Position>(target) ?
+                              // either we have a point
+                              std::get<units::V2Position>(target) :
+                              // or a function returning a point
+                              std::get<point_func_t>(target)();
+
         Length linear_error = [&] -> Length {
             double reverse_multiplier = reversed ? -1.0 : 1.0;
 
             if (m_only_x) {
-                return units::abs(target.x - position.x) * reverse_multiplier;
+                return units::abs(target_point.x - position.x) *
+                       reverse_multiplier;
             }
             if (m_only_y) {
-                return units::abs(target.y - position.y) * reverse_multiplier;
+                return units::abs(target_point.y - position.y) *
+                       reverse_multiplier;
             }
 
             // none active, error like normal
-            return (target - position).magnitude() * reverse_multiplier;
+            return (target_point - position).magnitude() * reverse_multiplier;
         }();
 
-        Angle position_target_heading = position.angleTo(target);
+        Angle position_target_heading = position.angleTo(target_point);
 
         if (units::abs(linear_error) < close_threshold && !state.close) {
             state.locked_heading = position_target_heading;
@@ -130,7 +141,7 @@ class moveTo : public Motion<ControllersType,
           this->tracker.getLinearVelocity());
         // TODO: does half circle exit make sense here?
         this->tolerances.linearHalfcircleToleranceUpdate(position,
-                                                         target,
+                                                         target_point,
                                                          target_heading);
 
         result.finished = false;
@@ -173,10 +184,10 @@ class moveTo : public Motion<ControllersType,
                                                    delta_time);
 
         if (m_k_lat) {
-            angular_output =
-              angular_output + *m_k_lat * linear_output *
-                                 (target - position).rotatedBy(-heading).y *
-                                 sinc(angular_error);
+            angular_output = angular_output +
+                             *m_k_lat * linear_output *
+                               (target_point - position).rotatedBy(-heading).y *
+                               sinc(angular_error);
         }
 
         // sign was already applied to error, only applies cosine scaling
@@ -243,12 +254,30 @@ class moveTo : public Motion<ControllersType,
     [[nodiscard("motion won't be executed unless run or async are used!")]]
     moveTo(ControllersType controllers,
            Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
+           units::V2Position point)
+        : Motion<ControllersType, DrivetrainType, TrackerType, TolerancesType>(
+            controllers,
+            chassis),
+          target(point) {}
+
+    [[nodiscard("motion won't be executed unless run or async are used!")]]
+    moveTo(ControllersType controllers,
+           Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
            Length x,
            Length y)
         : Motion<ControllersType, DrivetrainType, TrackerType, TolerancesType>(
             controllers,
             chassis),
-          target(x, y) {}
+          target(units::V2Position(x, y)) {}
+
+    [[nodiscard("motion won't be executed unless run or async are used!")]]
+    moveTo(ControllersType controllers,
+           Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
+           point_func_t point_func)
+        : Motion<ControllersType, DrivetrainType, TrackerType, TolerancesType>(
+            controllers,
+            chassis),
+          target(point_func) {}
 
     moveTo& getReference() {
         return *this;
