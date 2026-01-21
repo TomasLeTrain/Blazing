@@ -393,9 +393,24 @@ class LinearMotion {
 
     motionChangerT drive_kd(this Self&& self, T kd)
         requires std::derived_from<typename Self::controllersType,
-                                   PIDLinearController>
+                                   PIDLinearController> ||
+                 requires(Self self, T input_kd) {
+                     self.controllers.linear_feedback.controller1.set_kd(kd);
+                 }
     {
-        self.controllers.linear_feedback.set_kd(kd);
+
+        if constexpr (std::derived_from<typename Self::controllersType,
+                                        PIDLinearController>) {
+            self.controllers.linear_feedback.set_kd(kd);
+        }
+
+        if constexpr (requires(Self self, T input_kd) {
+                          self.controllers.linear_feedback.controller1.set_kd(
+                            kd);
+                      }) {
+            self.controllers.linear_feedback.controller1.set_kd(kd);
+        }
+
         return self.getReference();
     }
 

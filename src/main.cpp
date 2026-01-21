@@ -1,7 +1,10 @@
 #include "main.h"
 #include "api.h"
 #include "blazing/api.hpp"
+#include "blazing/controllers/controllers.hpp"
+#include "blazing/executor.hpp"
 #include "blazing/utils.hpp"
+#include "units/units.hpp"
 
 /**
  * A callback function for LLEMU's center button.
@@ -154,10 +157,40 @@ PID<Length, Voltage> linear_pid(4.7,
 PID<Angle, Voltage>
   angular_pid(2.8, 0.0, 5, 10, 127, 50_msec, (1_stDeg), (1.0 / 127.0) * volt);
 
+PID<Length, LinearVelocity>
+  linear_vel_pid(2.8, 0.0, 5, 10, 127, 50_msec, (1_in), (1.0 / 127.0) * inps);
+
+// PID<LinearVelocity, Voltage> vel_voltage_pid(2.8,
+//                                              0.0,
+//                                              5,
+//                                              10,
+//                                              127,
+//                                              50_msec,
+//                                              (1_inps),
+//                                              (1.0 / 127.0) * volt);
+
+struct dummyVelFeedforward : ControllerBase {
+    Voltage update(LinearVelocity target, Time duration) {
+        return 1_volt;
+    }
+};
+
+dummyVelFeedforward vel_feedforward;
+
+CascadedControllers<decltype(linear_vel_pid),
+                    decltype(vel_feedforward),
+                    Length,
+                    LinearVelocity,
+                    Voltage>
+  cascadedControl(linear_vel_pid, vel_feedforward);
+
 Controllers controllers(
   // pid controllers
-  PIDLinearController(linear_pid),
+  //
+  // PIDLinearController(linear_pid),
   PIDAngularController(angular_pid),
+
+  LinearFeedbackController<decltype(cascadedControl)>(cascadedControl),
 
   // slew controllers
   LinearSlewController(0.2_volt, 0.08_volt),
@@ -295,7 +328,7 @@ void opcontrol() {
       run;
 
     mb.moveTo(50, 50_in)
-        .withLinearFeedbackController(linear_pid)
+        // .withLinearFeedbackController(linear_pid)
         .closeThreshold(10_in) |
       run;
 
@@ -310,7 +343,7 @@ void opcontrol() {
         .executeAfterMotion([] {
             printf("ended motion!\n");
         })
-        .drive_kd(linear_pid.get_kd() * 0.7) |
+        .drive_kd(linear_vel_pid.get_kd() * 0.7) |
       run;
 
     // pull matchloader down
