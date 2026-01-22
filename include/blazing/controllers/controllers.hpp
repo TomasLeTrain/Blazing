@@ -119,11 +119,12 @@ Controllers(ControllerTypes&&...)
 
 // Linear/Angular Feedback Concepts
 template<typename Controller>
-concept hasLinearFeedback =
-  Feedback<decltype(Controller::linear_feedback), Length, Voltage>;
+concept isLinearFeedback =
+  Feedback<Controller, Length, Voltage>;
 
 template<typename Controller>
-concept hasAngularFeedback =
-  Feedback<decltype(Controller::angular_feedback), Angle, Voltage>;
+concept isAngularFeedback =
+  Feedback<Controller, Angle, Voltage>;
+
 
 } // namespace blazing

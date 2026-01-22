@@ -12,8 +12,10 @@
 #include "units/Angle.hpp"
 #include "units/Pose.hpp"
 #include "units/Vector2D.hpp"
+#include "units/units.hpp"
 #include <functional>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <variant>
 
@@ -25,20 +27,94 @@ struct MoveToState {
     std::optional<Angle> locked_heading;
 };
 
-template<typename ControllersType,
-         typename DrivetrainType,
-         typename TrackerType,
-         typename TolerancesType>
+// abstracts all interactions with controllers into one class
+template<typename Input, typename Output>
+class FeedbackClampSlewClass {
+  public:
+    // controller update
+    // needs to be implemented
+    virtual Output update(Input measurement, Input target, Time duration) = 0;
+
+    // voltage clamp functions
+    // leaves output untouched if not implemented
+    virtual Output clampApplyMin(Output output) {
+        return output;
+    };
+
+    virtual Output clampApplyMax(Output output) {
+        return output;
+    };
+
+    // slew
+    // leaves output untouched if not implemented
+    virtual Output slewApply(Output output, Time delta_time) {
+        return output;
+    }
+
+    virtual ~FeedbackClampSlewClass() = default;
+};
+
+// implements interactions, and allows using custom controller type while still
+// allowing motions to hold pointers
+template<typename Controller, typename Input, typename Output>
+    requires Feedback<Controller, Input, Output>
+class ControllerFeedbackClampSlewClass
+    : public FeedbackClampSlewClass<Input, Output> {
+  public:
+    Controller controller;
+    VoltageClampController voltage_clamp;
+    SlewController slew;
+
+    ControllerFeedbackClampSlewClass(Controller controller)
+        : controller(controller) {}
+
+    ControllerFeedbackClampSlewClass(Controller controller,
+                                     VoltageClampController voltage_clamp,
+                                     SlewController slew)
+        : controller(controller),
+          voltage_clamp(voltage_clamp),
+          slew(slew) {}
+
+    // controller update
+    Output update(Input measurement, Input target, Time duration) override {
+        return controller.update(measurement, target, duration);
+    }
+
+    // voltage clamp
+    virtual Output clampApplyMin(Output output) override {
+        return voltage_clamp.applyMin(output);
+    }
+
+    virtual Output clampApplyMax(Output output) override {
+        return voltage_clamp.applyMax(output);
+    }
+
+    // slew
+    virtual Output slewApply(Output output, Time delta_time) override {
+        return slew.apply(output, delta_time);
+    }
+
+    // creates a copy of itself as a unique_ptr
+    std::unique_ptr<ControllerFeedbackClampSlewClass<Controller, Input, Output>>
+    copy() {
+        return std::make_unique<
+          ControllerFeedbackClampSlewClass<Controller, Input, Output>>(*this);
+    }
+};
+
+template<typename DrivetrainType, typename TrackerType, typename TolerancesType>
     requires poseTracker<TrackerType> && linearVelocityTracker<TrackerType> &&
-               ArcadeDrivetrain<DrivetrainType> &&
-               hasAngularFeedback<ControllersType> &&
-               hasLinearFeedback<ControllersType>
-class moveTo : public Motion<ControllersType,
-                             DrivetrainType,
-                             TrackerType,
-                             TolerancesType>,
-               public LinearMotion,
-               public AngularMotion {
+             ArcadeDrivetrain<DrivetrainType>
+class moveTo : public Motion<DrivetrainType, TrackerType> {
+  private:
+    using LinearController = FeedbackClampSlewClass<Length, Voltage>;
+    using AngularController = FeedbackClampSlewClass<Angle, Voltage>;
+
+  public:
+    std::shared_ptr<LinearController> linear_controller;
+    std::shared_ptr<AngularController> angular_controller;
+    std::shared_ptr<TolerancesType> tolerances;
+
   private:
     using point_func_t = std::function<units::V2Position()>;
     std::variant<units::V2Position, point_func_t> target;
@@ -136,30 +212,30 @@ class moveTo : public Motion<ControllersType,
         // NOTE: sgn can be zero, which can set linear error to zero as well!
         linear_error *= signed_sgn(lin_multiplier);
 
-        this->tolerances.linearErrorToleranceUpdate(linear_error);
-        this->tolerances.linearVelocityToleranceUpdate(
+        tolerances->linearErrorToleranceUpdate(linear_error);
+        tolerances->linearVelocityToleranceUpdate(
           this->tracker.getLinearVelocity());
         // TODO: does half circle exit make sense here?
-        this->tolerances.linearHalfcircleToleranceUpdate(position,
-                                                         target_point,
-                                                         target_heading);
+        tolerances->linearHalfcircleToleranceUpdate(position,
+                                                    target_point,
+                                                    target_heading);
 
         result.finished = false;
 
         // check tolerances
         if constexpr (hasLinearTolerance<TolerancesType>) {
-            result.inSmallTolerance = this->tolerances.linear.withinTolerance();
-            result.finished |= this->tolerances.linear.finished();
+            result.inSmallTolerance = tolerances->linear.withinTolerance();
+            result.finished |= tolerances->linear.finished();
         }
         if constexpr (hasLargeLinearTolerance<TolerancesType>) {
             result.inLargeTolerance =
-              this->tolerances.large_linear.withinTolerance();
-            result.finished |= this->tolerances.large_linear.finished();
+              tolerances->large_linear.withinTolerance();
+            result.finished |= tolerances->large_linear.finished();
         }
         // dont use to check if we have finished
         if constexpr (hasChainLinearTolerance<TolerancesType>) {
             result.inChainTolerance =
-              this->tolerances.chain_linear.withinTolerance();
+              tolerances->chain_linear.withinTolerance();
         }
 
         // check timeout
@@ -174,14 +250,10 @@ class moveTo : public Motion<ControllersType,
 
         // calculate outputs
         Voltage angular_output =
-          this->controllers.angular_feedback.update(-angular_error,
-                                                    0_stRad,
-                                                    delta_time);
+          angular_controller->update(-angular_error, 0_stRad, delta_time);
 
         Voltage linear_output =
-          this->controllers.linear_feedback.update(-linear_error,
-                                                   0.0_in,
-                                                   delta_time);
+          linear_controller->update(-linear_error, 0.0_in, delta_time);
 
         if (m_k_lat) {
             angular_output = angular_output +
@@ -205,14 +277,8 @@ class moveTo : public Motion<ControllersType,
         }
 
         // apply min voltage constraints
-        if constexpr (hasLinearVoltageClamp<ControllersType>) {
-            linear_output =
-              this->controllers.linear_voltage_clamp.applyMin(linear_output);
-        }
-        if constexpr (hasAngularVoltageClamp<ControllersType>) {
-            angular_output =
-              this->controllers.angular_voltage_clamp.applyMin(angular_output);
-        }
+        linear_output = linear_controller->clampApplyMin(linear_output);
+        angular_output = angular_controller->clampApplyMin(angular_output);
 
         if (max_overturn_output) {
             // apply overturn
@@ -226,24 +292,13 @@ class moveTo : public Motion<ControllersType,
         }
 
         // apply max voltage constraints
-        if constexpr (hasLinearVoltageClamp<ControllersType>) {
-            linear_output =
-              this->controllers.linear_voltage_clamp.applyMax(linear_output);
-        }
-        if constexpr (hasAngularVoltageClamp<ControllersType>) {
-            angular_output =
-              this->controllers.angular_voltage_clamp.applyMax(angular_output);
-        }
+        linear_output = linear_controller->clampApplyMax(linear_output);
+        angular_output = angular_controller->clampApplyMax(angular_output);
 
         // apply slew
-        if constexpr (hasLinearSlew<ControllersType>) {
-            linear_output =
-              this->controllers.linear_slew.apply(linear_output, delta_time);
-        }
-        if constexpr (hasAngularSlew<ControllersType>) {
-            angular_output =
-              this->controllers.angular_slew.apply(angular_output, delta_time);
-        }
+        linear_output = linear_controller->slewApply(linear_output, delta_time);
+        angular_output =
+          angular_controller->slewApply(angular_output, delta_time);
 
         this->drivetrain.moveArcade(linear_output, angular_output);
 
@@ -251,32 +306,44 @@ class moveTo : public Motion<ControllersType,
     }
 
   public:
-    [[nodiscard("motion won't be executed unless run or async are used!")]]
-    moveTo(ControllersType controllers,
-           Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
+    moveTo(std::shared_ptr<LinearController> linear_controller,
+           std::shared_ptr<AngularController> angular_controller,
+           std::shared_ptr<TolerancesType> tolerances,
+           DrivetrainType drivetrain,
+           TrackerType tracker,
            units::V2Position point)
-        : Motion<ControllersType, DrivetrainType, TrackerType, TolerancesType>(
-            controllers,
-            chassis),
+        : Motion<DrivetrainType, TrackerType>(drivetrain, tracker),
+          linear_controller(std::move(linear_controller)),
+          angular_controller(std::move(angular_controller)),
+          tolerances(std::move(tolerances)),
           target(point) {}
 
-    [[nodiscard("motion won't be executed unless run or async are used!")]]
-    moveTo(ControllersType controllers,
-           Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
+    moveTo(std::shared_ptr<LinearController> linear_controller,
+           std::shared_ptr<AngularController> angular_controller,
+           std::shared_ptr<TolerancesType> tolerances,
+           DrivetrainType drivetrain,
+           TrackerType tracker,
            Length x,
            Length y)
-        : Motion<ControllersType, DrivetrainType, TrackerType, TolerancesType>(
-            controllers,
-            chassis),
+        : Motion<DrivetrainType, TrackerType>(drivetrain, tracker),
+          linear_controller(std::move(linear_controller)),
+          angular_controller(std::move(angular_controller)),
+          tolerances(std::move(tolerances)),
           target(units::V2Position(x, y)) {}
 
-    [[nodiscard("motion won't be executed unless run or async are used!")]]
-    moveTo(ControllersType controllers,
-           Chassis<DrivetrainType, TrackerType, TolerancesType> chassis,
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
+    moveTo(std::shared_ptr<LinearController> linear_controller,
+           std::shared_ptr<AngularController> angular_controller,
+           std::shared_ptr<TolerancesType> tolerances,
+           DrivetrainType drivetrain,
+           TrackerType tracker,
            point_func_t point_func)
-        : Motion<ControllersType, DrivetrainType, TrackerType, TolerancesType>(
-            controllers,
-            chassis),
+        : Motion<DrivetrainType, TrackerType>(drivetrain, tracker),
+          linear_controller(std::move(linear_controller)),
+          angular_controller(std::move(angular_controller)),
+          tolerances(std::move(tolerances)),
           target(point_func) {}
 
     moveTo& getReference() {
@@ -348,6 +415,27 @@ class moveTo : public Motion<ControllersType,
     [[nodiscard("motion won't be executed unless an executor is used!")]]
     auto only_y(bool only_y) {
         this->m_only_y = only_y;
+
+        return this->getReference();
+    }
+
+    [[nodiscard("motion won't be executed unless an executor is used!")]]
+    auto modify(
+      std::function<void(moveTo<DrivetrainType, TrackerType, TolerancesType>*)>
+        func) {
+        func(this);
+
+        return this->getReference();
+    }
+
+    auto modify_lin(std::function<void(decltype(linear_controller))> func) {
+        func(linear_controller);
+
+        return this->getReference();
+    }
+
+    auto modify_ang(std::function<void(decltype(angular_controller))> func) {
+        func(angular_controller);
 
         return this->getReference();
     }
