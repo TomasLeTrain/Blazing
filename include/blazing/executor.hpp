@@ -25,12 +25,12 @@ class Executor {
 // TODO: figure out a way to keep the motions from running at the same (maybe
 // passing a motion mutex)
 
-template<typename Motion>
-constexpr void operator|(Motion&& motion, Executor& executor) {
+template<typename M>
+constexpr void operator|(M&& motion, Executor& executor) {
     // creates a copy of the temporary motion object and creates one owned by
     // the executor
-    executor.addMotion(std::move(
-      std::make_unique<std::decay_t<Motion>>(std::forward<Motion>(motion))));
+    executor.addMotion(
+      std::move(std::make_unique<std::decay_t<M>>(std::forward<M>(motion))));
 }
 
 class RunExecutor : public Executor {

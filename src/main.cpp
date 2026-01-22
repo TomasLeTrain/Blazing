@@ -1,21 +1,10 @@
 #include "main.h"
 #include "api.h"
 #include "blazing/api.hpp"
-// #include "blazing/controllers/controllers.hpp"
-// #include "blazing/executor.hpp"
-// #include "blazing/utils.hpp"
-
-// #include "blazing/motions/motion.hpp"
-// #include "blazing/motions/moveTo.hpp"
-#include "blazing/controllers/slew.hpp"
-#include "blazing/motions/moveTo.hpp"
-#include "blazing/tolerances.hpp"
-#include "units/Angle.hpp"
-#include "units/Pose.hpp"
-#include "units/Vector2D.hpp"
+#include "blazing/controllers/controllers.hpp"
+#include "blazing/executor.hpp"
+#include "blazing/utils.hpp"
 #include "units/units.hpp"
-#include <memory>
-#include <mutex>
 
 /**
  * A callback function for LLEMU's center button.
@@ -146,7 +135,6 @@ pros::Rotation sideways_rotation_sensor(5);
 ForwardsTracker forwards_tracker(&forwards_rotation_sensor, -0.44_in, 1.996_in);
 SidewaysTracker sideways_tracker(&sideways_rotation_sensor, -0.15_in, 1.96_in);
 
-//
 TrackingImu tracking_imu(&imu);
 
 ArcOdomTracker arc_pose_tracker({ &forwards_tracker,
@@ -154,8 +142,8 @@ ArcOdomTracker arc_pose_tracker({ &forwards_tracker,
                                   &right_motor_tracker },
                                 { &sideways_tracker },
                                 { &tracking_imu });
-//
-// // controller stuff
+
+// controller stuff
 PID<Length, Voltage> linear_pid(4.7,
                                 0.0,
                                 1,
@@ -172,14 +160,14 @@ PID<Angle, Voltage>
 PID<Length, LinearVelocity>
   linear_vel_pid(2.8, 0.0, 5, 10, 127, 50_msec, (1_in), (1.0 / 127.0) * inps);
 
-PID<LinearVelocity, Voltage> vel_voltage_pid(2.8,
-                                             0.0,
-                                             5,
-                                             10,
-                                             127,
-                                             50_msec,
-                                             (1_inps),
-                                             (1.0 / 127.0) * volt);
+// PID<LinearVelocity, Voltage> vel_voltage_pid(2.8,
+//                                              0.0,
+//                                              5,
+//                                              10,
+//                                              127,
+//                                              50_msec,
+//                                              (1_inps),
+//                                              (1.0 / 127.0) * volt);
 
 struct dummyVelFeedforward : ControllerBase {
     Voltage update(LinearVelocity target, Time duration) {
@@ -188,7 +176,7 @@ struct dummyVelFeedforward : ControllerBase {
 };
 
 dummyVelFeedforward vel_feedforward;
-//
+
 CascadedControllers<decltype(linear_vel_pid),
                     decltype(vel_feedforward),
                     Length,
@@ -196,38 +184,23 @@ CascadedControllers<decltype(linear_vel_pid),
                     Voltage>
   cascadedControl(linear_vel_pid, vel_feedforward);
 
-SlewController lin_slew(0.2_volt, 0.08_volt);
-SlewController ang_slew(0.3_volt);
-//
-//   // voltage constraints controllers
-//   // (included just so they can be set per motion)
-VoltageClampController lin_voltage_clamp;
-VoltageClampController ang_voltage_clamp;
+Controllers controllers(
+  // pid controllers
+  //
+  // PIDLinearController(linear_pid),
+  PIDAngularController(angular_pid),
 
-ControllerFeedbackClampSlewClass<decltype(cascadedControl), Length, Voltage>
-  linear_controller(cascadedControl, lin_voltage_clamp, lin_slew);
+  LinearFeedbackController<decltype(cascadedControl)>(cascadedControl),
 
-ControllerFeedbackClampSlewClass<decltype(angular_pid), Angle, Voltage>
-  angular_controller(angular_pid, ang_voltage_clamp, ang_slew);
+  // slew controllers
+  LinearSlewController(0.2_volt, 0.08_volt),
+  AngularSlewController(0.3_volt),
 
-//
-// Controllers controllers(
-//   // pid controllers
-//   //
-//   // PIDLinearController(linear_pid),
-//   PIDAngularController(angular_pid),
-//
-//   LinearFeedbackController<decltype(cascadedControl)>(cascadedControl),
-//
-//   // slew controllers
-//   LinearSlewController(0.2_volt, 0.08_volt),
-//   AngularSlewController(0.3_volt),
-//
-//   // voltage constraints controllers
-//   // (included just so they can be set per motion)
-//   LinearVoltageClampController(),
-//   AngularVoltageClampController());
-//
+  // voltage constraints controllers
+  // (included just so they can be set per motion)
+  LinearVoltageClampController(),
+  AngularVoltageClampController());
+
 // tolerance stuff
 Tolerances linearTolerances(150_msec,
                             ErrorTolerance { 2.5_in },
@@ -254,53 +227,50 @@ normalLargeChainTolerances tolerances(linearTolerances,
                                       chainLinearTolerances,
                                       chainAngularTolerances);
 
-//
-// Chassis chassis(drivetrain, arc_pose_tracker, tolerances);
-//
-RunExecutor run;
+Chassis chassis(drivetrain, arc_pose_tracker, tolerances);
 
-// AsyncExecutor async;
-//
-// auto chain_lerp = [](Voltage a, Voltage b, double t) -> Voltage {
-//     return (1 - t) * a + t * b;
-//
-//     // return b;
-//
-//     // if (t >= 0.5) {
-//     //     return b;
-//     // } else {
-//     //     return a;
-//     // }
-// };
-//
-// auto angular_linear_func = [](Angle angle) -> double {
-//     // reduces the domain to [0,pi]
-//     angle = units::abs(units::constrainAngle180(angle));
-//
-//     // defined on the range [0,pi/2]
-//     auto func = [](double x) -> double {
-//         double poly = 0.0001;
-//         if (x < 1.224747) {
-//             // simple polynomial that delays linear output until angle error
-//             is
-//             // small
-//             poly = 1.0 - 2.0 * (x * x) + 1.08866 * (x * x * x);
-//         }
-//         // return 0.00001;
-//         return 0.7 * poly + std::cos(x) * 0.3;
-//     };
-//
-//     // makes this function apply on the range [0,pi]
-//     if (angle <= rot / 2.0) {
-//         return func(angle.internal());
-//     } else {
-//         return -func(M_PI - angle.internal());
-//     }
-// };
-//
-// MotionBuilder mb(chassis, controllers);
-//
-// ChainedExecutor chain(100_msec, chain_lerp);
+RunExecutor run;
+AsyncExecutor async;
+
+auto chain_lerp = [](Voltage a, Voltage b, double t) -> Voltage {
+    return (1 - t) * a + t * b;
+
+    // return b;
+
+    // if (t >= 0.5) {
+    //     return b;
+    // } else {
+    //     return a;
+    // }
+};
+
+auto angular_linear_func = [](Angle angle) -> double {
+    // reduces the domain to [0,pi]
+    angle = units::abs(units::constrainAngle180(angle));
+
+    // defined on the range [0,pi/2]
+    auto func = [](double x) -> double {
+        double poly = 0.0001;
+        if (x < 1.224747) {
+            // simple polynomial that delays linear output until angle error is
+            // small
+            poly = 1.0 - 2.0 * (x * x) + 1.08866 * (x * x * x);
+        }
+        // return 0.00001;
+        return 0.7 * poly + std::cos(x) * 0.3;
+    };
+
+    // makes this function apply on the range [0,pi]
+    if (angle <= rot / 2.0) {
+        return func(angle.internal());
+    } else {
+        return -func(M_PI - angle.internal());
+    }
+};
+
+MotionBuilder mb(chassis, controllers);
+
+ChainedExecutor chain(100_msec, chain_lerp);
 
 void initialize() {
     pros::lcd::initialize();
@@ -312,49 +282,10 @@ void initialize() {
 }
 
 void opcontrol() {
-    // moveTo<decltype(drivetrain), decltype(arc_pose_tracker), ToleranceBase>
-
-    using f_t = moveTo<decltype(drivetrain),
-                       decltype(arc_pose_tracker),
-                       decltype(tolerances)>;
-    auto get_type = [](auto controller, auto original_type) -> auto {
-        return std::dynamic_pointer_cast<decltype(original_type)>(controller);
-    };
-
-    moveTo(
-      // thing2
-      // std::unique_ptr<FeedbackClampSlewClass<Length, Voltage>>(
-      //   std::move(linear_controller.copy()))
-      linear_controller.copy(),
-      angular_controller.copy(),
-      std::make_shared<decltype(tolerances)>(tolerances),
-      drivetrain,
-      arc_pose_tracker,
-      24_in,
-      24_in)
-        .only_x(true)
-        .modify([&](f_t* motion) {
-            auto lin = get_type(motion->linear_controller, linear_controller);
-            auto ang = get_type(motion->angular_controller, angular_controller);
-
-            lin->controller.controller1.set_kd(0);
-            ang->controller.set_kd(0);
-        })
-        .modify_lin(
-          [&](std::shared_ptr<blazing::FeedbackClampSlewClass<Length, Voltage>>
-                motion_linear) {
-              auto lin = get_type(motion_linear, linear_controller);
-              //
-              lin->controller.controller1.set_kd(0);
-          }) |
-      run;
-
-    // moveTo<decltype(drivetrain), decltype(arc_pose_tracker), ToleranceBase>(
-    //   std::move(linear_controller.copy()));
 
     // needed for async/chain motions to run
-    // async.init();
-    // chain.init();
+    async.init();
+    chain.init();
 
     // pros::Task([&]() {
     //     while (true) {
@@ -363,77 +294,77 @@ void opcontrol() {
     //     }
     // });
 
-    // pros::Task([&]() {
-    //     while (true) {
-    //         arc_pose_tracker.update();
-    //         pros::delay(10);
-    //     }
-    // });
+    pros::Task([&]() {
+        while (true) {
+            arc_pose_tracker.update();
+            pros::delay(10);
+        }
+    });
 
     // default a timeout
-    // mb.setTurnToModifier([](auto turnTo) {
-    //     return turnTo.timeout(5_sec);
-    // });
-    //
-    // mb.setDistanceAtHeadingModifier([](auto distanceAtHeading) {
-    //     return distanceAtHeading.timeout(5_sec);
-    // });
-    //
-    // mb.setMoveToModifier([](auto moveTo) {
-    //     // return moveTo.customAngularLinearFunc(angular_linear_func);
-    //     return moveTo.k_lat(0.3 * rad / m).timeout(5_sec);
-    // });
-    //
-    // mb.setBoomerangModifier([](auto boomerang) {
-    //     // return boomerang.customAngularLinearFunc(angular_linear_func);
-    //     // return boomerang.k_lat();
-    //     return boomerang.k_lat(0.2, true).timeout(7_sec);
-    // });
-    //
-    // arc_pose_tracker.setPose({ -63_in, -16.7_in, 90_stDeg });
-    //
-    // mb.arc(90, 2).turn_maxVolt(0.5_volt) |
-    //   // .angular_clampMaxVoltage(0.5_volt) |
-    //   run;
-    //
-    // mb.moveTo(50, 50_in)
-    //     // .withLinearFeedbackController(linear_pid)
-    //     .closeThreshold(10_in) |
-    //   run;
-    //
-    // mb.boomerang(-24, 48, 180)
-    //     .lead(0.4, 0.38)
-    //     .lead2DistThreshold(7_in)
-    //     .closeThreshold(7_in)
-    //     .timeout(7_sec)
-    //     .executeBeforeMotion([] {
-    //         printf("executed before motion!\n");
-    //     })
-    //     .executeAfterMotion([] {
-    //         printf("ended motion!\n");
-    //     })
-    //     .drive_kd(linear_vel_pid.get_kd() * 0.7) |
-    //   run;
-    //
-    // // pull matchloader down
-    // mb.moveTo(-63, 18) | chain;
+    mb.setTurnToModifier([](auto turnTo) {
+        return turnTo.timeout(5_sec);
+    });
+
+    mb.setDistanceAtHeadingModifier([](auto distanceAtHeading) {
+        return distanceAtHeading.timeout(5_sec);
+    });
+
+    mb.setMoveToModifier([](auto moveTo) {
+        // return moveTo.customAngularLinearFunc(angular_linear_func);
+        return moveTo.k_lat(0.3 * rad / m).timeout(5_sec);
+    });
+
+    mb.setBoomerangModifier([](auto boomerang) {
+        // return boomerang.customAngularLinearFunc(angular_linear_func);
+        // return boomerang.k_lat();
+        return boomerang.k_lat(0.2, true).timeout(7_sec);
+    });
+
+    arc_pose_tracker.setPose({ -63_in, -16.7_in, 90_stDeg });
+
+    mb.arc(90, 2).turn_maxVolt(0.5_volt) |
+      // .angular_clampMaxVoltage(0.5_volt) |
+      run;
+
+    mb.moveTo(50, 50_in)
+        // .withLinearFeedbackController(linear_pid)
+        .closeThreshold(10_in) |
+      run;
+
+    mb.boomerang(-24, 48, 180)
+        .lead(0.4, 0.38)
+        .lead2DistThreshold(7_in)
+        .closeThreshold(7_in)
+        .timeout(7_sec)
+        .executeBeforeMotion([] {
+            printf("executed before motion!\n");
+        })
+        .executeAfterMotion([] {
+            printf("ended motion!\n");
+        })
+        .drive_kd(linear_vel_pid.get_kd() * 0.7) |
+      run;
+
+    // pull matchloader down
+    mb.moveTo(-63, 18) | chain;
 
     pros::delay(30);
 
-    // while (true) {
-    //     Voltage dir = from_volt(
-    //       master.get_analog(pros::E_CONTROLLER_ANALOG_LEFT_Y) / 127.0);
-    //     Voltage turn = -from_volt(
-    //       master.get_analog(pros::E_CONTROLLER_ANALOG_RIGHT_X) / 127.0);
-    //
-    //     drivetrain.moveArcade(dir, turn);
-    //
-    //     pros::lcd::print(0,
-    //                      "%f %f %f",
-    //                      to_in(arc_pose_tracker.getPosition().x),
-    //                      to_in(arc_pose_tracker.getPosition().y),
-    //                      to_stDeg(arc_pose_tracker.getAngle()));
-    //
-    //     pros::delay(20);
-    // }
+    while (true) {
+        Voltage dir = from_volt(
+          master.get_analog(pros::E_CONTROLLER_ANALOG_LEFT_Y) / 127.0);
+        Voltage turn = -from_volt(
+          master.get_analog(pros::E_CONTROLLER_ANALOG_RIGHT_X) / 127.0);
+
+        drivetrain.moveArcade(dir, turn);
+
+        pros::lcd::print(0,
+                         "%f %f %f",
+                         to_in(arc_pose_tracker.getPosition().x),
+                         to_in(arc_pose_tracker.getPosition().y),
+                         to_stDeg(arc_pose_tracker.getAngle()));
+
+        pros::delay(20);
+    }
 }

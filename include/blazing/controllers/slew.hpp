@@ -38,10 +38,10 @@ class SlewController {
     }
 
   public:
-    SlewController(slew_variant_t accel_slew = std::nullopt,
-                   slew_variant_t backwards_accel_slew = std::nullopt,
-                   slew_variant_t decel_slew = std::nullopt,
-                   slew_variant_t backwards_decel_slew = std::nullopt,
+    SlewController(slew_variant_t accel_slew,
+                   slew_variant_t backwards_accel_slew,
+                   slew_variant_t decel_slew,
+                   slew_variant_t backwards_decel_slew,
                    Time delta_time = 10_msec)
         : targeted_delta_time(delta_time),
           accel_slew(process_parameter(accel_slew, delta_time)),
