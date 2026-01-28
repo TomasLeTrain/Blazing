@@ -1,5 +1,7 @@
 #pragma once
 
+#include "pros/apix.h"
+#include "pros/motor_group.hpp"
 #include "pros/rtos.hpp"
 #include "units/Angle.hpp"
 #include "units/units.hpp"
@@ -8,19 +10,30 @@
 
 namespace blazing {
 enum class AngularDirection {
+    // equal to CCW
     LEFT,
+    // equal to CW
     RIGHT
 };
 
-
-struct DifferentialVoltages {
+struct LeftRightVoltages {
     Voltage left_voltage;
     Voltage right_voltage;
+};
+
+struct LeftRightSpeeds {
+    LinearVelocity left_vel;
+    LinearVelocity right_vel;
 };
 
 struct DifferentialSpeeds {
     LinearVelocity linear_velocity;
     AngularVelocity angular_velocity;
+};
+
+struct DifferentialVoltages {
+    Voltage linear_voltage;
+    Voltage angular_voltage;
 };
 
 // returns time since program started
@@ -29,6 +42,17 @@ Time now();
 
 Divided<Number, Angle> sinc(Angle theta);
 
+/**
+ * @brief Determines the smallest signed error between two arbitrary angles. In
+ * other words, heading + angleError(target,heading) = target.  If direction is
+ * set, it returns the smallest error that can be achieved while only travelling
+ * in that direction
+ *
+ * @param target target heading
+ * @param heading heading
+ * @param direction
+ * @return angle error
+ */
 Angle angleError(Angle target,
                  Angle heading,
                  std::optional<AngularDirection> direction = std::nullopt);
@@ -51,6 +75,7 @@ Number signed_sgn(Q num) {
     return num.internal() >= 0.0 ? Number(1.0) : Number(-1.0);
 }
 
+// scales all values of saturated such that max(desaturated) <= max
 template<isQuantity T, size_t size>
 std::array<T, size> desaturate(std::array<T, size> saturated, T max) {
 
@@ -72,5 +97,13 @@ std::array<T, size> desaturate(std::array<T, size> saturated, T max) {
 
     return saturated;
 }
+
+// gets the average linear velocity of the motor group
+LinearVelocity get_group_velocity(pros::MotorGroup* motors,
+                                  Length wheel_diameter,
+                                  AngularVelocity final_rpm);
+
+// gets the average voltage of the motor group
+Voltage get_group_voltage(pros::MotorGroup* motors);
 
 } // namespace blazing
