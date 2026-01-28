@@ -1,5 +1,7 @@
 #pragma once
 
+#include "pros/apix.h"
+#include "pros/motor_group.hpp"
 #include "pros/rtos.hpp"
 #include "units/Angle.hpp"
 #include "units/units.hpp"
@@ -14,14 +16,24 @@ enum class AngularDirection {
     RIGHT
 };
 
-struct DifferentialVoltages {
+struct LeftRightVoltages {
     Voltage left_voltage;
     Voltage right_voltage;
+};
+
+struct LeftRightSpeeds {
+    LinearVelocity left_vel;
+    LinearVelocity right_vel;
 };
 
 struct DifferentialSpeeds {
     LinearVelocity linear_velocity;
     AngularVelocity angular_velocity;
+};
+
+struct DifferentialVoltages {
+    Voltage linear_voltage;
+    Voltage angular_voltage;
 };
 
 // returns time since program started
@@ -85,5 +97,13 @@ std::array<T, size> desaturate(std::array<T, size> saturated, T max) {
 
     return saturated;
 }
+
+// gets the average linear velocity of the motor group
+LinearVelocity get_group_velocity(pros::MotorGroup* motors,
+                                  Length wheel_diameter,
+                                  AngularVelocity final_rpm);
+
+// gets the average voltage of the motor group
+Voltage get_group_voltage(pros::MotorGroup* motors);
 
 } // namespace blazing
