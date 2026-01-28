@@ -1,4 +1,5 @@
 #include "blazing/executor.hpp"
+#include "pros/misc.h"
 #include "pros/misc.hpp"
 #include <mutex>
 #include <optional>
@@ -16,6 +17,8 @@ void RunExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
     motion->start_motion_callback();
 
     while (true) {
+        // if being executed on main task (i.e. autonomous or opcontrol) this if
+        // statement would never be reached; the task would get deleted before
         if (pros::competition::get_status() != m_originalCompStatus) {
             // should break out of motion
             finished_halfway = true;
@@ -40,6 +43,20 @@ void RunExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
 
     motion->end_motion_callback();
 }
+
+class RunWithAsync {
+  public:
+    AsyncExecutor& async_executor;
+
+    RunWithAsync(AsyncExecutor& async_executor)
+        : async_executor(async_executor) {}
+
+    void addMotion(std::unique_ptr<MotionBase> motion) {
+        async_executor.wait();
+        async_executor.addMotion(std::move(motion));
+        async_executor.wait();
+    }
+};
 
 // Some async methods used for both AsyncExecutor and ChainedExecutor
 
@@ -98,6 +115,16 @@ void AsyncExecutorBase::waitUntilIndex(size_t index) {
     });
 }
 
+void AsyncExecutorBase::checkCompStatus() {
+    std::lock_guard lock(m_mutex);
+
+    if (pros::competition::get_status() != m_currentCompStatus) {
+        // should break out of all motions
+        exitAll();
+        m_currentCompStatus = pros::competition::get_status();
+    }
+}
+
 // AsyncExecutor methods
 
 // executes as soon as motion gets added
@@ -105,12 +132,7 @@ void AsyncExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
     // wait until the queue is available
     std::lock_guard lock(m_mutex);
 
-    // in case a motion is added in a different competition state
-    if (pros::competition::get_status() != m_currentCompStatus) {
-        // should break out of all motions
-        exitAll();
-        m_currentCompStatus = pros::competition::get_status();
-    }
+    checkCompStatus();
 
     motions.push(std::move(motion));
 
@@ -124,11 +146,8 @@ void AsyncExecutor::update() {
     // mutex is taken care of automatically in this scope
     {
         std::lock_guard lock(m_mutex);
-        if (pros::competition::get_status() != m_currentCompStatus) {
-            // should break out of all motions
-            exitAll();
-            m_currentCompStatus = pros::competition::get_status();
-        }
+
+        checkCompStatus();
 
         if (!hasMotions()) {
             delay_time = 20;
@@ -191,12 +210,7 @@ void ChainedExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
     // wait until the queue is available
     std::lock_guard lock(m_mutex);
 
-    // in case a motion is added in a different competition state
-    if (pros::competition::get_status() != m_currentCompStatus) {
-        // should break out of all motions
-        exitAll();
-        m_currentCompStatus = pros::competition::get_status();
-    }
+    checkCompStatus();
 
     motions.push_back(std::move(motion));
 
@@ -210,11 +224,7 @@ void ChainedExecutor::update() {
     // mutex is taken care of automatically in this scope
     {
         std::lock_guard lock(m_mutex);
-        if (pros::competition::get_status() != m_currentCompStatus) {
-            // should break out of all motions
-            exitAll();
-            m_currentCompStatus = pros::competition::get_status();
-        }
+        checkCompStatus();
 
         if (!hasMotions()) {
             // delay until a new motion is available
