@@ -98,12 +98,13 @@ pros::Controller master(pros::E_CONTROLLER_MASTER);
 
 using namespace blazing;
 
-// tracker stuff
-DifferentialDrivetrain drivetrain(&left_motors, &right_motors);
-
 Length track_width = 10.5_in;
 Length wheel_diameter = 3.25_in;
 AngularVelocity final_rpm = 450_rpm;
+
+// tracker stuff
+DifferentialDrivetrain
+  drivetrain(&left_motors, &right_motors, wheel_diameter, final_rpm);
 
 // SimpleOdomTracker pose_tracker(&left_motors,
 //                                &right_motors,
