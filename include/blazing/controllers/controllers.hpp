@@ -67,7 +67,7 @@ struct LinearFeedbackController : virtual ControllerBase {
 
     // creates a copy of the controller with different linear feedback
     // controller
-    void with_linear_feedback(Controller new_linear_feedback) {
+    void set_linear_feedback(Controller new_linear_feedback) {
         this->linear_feedback = new_linear_feedback;
     }
 };
@@ -83,7 +83,7 @@ struct AngularFeedbackController : virtual ControllerBase {
 
     // creates a copy of the controller with different angular feedback
     // controller
-    void with_angular_feedback(Controller new_angular_feedback) {
+    void set_angular_feedback(Controller new_angular_feedback) {
         this->angular_feedback = new_angular_feedback;
     }
 };
