@@ -67,12 +67,8 @@ struct LinearFeedbackController : virtual ControllerBase {
 
     // creates a copy of the controller with different linear feedback
     // controller
-    template<typename Self>
-    Self with_linear_feedback(this Self&& self,
-                              Controller new_linear_feedback) {
-        Self new_self = self;
-        new_self.linear_feedback = new_linear_feedback;
-        return new_self;
+    void with_linear_feedback(Controller new_linear_feedback) {
+        this->linear_feedback = new_linear_feedback;
     }
 };
 
@@ -87,12 +83,8 @@ struct AngularFeedbackController : virtual ControllerBase {
 
     // creates a copy of the controller with different angular feedback
     // controller
-    template<typename Self>
-    Self with_angular_feedback(this Self&& self,
-                               Controller new_angular_feedback) {
-        Self new_self = self;
-        new_self.angular_feedback = new_angular_feedback;
-        return new_self;
+    void with_angular_feedback(Controller new_angular_feedback) {
+        this->angular_feedback = new_angular_feedback;
     }
 };
 
@@ -106,15 +98,8 @@ struct LinearVelocityFeedbackController : virtual ControllerBase {
       Controller linear_velocity_feedback_controller)
         : linear_velocity_feedback(linear_velocity_feedback_controller) {}
 
-    // creates a copy of the controller with different linear feedback
-    // controller
-    template<typename Self>
-    Self
-    with_linear_velocity_feedback(this Self&& self,
-                                  Controller new_linear_velocity_feedback) {
-        Self new_self = self;
-        new_self.linear_velocity_feedback = new_linear_velocity_feedback;
-        return new_self;
+    void set_linear_velocity_feedback(Controller new_linear_velocity_feedback) {
+        this->linear_velocity_feedback = new_linear_velocity_feedback;
     }
 };
 
@@ -129,13 +114,9 @@ struct AngularVelocityFeedbackController : virtual ControllerBase {
 
     // creates a copy of the controller with different angular feedback
     // controller
-    template<typename Self>
-    Self
-    with_angular_velocity_feedback(this Self&& self,
-                                   Controller new_angular_velocity_feedback) {
-        Self new_self = self;
-        new_self.angular_velocity_feedback = new_angular_velocity_feedback;
-        return new_self;
+    void
+    set_angular_velocity_feedback(Controller new_angular_velocity_feedback) {
+        this->angular_velocity_feedback = new_angular_velocity_feedback;
     }
 };
 

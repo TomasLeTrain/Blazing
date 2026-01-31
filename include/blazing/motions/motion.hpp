@@ -205,13 +205,25 @@ class Motion : public MotionBase {
 
     // required to be the same type as original controller
     motionChangerT withLinearFeedbackController(T new_controllers) {
-        this->controllers.with_linear_feedback(new_controllers);
+        this->controllers.set_linear_feedback(new_controllers);
         return DerivedReturnType;
     }
 
     // required to be the same type as original controller
     motionChangerT withAngularFeedbackController(T new_controllers) {
-        this->controllers.with_angular_feedback(new_controllers);
+        this->controllers.set_angular_feedback(new_controllers);
+        return DerivedReturnType;
+    }
+
+    // required to be the same type as original controller
+    motionChangerT withLinearVelocityFeedbackController(T new_controllers) {
+        this->controllers.set_linear_velocity_feedback(new_controllers);
+        return DerivedReturnType;
+    }
+
+    // required to be the same type as original controller
+    motionChangerT withAngularVelocityFeedbackController(T new_controllers) {
+        this->controllers.set_angular_velocity_feedback(new_controllers);
         return DerivedReturnType;
     }
 
