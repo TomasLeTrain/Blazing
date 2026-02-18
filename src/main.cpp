@@ -280,6 +280,36 @@ void initialize() {
 void opcontrol() {
     std::cout << "running opcontrol!" << std::endl;
 
+    auto test = [](Number angle_num) {
+        Angle angle = angle_num * deg;
+        auto target = angle;
+        auto heading = 0 * deg;
+
+        target = units::constrainAngle2pi(target);
+        heading = units::constrainAngle2pi(heading);
+        Angle error = units::constrainAngle180(target - heading);
+
+        std::cout << "test: " << angle_num << std::endl;
+        std::cout << "target: " << target << std::endl;
+        std::cout << "heading:" << heading << std::endl;
+        std::cout << "error:" << error << std::endl;
+
+        auto first_test = angleError(angle, 0 * deg);
+        auto test_direction =
+          angleError(angle, 0 * deg, AngularDirection::RIGHT);
+        std::cout << "test: " << angle_num << std::endl;
+        std::cout << "no direction:" << first_test << std::endl;
+        std::cout << "direction:" << test_direction << std::endl;
+    };
+
+    test(0);
+    test(-90);
+    test(90);
+    test(-180);
+    test(180);
+    test(-270);
+    test(270);
+
     // pros::Task([&]() {
     //     while (true) {
     //         pose_tracker.update();
@@ -374,15 +404,16 @@ void opcontrol() {
  * from where it left off.
  */
 void autonomous() {
-    std::cout << "auto starts, starting motion!" << std::endl;
 
-    mb.moveTo(50, 50_in)
-        .timeout(4_sec)
-        .closeThreshold(10_in)
-        .only_x(true)
-        .only_y(true)
-        .k_lat(0) |
-      chain;
+    // std::cout << "auto starts, starting motion!" << std::endl;
 
-    std::cout << "ended motion" << std::endl;
+    // mb.moveTo(50, 50_in)
+    //     .timeout(4_sec)
+    //     .closeThreshold(10_in)
+    //     .only_x(true)
+    //     .only_y(true)
+    //     .k_lat(0) |
+    //   chain;
+
+    // std::cout << "ended motion" << std::endl;
 }

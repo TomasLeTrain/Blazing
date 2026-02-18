@@ -78,12 +78,12 @@ Number signed_sgn(Q num) {
 // scales all values of saturated such that max(desaturated) <= max
 template<isQuantity T, size_t size>
 std::array<T, size> desaturate(std::array<T, size> saturated, T max) {
-
     auto abs_compare = [](T a, T b) {
         return units::abs(a) < units::abs(b);
     };
 
-    T largest_magnitude = *std::ranges::max_element(saturated, abs_compare);
+    T largest_magnitude =
+      units::abs(*std::ranges::max_element(saturated, abs_compare));
     Number multiplier = max / largest_magnitude;
 
     if (largest_magnitude > max) {
@@ -94,7 +94,6 @@ std::array<T, size> desaturate(std::array<T, size> saturated, T max) {
                            return num * multiplier;
                        });
     };
-
     return saturated;
 }
 

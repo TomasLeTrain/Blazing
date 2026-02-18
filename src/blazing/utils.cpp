@@ -7,9 +7,10 @@ namespace blazing {
 Angle angleError(Angle target,
                  Angle heading,
                  std::optional<AngularDirection> direction) {
-	target = units::constrainAngle2pi(target);
-	heading = units::constrainAngle2pi(heading);
+    target = units::constrainAngle2pi(target);
+    heading = units::constrainAngle2pi(heading);
     Angle error = units::constrainAngle180(target - heading);
+    // 0 - 270 = -270 = 90? != -90????
 
     if (!direction)
         return error;
@@ -64,8 +65,8 @@ bool timeoutDone(std::optional<Time> timeout, Time start_time) {
 }
 
 LinearVelocity get_group_velocity(pros::MotorGroup* motors,
-                                         Length wheel_diameter,
-                                         AngularVelocity final_rpm) {
+                                  Length wheel_diameter,
+                                  AngularVelocity final_rpm) {
     AngularVelocity average_rpm = 0_rpm;
 
     for (std::int8_t motor_i = 0; motor_i < motors->size(); motor_i++) {

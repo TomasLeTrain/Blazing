@@ -1,6 +1,7 @@
 #include "blazing/executor.hpp"
 #include "pros/misc.h"
 #include "pros/misc.hpp"
+#include "pros/rtos.h"
 #include <mutex>
 #include <optional>
 
@@ -62,12 +63,16 @@ class RunWithAsync {
 
 // start the async task
 void AsyncExecutorBase::init() {
-    pros::Task([this_ptr = this]() {
-        // breaks if the executor gets deleted for any reason
-        while (this_ptr != nullptr) {
-            this_ptr->update();
-        }
-    });
+    pros::Task(
+      [this_ptr = this]() {
+          // breaks if the executor gets deleted for any reason
+          while (this_ptr != nullptr) {
+              this_ptr->update();
+          }
+      },
+      TASK_PRIORITY_DEFAULT,
+		// give them a lot of memory
+      TASK_STACK_DEPTH_DEFAULT * 2);
 }
 
 bool AsyncExecutorBase::hasMotions() {
@@ -118,7 +123,10 @@ void AsyncExecutorBase::waitUntilIndex(size_t index) {
 void AsyncExecutorBase::checkCompStatus() {
     std::lock_guard lock(m_mutex);
 
-    if (pros::competition::get_status() != m_currentCompStatus) {
+    if (!m_currentCompStatus.has_value())
+        m_currentCompStatus = pros::competition::get_status();
+
+    if (pros::competition::get_status() != m_currentCompStatus.value()) {
         // should break out of all motions
         exitAll();
         m_currentCompStatus = pros::competition::get_status();
@@ -293,8 +301,11 @@ void ChainedExecutor::update() {
                 Time fusing_duration =
                   next_motion->getChainTime().value_or(default_fusing_duration);
 
-                double normalized_time =
-                  units::clamp(elapsed_time / fusing_duration, 0.0, 1.0);
+                Number normalized_time =
+                  // avoid division by zero
+                  units::abs(to_msec(fusing_duration)) < 1.0 ?
+                    Number(1.0) :
+                    units::clamp(elapsed_time / fusing_duration, 0.0, 1.0);
 
                 for (size_t i = 0; i < current_voltages->size(); i++) {
                     // interpolates between the two voltages

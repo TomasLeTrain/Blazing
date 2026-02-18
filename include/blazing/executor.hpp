@@ -1,6 +1,7 @@
 #pragma once
 
 #include "blazing/motions/motion.hpp"
+#include "blazing/utils.hpp"
 #include "pros/misc.hpp"
 #include "pros/rtos.hpp"
 #include "units/units.hpp"
@@ -77,6 +78,39 @@ class AsyncExecutorBase : public Executor {
     // blocks until the function returns true. Also exists if there are no
     // motions queued.
     virtual void waitUntil(std::function<bool()> condition);
+
+    enum waitOrT {
+        motionFinished,
+        conditionFinished,
+        timeoutFinished
+    };
+
+    // waits until condition triggers or no motions are left
+    // returns true if all motions finished before condition.
+    // also has optional timeout
+    virtual waitOrT waitOr(std::function<bool()> condition,
+                           std::optional<Time> timeout = std::nullopt) {
+        bool condition_met, motion_met, timeout_met;
+        Time start_time = now();
+        while (true) {
+            condition_met = condition();
+            motion_met = numQueuedMotions() == 0;
+            timeout_met = blazing::timeoutDone(timeout, start_time);
+
+            if (condition_met || motion_met || timeout_met) break;
+            pros::delay(10);
+        }
+
+        if (condition_met)
+            return conditionFinished;
+        else if (timeout_met)
+            return timeoutFinished;
+        else if (motion_met)
+            return motionFinished;
+        else
+            // something went wrong, just assume all motions finished?
+            return motionFinished;
+    };
 
     // blocks until the function returns true, after which it exists all queued.
     // Also exist if no motions are queued. motions
