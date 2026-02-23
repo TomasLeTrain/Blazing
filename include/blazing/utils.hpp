@@ -21,9 +21,19 @@ struct LeftRightVoltages {
     Voltage right_voltage;
 };
 
+struct FLeftRightVoltages {
+    FVoltage left_voltage;
+    FVoltage right_voltage;
+};
+
 struct LeftRightSpeeds {
     LinearVelocity left_vel;
     LinearVelocity right_vel;
+};
+
+struct FLeftRightSpeeds {
+    FLinearVelocity left_vel;
+    FLinearVelocity right_vel;
 };
 
 struct DifferentialSpeeds {
@@ -31,9 +41,19 @@ struct DifferentialSpeeds {
     AngularVelocity angular_velocity;
 };
 
+struct FDifferentialSpeeds {
+    FLinearVelocity linear_velocity;
+    FAngularVelocity angular_velocity;
+};
+
 struct DifferentialVoltages {
     Voltage linear_voltage;
     Voltage angular_voltage;
+};
+
+struct FDifferentialVoltages {
+    FVoltage linear_voltage;
+    FVoltage angular_voltage;
 };
 
 // returns time since program started

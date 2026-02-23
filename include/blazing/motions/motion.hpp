@@ -760,34 +760,6 @@ class LinearMotion {
           max_accel);
         return DerivedReturnType;
     }
-
-    // lateral pid
-    motionChangerT lateral_vel_kp(T kp) {
-        ThisDerived->controllers.lateral_velocity_feedback.set_kp(kp);
-        return DerivedReturnType;
-    }
-
-    motionChangerT lateral_vel_ki(T ki) {
-        ThisDerived->controllers.lateral_velocity_feedback.set_ki(ki);
-        return DerivedReturnType;
-    }
-
-    motionChangerT lateral_vel_kd(T kd) {
-        ThisDerived->controllers.lateral_velocity_feedback.set_kd(kd);
-        return DerivedReturnType;
-    }
-
-    motionChangerT lateral_vel_windupRange(T windupRange) {
-        ThisDerived->controllers.lateral_velocity_feedback.set_windupRange(
-          windupRange);
-        return DerivedReturnType;
-    }
-
-    motionChangerT lateral_vel_PIDmaxVel(T maxVel) {
-        ThisDerived->controllers.lateral_velocity_feedback.set_maxOutput(
-          maxVel);
-        return DerivedReturnType;
-    }
 };
 
 } // namespace blazing

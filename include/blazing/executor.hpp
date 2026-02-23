@@ -51,7 +51,7 @@ class AsyncExecutorBase : public Executor {
     size_t finished_index = 0;
     size_t latest_motion_index = 0;
     pros::RecursiveMutex m_mutex;
-    std::uint8_t m_currentCompStatus;
+    std::optional<std::uint8_t> m_currentCompStatus;
 
   public:
     // main update logic
@@ -89,28 +89,7 @@ class AsyncExecutorBase : public Executor {
     // returns true if all motions finished before condition.
     // also has optional timeout
     virtual waitOrT waitOr(std::function<bool()> condition,
-                           std::optional<Time> timeout = std::nullopt) {
-        bool condition_met, motion_met, timeout_met;
-        Time start_time = now();
-        while (true) {
-            condition_met = condition();
-            motion_met = numQueuedMotions() == 0;
-            timeout_met = blazing::timeoutDone(timeout, start_time);
-
-            if (condition_met || motion_met || timeout_met) break;
-            pros::delay(10);
-        }
-
-        if (condition_met)
-            return conditionFinished;
-        else if (timeout_met)
-            return timeoutFinished;
-        else if (motion_met)
-            return motionFinished;
-        else
-            // something went wrong, just assume all motions finished?
-            return motionFinished;
-    };
+                           std::optional<Time> timeout = std::nullopt);
 
     // blocks until the function returns true, after which it exists all queued.
     // Also exist if no motions are queued. motions
@@ -125,7 +104,11 @@ class AsyncExecutorBase : public Executor {
     // waits until the finished index matches the given index
     virtual void waitUntilIndex(size_t index);
 
+    // used to update the comp status and clear motions if it changes
     virtual void checkCompStatus();
+
+    // returns the internal latest comp status
+    virtual std::optional<std::uint8_t> getLatestCompStatus();
 };
 
 class AsyncExecutor : public AsyncExecutorBase {

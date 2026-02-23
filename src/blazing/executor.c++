@@ -2,6 +2,7 @@
 #include "pros/misc.h"
 #include "pros/misc.hpp"
 #include "pros/rtos.h"
+#include <functional>
 #include <mutex>
 #include <optional>
 
@@ -47,15 +48,15 @@ void RunExecutor::addMotion(std::unique_ptr<MotionBase> motion) {
 
 class RunWithAsync {
   public:
-    AsyncExecutor& async_executor;
+    std::reference_wrapper<AsyncExecutor> m_async_executor;
 
-    RunWithAsync(AsyncExecutor& async_executor)
-        : async_executor(async_executor) {}
+    RunWithAsync(std::reference_wrapper<AsyncExecutor> async_executor)
+        : m_async_executor(async_executor) {}
 
     void addMotion(std::unique_ptr<MotionBase> motion) {
-        async_executor.wait();
-        async_executor.addMotion(std::move(motion));
-        async_executor.wait();
+        m_async_executor.get().wait();
+        m_async_executor.get().addMotion(std::move(motion));
+        m_async_executor.get().wait();
     }
 };
 
@@ -71,7 +72,7 @@ void AsyncExecutorBase::init() {
           }
       },
       TASK_PRIORITY_DEFAULT,
-		// give them a lot of memory
+      // give them a lot of memory
       TASK_STACK_DEPTH_DEFAULT * 2);
 }
 
@@ -99,6 +100,34 @@ void AsyncExecutorBase::waitUntil(std::function<bool()> condition) {
         pros::delay(20);
     }
 }
+
+// waits until condition triggers or no motions are left
+// returns true if all motions finished before condition.
+// also has optional timeout
+AsyncExecutorBase::waitOrT
+AsyncExecutorBase::waitOr(std::function<bool()> condition,
+                          std::optional<Time> timeout) {
+    bool condition_met, motion_met, timeout_met;
+    Time start_time = now();
+    while (true) {
+        condition_met = condition();
+        motion_met = numQueuedMotions() == 0;
+        timeout_met = blazing::timeoutDone(timeout, start_time);
+
+        if (condition_met || motion_met || timeout_met) break;
+        pros::delay(10);
+    }
+
+    if (condition_met)
+        return conditionFinished;
+    else if (timeout_met)
+        return timeoutFinished;
+    else if (motion_met)
+        return motionFinished;
+    else
+        // something went wrong, just assume all motions finished?
+        return motionFinished;
+};
 
 void AsyncExecutorBase::stopIf(std::function<bool()> condition) {
     waitUntil(condition);
@@ -131,6 +160,10 @@ void AsyncExecutorBase::checkCompStatus() {
         exitAll();
         m_currentCompStatus = pros::competition::get_status();
     }
+}
+
+std::optional<std::uint8_t> AsyncExecutorBase::getLatestCompStatus() {
+    return m_currentCompStatus;
 }
 
 // AsyncExecutor methods
