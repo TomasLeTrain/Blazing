@@ -40,7 +40,7 @@ class Quantity {
     typedef Temperature temperature; /** temperature unit type */
     typedef Luminosity luminosity; /** luminosity unit type */
     typedef Moles moles; /** moles unit type */
-    typedef FloatType floatType; /** moles unit type */
+    typedef FloatType floatType; /** float type */
 
     using Self = Quantity<Mass,
                           Length,
@@ -119,7 +119,11 @@ class Quantity {
         return value;
     }
 
-    // TODO: document this
+    /**
+     * @brief convert the unit to a specified unit quantity. Similar to the to_* functions.
+     *
+     * @return constexpr value in the specified units
+     */
     constexpr FloatType convert(Self quantity) const {
         return value / quantity.value;
     }

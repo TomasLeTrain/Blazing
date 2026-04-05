@@ -124,6 +124,9 @@ using FDifferentialVoltages = DifferentialVoltagesT<float>;
 Time now();
 FTime Fnow();
 
+Time nowMicro();
+FTime FnowMicro();
+
 Divided<Number, Angle> sinc(Angle theta);
 
 /**

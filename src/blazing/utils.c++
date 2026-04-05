@@ -53,6 +53,14 @@ FTime Fnow() {
     return from_Fmsec(FNumber(pros::millis()));
 }
 
+Time nowMicro() {
+    return from_usec(pros::micros());
+}
+
+FTime FnowMicro() {
+    return from_Fusec(FNumber(pros::micros()));
+}
+
 Divided<Number, Angle> sinc(Angle theta) {
     if (units::abs(theta) < 1e-6 * rad) {
         return (1.0 - theta.internal() * theta.internal() / 6.0) / rad;
@@ -82,7 +90,7 @@ FAngularVelocity gearingToVelocity(pros::MotorGears gearing) {
 
 // gets the average angular velocity of the motor group
 FAngularVelocity getGroupVelocity(pros::MotorGroup* motors,
-                                    FAngularVelocity final_rpm) {
+                                  FAngularVelocity final_rpm) {
     FAngularVelocity average_rpm = 0_rpm;
 
     for (std::int8_t motor_i = 0; motor_i < motors->size(); motor_i++) {
@@ -107,8 +115,8 @@ FAngularVelocity getGroupVelocity(pros::MotorGroup* motors,
 };
 
 FLinearVelocity getGroupVelocity(pros::MotorGroup* motors,
-                                   FLength wheel_diameter,
-                                   FAngularVelocity final_rpm) {
+                                 FLength wheel_diameter,
+                                 FAngularVelocity final_rpm) {
     return toLinear(getGroupVelocity(motors, final_rpm), wheel_diameter);
 };
 
