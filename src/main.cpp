@@ -348,20 +348,15 @@ void opcontrol() {
     });
 
     mb.setDistanceAtHeadingModifier([](auto distanceAtHeading) {
-        // return distanceAtHeading.timeout(5_sec);
-        return distanceAtHeading;
     });
 
     mb.setMoveToModifier([](auto moveTo) {
-        // return moveTo.customAngularLinearFunc(angular_linear_func);
-        // return moveTo.k_lat(0.3 * rad / m).timeout(5_sec);
-        return moveTo;
     });
 
     mb.setBoomerangModifier([](auto boomerang) {
         // return boomerang.customAngularLinearFunc(angular_linear_func);
         // return boomerang.k_lat();
-        return std::move(boomerang.k_lat(0.2, true).timeout(7_sec));
+		(void)boomerang->k_lat(0.2, true).timeout(7_sec);
         // return boomerang;
     });
 
