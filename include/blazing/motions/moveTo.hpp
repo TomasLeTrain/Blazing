@@ -177,9 +177,9 @@ class moveTo
         this->tolerances.linearVelocityToleranceUpdate(
           this->tracker->getLinearVelocity());
         // TODO: does half circle exit make sense here?
-        this->tolerances.linearHalfcircleToleranceUpdate(position,
-                                                         target_point,
-                                                         target_heading);
+        // this->tolerances.linearHalfcircleToleranceUpdate(position,
+        //                                                  target_point,
+        //                                                  target_heading);
 
         result.finished = false;
 
@@ -212,14 +212,12 @@ class moveTo
         // only evaluate velocity based if we have all the requirements
         if constexpr (hasLinearVelocityFeedback<ControllersType> &&
                       hasAngularVelocityFeedback<ControllersType> &&
-                      TankDrivetrain<DrivetrainType> &&
-                      // has velocity feedforward
-                      requires(ControllersType controller) {
-                          controller.velocity_feedforward;
-                      }) {
+                      VelocityArcadeDrivetrain<DrivetrainType>) {
             if (m_velocity_based) {
                 LinearVelocity linear_vel =
                   this->controllers.linear_velocity_feedback.update(
+                    // -(units::max(0_in, units::abs(linear_error) - 0.1_in) *
+                    //   units::sgn(linear_error)),
                     -linear_error,
                     0_in,
                     delta_time);
@@ -271,46 +269,58 @@ class moveTo
 
                 DifferentialSpeeds target { linear_vel, angular_vel };
 
-                // pass velocities into feedforward
-                auto [left_voltage, right_voltage] =
-                  this->controllers.velocity_feedforward.update(target,
-                                                                delta_time);
-
-                // TODO: apply voltage clamp/slew? probably not
-
                 auto [left_vel, right_vel] =
                   this->drivetrain->getDrivetrainVelocities();
                 auto [actual_volt_left, actual_volt_right] =
                   this->drivetrain->getDrivetrainVoltages();
 
-                // std::cout << std::fixed;
-                // std::cout << std::setprecision(5);
-                //
-                // std::cout << "dist/lin/ang/drive_left/drive_right/tv_l/tv_r/"
-                //              "av_l/av_r/x/y/theta/t_err: "
-                //           << linear_error.internal() << " "
-                //           << target.linear_velocity.internal() << " "
-                //           << target.angular_velocity.internal() << " "
-                //           << left_vel.internal() << " " <<
-                //           right_vel.internal()
-                //           << " " << left_voltage.internal() << " "
-                //           << right_voltage.internal() << " "
-                //           << actual_volt_left.internal() << " "
-                //           << actual_volt_right.internal() << " "
-                //           << position.x.convert(in) << " "
-                //           << position.y.convert(in) << " "
-                //           << projected_cte_error.convert(in) << " "
-                //           << angular_error.internal() << std::endl;
+                std::cout << std::fixed;
+                std::cout << std::setprecision(5);
 
-                this->drivetrain->moveTank(left_voltage, right_voltage);
+                std::cout
+                  << "dist/lin/ang/drive_left/drive_right/tv_l/tv_r/"
+                     "av_l/av_r/x/y/theta/t_err: "
+                  << linear_error.internal() << " "
+                  << target.linear_velocity.internal() << " "
+                  << target.angular_velocity.internal() << " "
+                  << left_vel.internal() << " " << right_vel.internal()
+                  << " "
+                  // << left_voltage.internal() << " "
+                  //                   << right_voltage.internal() << " "
+                  << actual_volt_left.internal() << " "
+                  << actual_volt_right.internal() << " "
+                  << actual_volt_left.internal() << " "
+                  << actual_volt_right.internal() << " "
+                  << position.x.convert(in) << " " << position.y.convert(in)
+                  << " " << heading.convert(deg) << " "
+                  << angular_error.internal() << std::endl;
+
+                // this->drivetrain->moveArcade(target.linear_velocity,
+                //                              target.angular_velocity);
+                // update feedforward vel
+                this->drivetrain->moveArcade(
+                  target.linear_velocity,
+                  target.angular_velocity,
+                  TargetFeedType { .feedforward = true, .feedback = false });
+
+                // update feedback vel
+                this->drivetrain->moveArcade(
+                  target.linear_velocity,
+                  target.angular_velocity,
+                  TargetFeedType { .feedforward = false, .feedback = true });
+
+                return result;
+                //
+                // this->drivetrain->moveTank(left_voltage, right_voltage);
 
                 // we return here, so none of the below code executes
-                return result;
+                // return result;
             } else {
                 // assert to warn user?
                 // assert("want to use velocity but don't have requirements!");
             }
         }
+        std::cout << "should never be called!" << std::endl;
 
         // calculate outputs
         Voltage angular_output =
@@ -484,6 +494,9 @@ class moveTo
         return *this;
     }
 
+    // target an x coordinate
+    // can set a custom x to settle to, which allows setting a target to aim at
+    // with heading (the normal target point) but settle to a different x coord
     motionChangerMsg moveTo&
     only_x(bool only_x,
            std::optional<Length> custom_x_settling = std::nullopt) {
@@ -493,6 +506,9 @@ class moveTo
         return *this;
     }
 
+    // target an y coordinate
+    // can set a custom y to settle to, which allows setting a target to aim at
+    // with heading (the normal target point) but settle to a different y coord
     motionChangerMsg moveTo&
     only_y(bool only_y,
            std::optional<Length> custom_y_settling = std::nullopt) {
