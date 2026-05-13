@@ -45,7 +45,9 @@ class DifferentialDrivetrain : public ChainableDrivetrain {
         voltages = { left_voltage, right_voltage };
 
         // return if not doing hardware action
-        if (!enabled) return;
+        if (!enabled) {
+            return;
+        }
 
         if (left_motors != nullptr && right_motors != nullptr) {
             left_motors->move_voltage(to_mvolt(12 * left_voltage));
@@ -75,14 +77,14 @@ class DifferentialDrivetrain : public ChainableDrivetrain {
 
     LeftRightSpeeds getDrivetrainVelocities() {
         return LeftRightSpeeds {
-            get_group_velocity(left_motors, wheel_diameter, final_rpm),
-            get_group_velocity(right_motors, wheel_diameter, final_rpm)
+            getGroupVelocity(left_motors, wheel_diameter, final_rpm),
+            getGroupVelocity(right_motors, wheel_diameter, final_rpm)
         };
     }
 
     LeftRightVoltages getDrivetrainVoltages() {
-        return LeftRightVoltages { get_group_voltage(left_motors),
-                                   get_group_voltage(right_motors) };
+        return LeftRightVoltages { getGroupVoltage(left_motors),
+                                   getGroupVoltage(right_motors) };
     }
 
     LinearVelocity getMaxVelocity() {

@@ -1,15 +1,17 @@
 #include "blazing/utils.hpp"
 #include "pros/rtos.hpp"
 #include "units/Angle.hpp"
+#include "units/units.hpp"
 
 namespace blazing {
 
 Angle angleError(Angle target,
                  Angle heading,
                  std::optional<AngularDirection> direction) {
-	target = units::constrainAngle2pi(target);
-	heading = units::constrainAngle2pi(heading);
+    target = units::constrainAngle2pi(target);
+    heading = units::constrainAngle2pi(heading);
     Angle error = units::constrainAngle180(target - heading);
+    // 0 - 270 = -270 = 90? != -90????
 
     if (!direction)
         return error;
@@ -47,6 +49,18 @@ Time now() {
     return from_msec(pros::millis());
 }
 
+FTime Fnow() {
+    return from_Fmsec(FNumber(pros::millis()));
+}
+
+Time nowMicro() {
+    return from_usec(pros::micros());
+}
+
+FTime FnowMicro() {
+    return from_Fusec(FNumber(pros::micros()));
+}
+
 Divided<Number, Angle> sinc(Angle theta) {
     if (units::abs(theta) < 1e-6 * rad) {
         return (1.0 - theta.internal() * theta.internal() / 6.0) / rad;
@@ -63,10 +77,21 @@ bool timeoutDone(std::optional<Time> timeout, Time start_time) {
       .value_or(false);
 }
 
-LinearVelocity get_group_velocity(pros::MotorGroup* motors,
-                                         Length wheel_diameter,
-                                         AngularVelocity final_rpm) {
-    AngularVelocity average_rpm = 0_rpm;
+FAngularVelocity gearingToVelocity(pros::MotorGears gearing) {
+    if (gearing == pros::MotorGears::rpm_600)
+        return 600_Frpm;
+    else if (gearing == pros::MotorGears::rpm_200)
+        return 200_Frpm;
+    else if (gearing == pros::MotorGears::rpm_100)
+        return 100_Frpm;
+    // if encoder units are not set then it defaults to 200?
+    return 200_Frpm;
+}
+
+// gets the average angular velocity of the motor group
+FAngularVelocity getGroupVelocity(pros::MotorGroup* motors,
+                                  FAngularVelocity final_rpm) {
+    FAngularVelocity average_rpm = 0_rpm;
 
     for (std::int8_t motor_i = 0; motor_i < motors->size(); motor_i++) {
         auto zero_indexed_port = abs(motors->get_port(motor_i)) - 1;
@@ -77,29 +102,27 @@ LinearVelocity get_group_velocity(pros::MotorGroup* motors,
 
         double velocity = motors->get_actual_velocity(motor_i);
         pros::MotorGears encoder_units = motors->get_gearing(motor_i);
-        AngularVelocity start_rpm;
-
-        switch (encoder_units) {
-            case pros::MotorGears::blue: start_rpm = 600_rpm; break;
-            case pros::MotorGears::green: start_rpm = 200_rpm; break;
-            case pros::MotorGears::red: start_rpm = 100_rpm; break;
-            default: 200_rpm; break;
-        }
-
-        AngularVelocity actual_rpm = (velocity * rpm) * final_rpm / start_rpm;
+        FAngularVelocity start_rpm = gearingToVelocity(encoder_units);
+        FAngularVelocity actual_rpm =
+          (velocity * Frpm) * (final_rpm / start_rpm);
 
         average_rpm += actual_rpm;
     }
 
-    average_rpm /= motors->size();
+    average_rpm /= static_cast<float>(motors->size());
 
-    LinearVelocity velocity = average_rpm * (wheel_diameter * M_PI) / rot;
-
-    return velocity;
+    return average_rpm;
 };
 
-Voltage get_group_voltage(pros::MotorGroup* motors) {
-    Voltage result = 0_volt;
+FLinearVelocity getGroupVelocity(pros::MotorGroup* motors,
+                                 FLength wheel_diameter,
+                                 FAngularVelocity final_rpm) {
+    return toLinear(getGroupVelocity(motors, final_rpm), wheel_diameter);
+};
+
+FVoltage getGroupVoltage(pros::MotorGroup* motors) {
+    FVoltage result = 0_Fvolt;
+
     for (std::int8_t motor_i = 0; motor_i < motors->size(); motor_i++) {
         auto zero_indexed_port = abs(motors->get_port(motor_i)) - 1;
         bool installed = pros::DeviceType::motor ==
@@ -107,11 +130,10 @@ Voltage get_group_voltage(pros::MotorGroup* motors) {
                            zero_indexed_port);
         if (!installed) continue;
 
-        double voltage = motors->get_voltage(motor_i);
-
-        result += from_mvolt(voltage) / 12;
+        result += from_Fmvolt(FNumber(motors->get_voltage(motor_i))) / 12.f;
     }
-    result /= motors->size();
+
+    result /= static_cast<float>(motors->size());
     return result;
 };
 

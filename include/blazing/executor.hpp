@@ -1,6 +1,7 @@
 #pragma once
 
 #include "blazing/motions/motion.hpp"
+#include "blazing/utils.hpp"
 #include "pros/misc.hpp"
 #include "pros/rtos.hpp"
 #include "units/units.hpp"
@@ -26,11 +27,11 @@ class Executor {
 // passing a motion mutex)
 
 template<typename M>
+    requires std::derived_from<std::decay_t<M>, MotionBase>
 constexpr void operator|(M&& motion, Executor& executor) {
     // creates a copy of the temporary motion object and creates one owned by
     // the executor
-    executor.addMotion(
-      std::move(std::make_unique<std::decay_t<M>>(std::forward<M>(motion))));
+    executor.addMotion(std::make_unique<std::decay_t<M>>(std::move(motion)));
 }
 
 class RunExecutor : public Executor {
@@ -49,7 +50,7 @@ class AsyncExecutorBase : public Executor {
     size_t finished_index = 0;
     size_t latest_motion_index = 0;
     pros::RecursiveMutex m_mutex;
-    std::uint8_t m_currentCompStatus;
+    std::optional<std::uint8_t> m_currentCompStatus;
 
   public:
     // main update logic
@@ -77,6 +78,18 @@ class AsyncExecutorBase : public Executor {
     // motions queued.
     virtual void waitUntil(std::function<bool()> condition);
 
+    enum waitOrT {
+        motionFinished,
+        conditionFinished,
+        timeoutFinished
+    };
+
+    // waits until condition triggers or no motions are left
+    // returns true if all motions finished before condition.
+    // also has optional timeout
+    virtual waitOrT waitOr(std::function<bool()> condition,
+                           std::optional<Time> timeout = std::nullopt);
+
     // blocks until the function returns true, after which it exists all queued.
     // Also exist if no motions are queued. motions
     virtual void stopIf(std::function<bool()> condition);
@@ -90,53 +103,33 @@ class AsyncExecutorBase : public Executor {
     // waits until the finished index matches the given index
     virtual void waitUntilIndex(size_t index);
 
-	virtual void checkCompStatus();
+    // used to update the comp status and clear motions if it changes
+    virtual void checkCompStatus();
+
+    // returns the internal latest comp status
+    virtual std::optional<std::uint8_t> getLatestCompStatus();
 };
 
 class AsyncExecutor : public AsyncExecutorBase {
+  public:
+    using CustomExitConditionT =
+      std::function<bool(motionExecutionResult, AsyncExecutor*)>;
+
   private:
     std::queue<std::unique_ptr<MotionBase>> motions;
+
+    CustomExitConditionT m_custom_exit_condition =
+      [](motionExecutionResult result, AsyncExecutor* executor) -> bool {
+        return false;
+    };
 
   public:
     AsyncExecutor() {}
 
-    // executes as soon as motion gets added
-    void addMotion(std::unique_ptr<MotionBase> motion) override;
+    AsyncExecutor(CustomExitConditionT custom_exit_condition)
+        : m_custom_exit_condition(custom_exit_condition) {}
 
-    // main update logic
-    void update() override;
-
-    // exit current motion, moves onto next motion immediately
-    void exitCurrent() override;
-
-    // returns number of queued motions
-    size_t numQueuedMotions() override;
-};
-
-struct ChainOptions {
-    std::optional<Time> fuse_start_time = std::nullopt;
-};
-
-// similar to the async executor, however instead of immediately going from one
-// motion to another, it gradually takes the input from two motions and blends
-// them to have one smooth motion
-class ChainedExecutor : public AsyncExecutorBase {
-  private:
-    std::list<std::unique_ptr<MotionBase>> motions;
-    std::optional<Time> fuse_start_time = std::nullopt;
-    Time default_fusing_duration;
-
-    std::function<Voltage(Voltage, Voltage, double)> chain_interpolation =
-      [](Voltage a, Voltage b, double t) {
-          return (1 - t) * a + t * b;
-      };
-
-  public:
-    ChainedExecutor(Time fusing_time);
-
-    ChainedExecutor(Time default_fuse_duration,
-                    std::function<Voltage(Voltage, Voltage, double)>
-                      custom_chain_interpolation);
+    void setCustomExitCondition(CustomExitConditionT custom_exit_condition);
 
     // executes as soon as motion gets added
     void addMotion(std::unique_ptr<MotionBase> motion) override;
@@ -150,4 +143,44 @@ class ChainedExecutor : public AsyncExecutorBase {
     // returns number of queued motions
     size_t numQueuedMotions() override;
 };
+
+// struct ChainOptions {
+//     std::optional<Time> fuse_start_time = std::nullopt;
+// };
+//
+// // similar to the async executor, however instead of immediately going from
+// one
+// // motion to another, it gradually takes the input from two motions and
+// blends
+// // them to have one smooth motion
+// class ChainedExecutor : public AsyncExecutorBase {
+//   private:
+//     std::queue<std::unique_ptr<MotionBase>> motions;
+//     std::optional<Time> fuse_start_time = std::nullopt;
+//     Time default_fusing_duration;
+//
+//     std::function<Voltage(Voltage, Voltage, double)> chain_interpolation =
+//       [](Voltage a, Voltage b, double t) {
+//           return (1 - t) * a + t * b;
+//       };
+//
+//   public:
+//     ChainedExecutor(Time fusing_time);
+//
+//     ChainedExecutor(Time default_fuse_duration,
+//                     std::function<Voltage(Voltage, Voltage, double)>
+//                       custom_chain_interpolation);
+//
+//     // executes as soon as motion gets added
+//     void addMotion(std::unique_ptr<MotionBase> motion) override;
+//
+//     // main update logic
+//     void update() override;
+//
+//     // exit current motion, moves onto next motion immediately
+//     void exitCurrent() override;
+//
+//     // returns number of queued motions
+//     size_t numQueuedMotions() override;
+// };
 } // namespace blazing

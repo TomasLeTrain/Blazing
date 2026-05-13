@@ -39,34 +39,23 @@ class MotionBuilder {
                                              typename Chassis::trackerType,
                                              typename Chassis::tolerancesType>;
 
-    using MoveToModifier = std::function<moveToType(moveToType)>;
-    using TurnToModifier = std::function<turnToType(turnToType)>;
-    using ArcModifier = std::function<arcType(arcType)>;
+    using MoveToModifier = std::function<void(moveToType*)>;
+    using TurnToModifier = std::function<void(turnToType*)>;
+    using ArcModifier = std::function<void(arcType*)>;
     using DistanceAtHeadingModifier =
-      std::function<distanceAtHeadingType(distanceAtHeadingType)>;
-    using BoomerangModifier = std::function<boomerangType(boomerangType)>;
+      std::function<void(distanceAtHeadingType*)>;
+    using BoomerangModifier = std::function<void(boomerangType*)>;
 
-    MoveToModifier moveToModifier = [](moveToType moveTo) {
-        return moveTo;
-    };
-    TurnToModifier turnToModifier = [](turnToType turnTo) {
-        return turnTo;
-    };
-
-    ArcModifier arcModifier = [](arcType arc) {
-        return arc;
-    };
-
-    DistanceAtHeadingModifier distanceAtHeadingModifier =
-      [](distanceAtHeadingType distanceAtHeading) {
-          return distanceAtHeading;
-      };
-    BoomerangModifier boomerangModifier = [](boomerangType boomerang) {
-        return boomerang;
-    };
+    MoveToModifier m_moveToModifier = [](moveToType* moveTo) -> void {};
+    TurnToModifier m_turnToModifier = [](turnToType* turnTo) -> void {};
+    ArcModifier m_arcModifier = [](arcType* arc) -> void {};
+    DistanceAtHeadingModifier m_distanceAtHeadingModifier =
+      [](distanceAtHeadingType* distanceAtHeading) -> void {};
+    BoomerangModifier m_boomerangModifier =
+      [](boomerangType* boomerang) -> void {};
 
     template<typename T>
-    auto castToUnit(std::variant<T, double, int> variant, T units) {
+    T castToUnit(std::variant<T, double, int> variant, T units) {
         if (std::holds_alternative<T>(variant))
             return std::get<T>(variant);
         else if (std::holds_alternative<double>(variant))
@@ -81,20 +70,24 @@ class MotionBuilder {
           controllers(controllers) {}
 
     void setMoveToModifier(MoveToModifier customModifier) {
-        moveToModifier = customModifier;
+        m_moveToModifier = customModifier;
     }
 
     void setTurnToModifier(TurnToModifier customModifier) {
-        turnToModifier = customModifier;
+        m_turnToModifier = customModifier;
     }
 
     void
     setDistanceAtHeadingModifier(DistanceAtHeadingModifier customModifier) {
-        distanceAtHeadingModifier = customModifier;
+        m_distanceAtHeadingModifier = customModifier;
     }
 
     void setBoomerangModifier(BoomerangModifier customModifier) {
-        boomerangModifier = customModifier;
+        m_boomerangModifier = customModifier;
+    }
+
+    void setArcModifier(ArcModifier customModifier) {
+        m_arcModifier = customModifier;
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
@@ -103,24 +96,34 @@ class MotionBuilder {
         Length new_x = castToUnit(x, in);
         Length new_y = castToUnit(y, in);
 
-        return moveToModifier(
-          blazing::moveTo(controllers, chassis, new_x, new_y));
+        auto motion = blazing::moveTo(controllers, chassis, new_x, new_y);
+
+        m_moveToModifier(&motion);
+        return motion;
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
     moveToType moveTo(units::V2Position point) {
-        return moveToModifier(blazing::moveTo(controllers, chassis, point));
+        auto motion = blazing::moveTo(controllers, chassis, point);
+
+        m_moveToModifier(&motion);
+        return motion;
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
     moveToType moveTo(std::function<units::V2Position()> point_func) {
-        return moveToModifier(
-          blazing::moveTo(controllers, chassis, point_func));
+        auto motion = blazing::moveTo(controllers, chassis, point_func);
+
+        m_moveToModifier(&motion);
+
+        return motion;
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
     turnToType turnTo(units::V2Position point) {
-        return turnToModifier(blazing::turnTo(controllers, chassis, point));
+        auto motion = blazing::turnTo(controllers, chassis, point);
+        m_turnToModifier(&motion);
+        return motion;
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
@@ -129,16 +132,18 @@ class MotionBuilder {
         Length new_x = castToUnit(x, in);
         Length new_y = castToUnit(y, in);
 
-        return turnToModifier(
-          blazing::turnTo(controllers, chassis, new_x, new_y));
+        auto motion = blazing::turnTo(controllers, chassis, new_x, new_y);
+        m_turnToModifier(&motion);
+        return motion;
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
     turnToType turnTo(std::variant<Angle, double, int> heading) {
         Angle new_heading = castToUnit(heading, deg);
 
-        return turnToModifier(
-          blazing::turnTo(controllers, chassis, new_heading));
+        auto motion = blazing::turnTo(controllers, chassis, new_heading);
+        m_turnToModifier(&motion);
+        return motion;
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
@@ -146,8 +151,10 @@ class MotionBuilder {
     distanceAtHeading(std::variant<Length, double, int> distance) {
         Length new_distance = castToUnit(distance, in);
 
-        return distanceAtHeadingModifier(
-          blazing::distanceAtHeading(controllers, chassis, new_distance));
+        auto motion =
+          blazing::distanceAtHeading(controllers, chassis, new_distance);
+        m_distanceAtHeadingModifier(&motion);
+        return motion;
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
@@ -157,18 +164,21 @@ class MotionBuilder {
         Length new_distance = castToUnit(distance, in);
         Angle new_heading = castToUnit(heading, deg);
 
-        return distanceAtHeadingModifier(
-          blazing::distanceAtHeading(controllers,
-                                     chassis,
-                                     new_distance,
-                                     new_heading));
+        auto motion = blazing::distanceAtHeading(controllers,
+                                                 chassis,
+                                                 new_distance,
+                                                 new_heading);
+        m_distanceAtHeadingModifier(&motion);
+        return motion;
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
     arcType arc(std::variant<Angle, double, int> heading, auto radius) {
         Angle new_heading = castToUnit(heading, deg);
-        return arcModifier(
-          blazing::Arc(controllers, chassis, new_heading, radius));
+
+        auto motion = blazing::Arc(controllers, chassis, new_heading, radius);
+        m_arcModifier(&motion);
+        return motion;
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
@@ -177,28 +187,34 @@ class MotionBuilder {
                 auto radius) {
         Length new_x = castToUnit(x, in);
         Length new_y = castToUnit(y, in);
-        return arcModifier(
-          blazing::Arc(controllers, chassis, new_x, new_y, radius));
+
+        auto motion = blazing::Arc(controllers, chassis, new_x, new_y, radius);
+        m_arcModifier(&motion);
+        return motion;
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
     arcType arc(units::V2Position target_point, auto radius) {
-        return arcModifier(
-          blazing::Arc(controllers, chassis, target_point, radius));
+
+        auto motion = blazing::Arc(controllers, chassis, target_point, radius);
+        m_arcModifier(&motion);
+        return motion;
     }
 
     // boomerang
     [[nodiscard("motion won't be executed unless an executor is used!")]]
     boomerangType boomerang(units::Pose pose) {
-        return boomerangModifier(
-          blazing::boomerang(controllers, chassis, pose));
+        auto motion = blazing::boomerang(controllers, chassis, pose);
+        m_boomerangModifier(&motion);
+        return motion;
     }
 
     // boomerang
     [[nodiscard("motion won't be executed unless an executor is used!")]]
     boomerangType boomerang(std::function<units::Pose()> pose_func) {
-        return boomerangModifier(
-          blazing::boomerang(controllers, chassis, pose_func));
+        auto motion = blazing::boomerang(controllers, chassis, pose_func);
+        m_boomerangModifier(&motion);
+        return motion;
     }
 
     [[nodiscard("motion won't be executed unless an executor is used!")]]
@@ -209,8 +225,11 @@ class MotionBuilder {
         Length new_y = castToUnit(y, in);
         Angle new_heading = castToUnit(heading, deg);
 
-        return boomerangModifier(
-          blazing::boomerang(controllers, chassis, new_x, new_y, new_heading));
+        auto motion =
+          blazing::boomerang(controllers, chassis, new_x, new_y, new_heading);
+        m_boomerangModifier(&motion);
+        return motion;
     }
 };
+
 } // namespace blazing

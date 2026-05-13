@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 namespace blazing {
 
 // simple struct to simplify passing around these values
@@ -9,8 +10,8 @@ struct Chassis {
     using trackerType = TrackerType;
     using tolerancesType = TolerancesType;
 
-    DrivetrainType& drivetrain;
-    TrackerType& tracker;
+	DrivetrainType* drivetrain;
+    TrackerType* tracker;
 
     TolerancesType tolerances;
 };

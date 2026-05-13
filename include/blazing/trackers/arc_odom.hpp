@@ -175,7 +175,8 @@ class TrackingImu {
         last_heading = current;
 
         m_delta = from_stDeg(result);
-        m_angular_velocity = sensor->get_gyro_rate().z * degps;
+        // specific to z down orientation
+        m_angular_velocity = -from_degps(sensor->get_gyro_rate().z);
     }
 
     TrackingImu(pros::Imu* sensor)
@@ -313,8 +314,8 @@ class ArcOdomTracker {
     void update() {
         bool first_update = !last_time;
 
-        // should never equal zero since first update is ommited
-        const Time delta_time = deltaTime(last_time);
+        // NOTE: DON'T REMOVE!!! this updates last time to not be std::nullopt
+        deltaTime(last_time);
 
         for (auto& tracker : imus) {
             tracker->update();

@@ -67,12 +67,24 @@ struct LinearFeedbackController : virtual ControllerBase {
 
     // creates a copy of the controller with different linear feedback
     // controller
-    template<typename Self>
-    Self with_linear_feedback(this Self&& self,
-                              Controller new_linear_feedback) {
-        Self new_self = self;
-        new_self.linear_feedback = new_linear_feedback;
-        return new_self;
+    void set_linear_feedback(Controller new_linear_feedback) {
+        this->linear_feedback = new_linear_feedback;
+    }
+};
+
+template<typename Controller>
+    requires Feedback<Controller, Length, Voltage>
+struct LateralFeedbackController : virtual ControllerBase {
+  public:
+    Controller lateral_feedback;
+
+    LateralFeedbackController(Controller lateral_feedback_controller)
+        : lateral_feedback(lateral_feedback_controller) {}
+
+    // creates a copy of the controller with different lateral feedback
+    // controller
+    void set_lateral_feedback(Controller new_lateral_feedback) {
+        this->lateral_feedback = new_lateral_feedback;
     }
 };
 
@@ -87,12 +99,8 @@ struct AngularFeedbackController : virtual ControllerBase {
 
     // creates a copy of the controller with different angular feedback
     // controller
-    template<typename Self>
-    Self with_angular_feedback(this Self&& self,
-                               Controller new_angular_feedback) {
-        Self new_self = self;
-        new_self.angular_feedback = new_angular_feedback;
-        return new_self;
+    void set_angular_feedback(Controller new_angular_feedback) {
+        this->angular_feedback = new_angular_feedback;
     }
 };
 
@@ -106,14 +114,24 @@ struct LinearVelocityFeedbackController : virtual ControllerBase {
       Controller linear_velocity_feedback_controller)
         : linear_velocity_feedback(linear_velocity_feedback_controller) {}
 
-    // creates a copy of the controller with different linear feedback
-    // controller
-    template<typename Self>
-    Self with_linear_feedback(this Self&& self,
-                              Controller new_linear_velocity_feedback) {
-        Self new_self = self;
-        new_self.linear_velocity_feedback = new_linear_velocity_feedback;
-        return new_self;
+    void set_linear_velocity_feedback(Controller new_linear_velocity_feedback) {
+        this->linear_velocity_feedback = new_linear_velocity_feedback;
+    }
+};
+
+template<typename Controller>
+    requires Feedback<Controller, Length, AngularVelocity>
+struct LateralVelocityFeedbackController : virtual ControllerBase {
+  public:
+    Controller lateral_velocity_feedback;
+
+    LateralVelocityFeedbackController(
+      Controller lateral_velocity_feedback_controller)
+        : lateral_velocity_feedback(lateral_velocity_feedback_controller) {}
+
+    void
+    set_lateral_velocity_feedback(Controller new_lateral_velocity_feedback) {
+        this->lateral_velocity_feedback = new_lateral_velocity_feedback;
     }
 };
 
@@ -128,12 +146,9 @@ struct AngularVelocityFeedbackController : virtual ControllerBase {
 
     // creates a copy of the controller with different angular feedback
     // controller
-    template<typename Self>
-    Self with_angular_feedback(this Self&& self,
-                               Controller new_angular_velocity_feedback) {
-        Self new_self = self;
-        new_self.angular_velocity_feedback = new_angular_velocity_feedback;
-        return new_self;
+    void
+    set_angular_velocity_feedback(Controller new_angular_velocity_feedback) {
+        this->angular_velocity_feedback = new_angular_velocity_feedback;
     }
 };
 
@@ -169,16 +184,30 @@ concept hasLinearFeedback =
   Feedback<decltype(Controller::linear_feedback), Length, Voltage>;
 
 template<typename Controller>
+concept hasLateralFeedback =
+  Feedback<decltype(Controller::lateral_feedback), Length, Voltage>;
+
+template<typename Controller>
 concept hasAngularFeedback =
   Feedback<decltype(Controller::angular_feedback), Angle, Voltage>;
 
 // Linear/Angular Velocity Feedback Concepts
 template<typename Controller>
 concept hasLinearVelocityFeedback =
-  Feedback<decltype(Controller::linear_feedback), Length, LinearVelocity>;
+  Feedback<decltype(Controller::linear_velocity_feedback),
+           Length,
+           LinearVelocity>;
+
+template<typename Controller>
+concept hasLateralVelocityFeedback =
+  Feedback<decltype(Controller::linear_velocity_feedback),
+           Length,
+           AngularVelocity>;
 
 template<typename Controller>
 concept hasAngularVelocityFeedback =
-  Feedback<decltype(Controller::angular_feedback), Angle, AngularVelocity>;
+  Feedback<decltype(Controller::angular_velocity_feedback),
+           Angle,
+           AngularVelocity>;
 
 } // namespace blazing

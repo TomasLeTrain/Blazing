@@ -16,29 +16,166 @@ enum class AngularDirection {
     RIGHT
 };
 
-struct LeftRightVoltages {
-    Voltage left_voltage;
-    Voltage right_voltage;
+struct TargetFeedType {
+    bool feedforward = true;
+    bool feedback = true;
 };
 
-struct LeftRightSpeeds {
-    LinearVelocity left_vel;
-    LinearVelocity right_vel;
+template<typename floatType>
+struct LeftRightSpeedsT {
+    ConvertFloatType<LinearVelocity, floatType> left_vel;
+    ConvertFloatType<LinearVelocity, floatType> right_vel;
+
+    LeftRightSpeedsT(ConvertFloatType<LinearVelocity, floatType> left_vel,
+                     ConvertFloatType<LinearVelocity, floatType> right_vel)
+        : left_vel(left_vel),
+          right_vel(right_vel) {}
+
+    template<typename OtherFloatType>
+    LeftRightSpeedsT(const LeftRightSpeedsT<OtherFloatType>& other) {
+        left_vel = other.left_vel;
+        right_vel = other.right_vel;
+    }
+
+    constexpr LeftRightSpeedsT& operator+=(const LeftRightSpeedsT& rhs) {
+        left_vel += rhs.left_vel;
+        right_vel += rhs.right_vel;
+        return *this;
+    }
+
+    constexpr LeftRightSpeedsT& operator-=(const LeftRightSpeedsT& rhs) {
+        left_vel -= rhs.left_vel;
+        right_vel -= rhs.right_vel;
+        return *this;
+    }
 };
 
-struct DifferentialSpeeds {
-    LinearVelocity linear_velocity;
-    AngularVelocity angular_velocity;
+template<typename floatType>
+struct LeftRightVoltagesT {
+    ConvertFloatType<Voltage, floatType> left_voltage;
+    ConvertFloatType<Voltage, floatType> right_voltage;
+
+    LeftRightVoltagesT(ConvertFloatType<Voltage, floatType> left_voltage,
+                       ConvertFloatType<Voltage, floatType> right_voltage)
+        : left_voltage(left_voltage),
+          right_voltage(right_voltage) {}
+
+    template<typename OtherFloatType>
+    LeftRightVoltagesT(const LeftRightVoltagesT<OtherFloatType>& other) {
+        left_voltage = other.left_voltage;
+        right_voltage = other.right_voltage;
+    }
+
+    constexpr LeftRightVoltagesT& operator+=(const LeftRightVoltagesT& rhs) {
+        left_voltage += rhs.left_voltage;
+        right_voltage += rhs.right_voltage;
+        return *this;
+    }
+
+    constexpr LeftRightVoltagesT& operator-=(const LeftRightVoltagesT& rhs) {
+        left_voltage -= rhs.left_voltage;
+        right_voltage -= rhs.right_voltage;
+        return *this;
+    }
 };
 
-struct DifferentialVoltages {
-    Voltage linear_voltage;
-    Voltage angular_voltage;
+template<typename floatType>
+struct DifferentialSpeedsT {
+    ConvertFloatType<LinearVelocity, floatType> linear_velocity;
+    ConvertFloatType<AngularVelocity, floatType> angular_velocity;
+
+    DifferentialSpeedsT(
+      ConvertFloatType<LinearVelocity, floatType> linear_velocity,
+      ConvertFloatType<AngularVelocity, floatType> angular_velocity)
+        : linear_velocity(linear_velocity),
+          angular_velocity(angular_velocity) {}
+
+    template<typename OtherFloatType>
+    DifferentialSpeedsT(const DifferentialSpeedsT<OtherFloatType>& other) {
+        linear_velocity = other.linear_velocity;
+        angular_velocity = other.angular_velocity;
+    }
+
+    constexpr DifferentialSpeedsT& operator+=(const DifferentialSpeedsT& rhs) {
+        linear_velocity += rhs.linear_velocity;
+        angular_velocity += rhs.angular_velocity;
+        return *this;
+    }
+
+    constexpr DifferentialSpeedsT& operator-=(const DifferentialSpeedsT& rhs) {
+        linear_velocity -= rhs.linear_velocity;
+        angular_velocity -= rhs.angular_velocity;
+        return *this;
+    }
 };
+
+template<typename floatType>
+struct DifferentialVoltagesT {
+    ConvertFloatType<Voltage, floatType> linear_voltage;
+    ConvertFloatType<Voltage, floatType> angular_voltage;
+
+    DifferentialVoltagesT(ConvertFloatType<Voltage, floatType> linear_voltage,
+                          ConvertFloatType<Voltage, floatType> angular_voltage)
+        : linear_voltage(linear_voltage),
+          angular_voltage(angular_voltage) {}
+
+    template<typename OtherFloatType>
+    DifferentialVoltagesT(const DifferentialVoltagesT<OtherFloatType>& other) {
+        linear_voltage = other.linear_voltage;
+        angular_voltage = other.angular_voltage;
+    }
+
+    constexpr DifferentialVoltagesT&
+    operator+=(const DifferentialVoltagesT& rhs) {
+        linear_voltage += rhs.linear_voltage;
+        angular_voltage += rhs.angular_voltage;
+        return *this;
+    }
+
+    constexpr DifferentialVoltagesT&
+    operator-=(const DifferentialVoltagesT& rhs) {
+        linear_voltage -= rhs.linear_voltage;
+        angular_voltage -= rhs.angular_voltage;
+        return *this;
+    }
+};
+
+#define SpeedOps(T)                                             \
+    template<typename floatType>                                \
+    constexpr T<floatType> operator+(T<floatType> lhs,          \
+                                     const T<floatType>& rhs) { \
+        return lhs += rhs;                                      \
+    }                                                           \
+    template<typename floatType>                                \
+    constexpr T<floatType> operator-(T<floatType> lhs,          \
+                                     const T<floatType>& rhs) { \
+        return lhs -= rhs;                                      \
+    }
+
+SpeedOps(LeftRightSpeedsT);
+SpeedOps(LeftRightVoltagesT);
+SpeedOps(DifferentialSpeedsT);
+SpeedOps(DifferentialVoltagesT);
+
+using LeftRightSpeeds = LeftRightSpeedsT<double>;
+using FLeftRightSpeeds = LeftRightSpeedsT<float>;
+
+using LeftRightVoltages = LeftRightVoltagesT<double>;
+using FLeftRightVoltages = LeftRightVoltagesT<float>;
+
+using DifferentialSpeeds = DifferentialSpeedsT<double>;
+using FDifferentialSpeeds = DifferentialSpeedsT<float>;
+
+using DifferentialVoltages = DifferentialVoltagesT<double>;
+using FDifferentialVoltages = DifferentialVoltagesT<float>;
 
 // returns time since program started
 // uses pros::millis to get the information
 Time now();
+FTime Fnow();
+
+Time nowMicro();
+FTime FnowMicro();
 
 Divided<Number, Angle> sinc(Angle theta);
 
@@ -71,39 +208,46 @@ bool timeoutDone(std::optional<Time> timeout, Time start_time);
 // same as units::sgn, but returns 1.0 if the number is equal to zero (never
 // returns 0 for the sign)
 template<isQuantity Q>
-Number signed_sgn(Q num) {
-    return num.internal() >= 0.0 ? Number(1.0) : Number(-1.0);
+units::conditionalNumber<typename Q::floatType> signed_sgn(Q num) {
+    using NumberT = units::conditionalNumber<typename Q::floatType>;
+    return num.internal() >= 0.0 ? NumberT(1.0) : NumberT(-1.0);
 }
 
 // scales all values of saturated such that max(desaturated) <= max
 template<isQuantity T, size_t size>
 std::array<T, size> desaturate(std::array<T, size> saturated, T max) {
-
-    auto abs_compare = [](T a, T b) {
+    auto abs_compare = [](const T& a, const T& b) {
         return units::abs(a) < units::abs(b);
     };
 
-    T largest_magnitude = *std::ranges::max_element(saturated, abs_compare);
+    T largest_magnitude =
+      units::abs(*std::ranges::max_element(saturated, abs_compare));
     Number multiplier = max / largest_magnitude;
 
     if (largest_magnitude > max) {
         std::transform(saturated.cbegin(),
                        saturated.cend(),
                        saturated.begin(),
-                       [multiplier](T num) {
+                       [multiplier](const T& num) -> T {
                            return num * multiplier;
                        });
     };
-
     return saturated;
 }
 
+// returns gearing of the motor as angular velocity
+FAngularVelocity gearingToVelocity(pros::MotorGears gearing);
+
+// gets the average angular velocity of the motor group
+FAngularVelocity getGroupVelocity(pros::MotorGroup* motors,
+                                  FAngularVelocity final_rpm);
+
 // gets the average linear velocity of the motor group
-LinearVelocity get_group_velocity(pros::MotorGroup* motors,
-                                  Length wheel_diameter,
-                                  AngularVelocity final_rpm);
+FLinearVelocity getGroupVelocity(pros::MotorGroup* motors,
+                                 FLength wheel_diameter,
+                                 FAngularVelocity final_rpm);
 
 // gets the average voltage of the motor group
-Voltage get_group_voltage(pros::MotorGroup* motors);
+FVoltage getGroupVoltage(pros::MotorGroup* motors);
 
 } // namespace blazing

@@ -13,8 +13,8 @@ class ToleranceBase {
     std::optional<bool> in_tolerance = std::nullopt;
     bool m_stop_instantly = false;
 
-    void update_in_tolerance(std::optional<bool> tolerance,
-                             bool stop_instantly = false) {
+    void updateInTolerance(std::optional<bool> tolerance,
+                           bool stop_instantly = false) {
         if (in_tolerance.has_value()) {
             if (tolerance.has_value())
                 in_tolerance = in_tolerance.value() && tolerance.value();
@@ -45,7 +45,7 @@ class ErrorTolerance : virtual ToleranceBase {
                                            return units::abs(error) < tolerance;
                                        })
                                        .value_or(false);
-        update_in_tolerance(curr_tolerance_active);
+        updateInTolerance(curr_tolerance_active);
     }
 };
 
@@ -70,7 +70,7 @@ class VelocityTolerance : virtual ToleranceBase {
             })
             .value_or(false);
 
-        update_in_tolerance(curr_tolerance_active);
+        updateInTolerance(curr_tolerance_active);
     }
 };
 
@@ -108,13 +108,15 @@ class HalfCircleTolerance : virtual ToleranceBase {
         }
 
         bool side = [this, pose, target, target_theta] -> bool {
-            auto unit_vector =
-              units::Vector2D<Number>::fromPolar(target_theta, 1);
+            const auto unit_vector =
+              units::Vector2D<Number>::unitVector(target_theta);
+            // projection of the error vector with unit vector of the target
+            // theta
             Length dot_product = (target - pose) * unit_vector;
 
             // applied so that it shifts back tolerance
-            if (prev_side && back_tolerance)
-                dot_product -= units::sgn(*prev_side) * back_tolerance.value();
+            if (prev_side.has_value() && back_tolerance.has_value())
+                dot_product -= (prev_side ? -1 : 1) * back_tolerance.value();
 
             return dot_product <= 0_m;
         }();
@@ -132,7 +134,7 @@ class HalfCircleTolerance : virtual ToleranceBase {
         // does not mess with other tolerances, only determines an instant exit
         // TODO: should it be a normal exit (with timeout) but override whether
         // others are active?
-        update_in_tolerance(std::nullopt, curr_tolerance_active);
+        updateInTolerance(std::nullopt, curr_tolerance_active);
     }
 };
 

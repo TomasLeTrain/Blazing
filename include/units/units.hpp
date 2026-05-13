@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <format>
 #include <iostream>
 #include <ratio>
 #include <type_traits>
@@ -41,7 +40,7 @@ class Quantity {
     typedef Temperature temperature; /** temperature unit type */
     typedef Luminosity luminosity; /** luminosity unit type */
     typedef Moles moles; /** moles unit type */
-    typedef FloatType floatType; /** moles unit type */
+    typedef FloatType floatType; /** float type */
 
     using Self = Quantity<Mass,
                           Length,
@@ -120,7 +119,11 @@ class Quantity {
         return value;
     }
 
-    // TODO: document this
+    /**
+     * @brief convert the unit to a specified unit quantity. Similar to the to_* functions.
+     *
+     * @return constexpr value in the specified units
+     */
     constexpr FloatType convert(Self quantity) const {
         return value / quantity.value;
     }
@@ -216,28 +219,30 @@ class Quantity {
     }
 };
 
+template<typename FloatType>
+using QDimensionless = Quantity<std::ratio<0>,
+                                std::ratio<0>,
+                                std::ratio<0>,
+                                std::ratio<0>,
+                                std::ratio<0>,
+                                std::ratio<0>,
+                                std::ratio<0>,
+                                std::ratio<0>,
+                                FloatType>;
+
 /* Number is a special type, because it can be implicitly converted to and from
  * any arithmetic type */
-class Number : public Quantity<std::ratio<0>,
-                               std::ratio<0>,
-                               std::ratio<0>,
-                               std::ratio<0>,
-                               std::ratio<0>,
-                               std::ratio<0>,
-                               std::ratio<0>,
-                               std::ratio<0>,
-                               double> {
+class Number : public QDimensionless<double> {
   public:
     constexpr Number(double number)
-        : Quantity<std::ratio<0>,
-                   std::ratio<0>,
-                   std::ratio<0>,
-                   std::ratio<0>,
-                   std::ratio<0>,
-                   std::ratio<0>,
-                   std::ratio<0>,
-                   std::ratio<0>,
-                   double>(number) {}
+        : QDimensionless<double>(number) {}
+};
+
+class FNumber : public QDimensionless<float> {
+  public:
+    // only explicit to avoid conflicting with Number
+    explicit constexpr FNumber(float number)
+        : QDimensionless<float>(number) {}
 };
 
 template<typename Q>
@@ -286,8 +291,10 @@ concept sameQuantity =
     std::ratio_equal<typename Q::time, typename Q::time>() &&
     std::ratio_equal<typename Q::current, typename Quantities::current>() &&
     std::ratio_equal<typename Q::angle, typename Quantities::angle>() &&
-    std::ratio_equal<typename Q::temperature, typename Quantities::temperature>() &&
-    std::ratio_equal<typename Q::luminosity, typename Quantities::luminosity>() &&
+    std::ratio_equal<typename Q::temperature,
+                     typename Quantities::temperature>() &&
+    std::ratio_equal<typename Q::luminosity,
+                     typename Quantities::luminosity>() &&
     std::ratio_equal<typename Q::moles, typename Quantities::moles>()) &&
    ...);
 
@@ -310,6 +317,18 @@ using HigherPrecision =
                       std::numeric_limits<typename Q2::floatType>::digits),
                      typename Q1::floatType,
                      typename Q2::floatType>;
+
+// returns type with desired float type.
+template<isQuantity Q1, typename floatType>
+using ConvertFloatType = Named<Quantity<typename Q1::mass,
+                                        typename Q1::length,
+                                        typename Q1::time,
+                                        typename Q1::current,
+                                        typename Q1::angle,
+                                        typename Q1::temperature,
+                                        typename Q1::luminosity,
+                                        typename Q1::moles,
+                                        floatType>>;
 
 template<isQuantity Q1, isQuantity Q2>
 using Multiplied = Named<
@@ -359,46 +378,6 @@ using Rooted =
                  std::ratio_divide<typename Q::moles, quotient>,
                  typename Q::floatType>>;
 
-template<isQuantity Q>
-struct std::formatter<Q> : std::formatter<float> {
-    auto format(const Q& quantity, std::format_context& ctx) const {
-        constinit static std::array<std::pair<intmax_t, intmax_t>, 8> dims {
-            {
-             { Q::mass::num, Q::mass::den },
-             { Q::length::num, Q::length::den },
-             { Q::time::num, Q::time::den },
-             { Q::current::num, Q::current::den },
-             { Q::angle::num, Q::angle::den },
-             { Q::temperature::num, Q::temperature::den },
-             { Q::luminosity::num, Q::luminosity::den },
-             { Q::moles::num, Q::moles::den },
-             }
-        };
-        std::array<const char*, 8> prefixes { "_kg",  "_m", "_s",  "_A",
-                                              "_rad", "_K", "_cd", "_mol" };
-
-        auto out = ctx.out();
-
-        // Format the quantity value
-        out = std::formatter<float>::format(quantity.internal(), ctx);
-
-        // Add dimensions and prefixes
-        for (size_t i = 0; i != 8; i++) {
-            if (dims[i].first != 0) {
-                out = std::format_to(out, "{}", prefixes[i]);
-                if (dims[i].first != 1 || dims[i].second != 1) {
-                    out = std::format_to(out, "^{}", dims[i].first);
-                }
-                if (dims[i].second != 1) {
-                    out = std::format_to(out, "/{}", dims[i].second);
-                }
-            }
-        }
-
-        return out;
-    }
-};
-
 inline void
 unit_printer_helper(std::ostream& os,
                     float quantity,
@@ -438,6 +417,12 @@ inline std::ostream& operator<<(std::ostream& os, const Q& quantity) {
     }
     return os;
 }
+
+template<isQuantity Q>
+using UnitOrNumber =
+  std::conditional_t<std::is_same_v<typename Q::Dimensionless, Q>,
+                     typename Q::Dimensionless,
+                     Q>;
 
 template<isQuantity Q>
 constexpr Q operator+(Q rhs) {
@@ -489,24 +474,13 @@ constexpr auto operator/(Number enumerator, Q divisor) {
 }
 
 template<isQuantity Q1, isQuantity Q2>
-constexpr std::conditional_t<std::is_same_v<Number, Multiplied<Q1, Q2>>,
-                             Number,
-                             Multiplied<Q1, Q2>>
-operator*(Q1 lhs, Q2 rhs) {
-    return std::conditional_t<std::is_same_v<Number, Multiplied<Q1, Q2>>,
-                              Number,
-                              Multiplied<Q1, Q2>>(lhs.internal() *
-                                                  rhs.internal());
+constexpr UnitOrNumber<Multiplied<Q1, Q2>> operator*(Q1 lhs, Q2 rhs) {
+    return UnitOrNumber<Multiplied<Q1, Q2>>(lhs.internal() * rhs.internal());
 }
 
 template<isQuantity Q1, isQuantity Q2>
-constexpr std::conditional_t<std::is_same_v<Number, Multiplied<Q1, Q2>>,
-                             Number,
-                             Divided<Q1, Q2>>
-operator/(Q1 lhs, Q2 rhs) {
-    return std::conditional_t<std::is_same_v<Number, Multiplied<Q1, Q2>>,
-                              Number,
-                              Divided<Q1, Q2>>(lhs.internal() / rhs.internal());
+constexpr UnitOrNumber<Divided<Q1, Q2>> operator/(Q1 lhs, Q2 rhs) {
+    return UnitOrNumber<Divided<Q1, Q2>>(lhs.internal() / rhs.internal());
 }
 
 template<isQuantity Q, isQuantity R>
@@ -638,14 +612,6 @@ constexpr bool operator>(const Q& lhs, const R& rhs)
                              std::ratio<n>,                                   \
                              f>(static_cast<f>(value)));                      \
     }                                                                         \
-    template<>                                                                \
-    struct std::formatter<Name> : std::formatter<f> {                         \
-        auto format(const Name& number, std::format_context& ctx) const {     \
-            auto formatted_float =                                            \
-              std::formatter<f>::format(number.internal(), ctx);              \
-            return std::format_to(formatted_float, "_" #suffix);              \
-        }                                                                     \
-    };                                                                        \
     inline std::ostream& operator<<(std::ostream& os, const Name& quantity) { \
         os << quantity.internal() << " " << #suffix;                          \
         return os;                                                            \
@@ -660,7 +626,7 @@ constexpr bool operator>(const Q& lhs, const R& rhs)
         return quantity.internal();                                           \
     }
 
-#define NEW_UNIT_LITERAL2(Name, suffix, multiple, f)               \
+#define NEW_UNIT_LITERAL2(Name, suffix, multiple, f, NumberType)   \
     [[maybe_unused]]                                               \
     constexpr Name suffix = multiple;                              \
     constexpr Name operator""_##suffix(long double value) {        \
@@ -669,47 +635,54 @@ constexpr bool operator>(const Q& lhs, const R& rhs)
     constexpr Name operator""_##suffix(unsigned long long value) { \
         return static_cast<f>(value) * suffix;                     \
     }                                                              \
-    constexpr inline Name from_##suffix(Number value) {            \
+    constexpr inline Name from_##suffix(NumberType value) {        \
         return value.internal() * suffix;                          \
     }                                                              \
     constexpr inline f to_##suffix(Name quantity) {                \
         return quantity.convert(suffix);                           \
     }
 
-#define NEW_METRIC_PREFIXES2(Name, base, f)          \
-    NEW_UNIT_LITERAL2(Name, T##base, base * 1E12, f) \
-    NEW_UNIT_LITERAL2(Name, G##base, base * 1E9, f)  \
-    NEW_UNIT_LITERAL2(Name, M##base, base * 1E6, f)  \
-    NEW_UNIT_LITERAL2(Name, k##base, base * 1E3, f)  \
-    NEW_UNIT_LITERAL2(Name, c##base, base / 1E2, f)  \
-    NEW_UNIT_LITERAL2(Name, m##base, base / 1E3, f)  \
-    NEW_UNIT_LITERAL2(Name, u##base, base / 1E6, f)  \
-    NEW_UNIT_LITERAL2(Name, n##base, base / 1E9, f)
+#define NEW_METRIC_PREFIXES2(Name, base, f, NumberType)          \
+    NEW_UNIT_LITERAL2(Name, T##base, base * 1E12, f, NumberType) \
+    NEW_UNIT_LITERAL2(Name, G##base, base * 1E9, f, NumberType)  \
+    NEW_UNIT_LITERAL2(Name, M##base, base * 1E6, f, NumberType)  \
+    NEW_UNIT_LITERAL2(Name, k##base, base * 1E3, f, NumberType)  \
+    NEW_UNIT_LITERAL2(Name, c##base, base / 1E2, f, NumberType)  \
+    NEW_UNIT_LITERAL2(Name, m##base, base / 1E3, f, NumberType)  \
+    NEW_UNIT_LITERAL2(Name, u##base, base / 1E6, f, NumberType)  \
+    NEW_UNIT_LITERAL2(Name, n##base, base / 1E9, f, NumberType)
+
+#define NEW_METRIC_PREFIXES_FLOAT(Name, base, f, NumberType)      \
+    NEW_UNIT_LITERAL2(Name, FT##base, base * 1E12, f, NumberType) \
+    NEW_UNIT_LITERAL2(Name, FG##base, base * 1E9, f, NumberType)  \
+    NEW_UNIT_LITERAL2(Name, FM##base, base * 1E6, f, NumberType)  \
+    NEW_UNIT_LITERAL2(Name, Fk##base, base * 1E3, f, NumberType)  \
+    NEW_UNIT_LITERAL2(Name, Fc##base, base / 1E2, f, NumberType)  \
+    NEW_UNIT_LITERAL2(Name, Fm##base, base / 1E3, f, NumberType)  \
+    NEW_UNIT_LITERAL2(Name, Fu##base, base / 1E6, f, NumberType)  \
+    NEW_UNIT_LITERAL2(Name, Fn##base, base / 1E9, f, NumberType)
 
 template<>
-struct LookupName<Quantity<std::ratio<0>,
-                           std::ratio<0>,
-                           std::ratio<0>,
-                           std::ratio<0>,
-                           std::ratio<0>,
-                           std::ratio<0>,
-                           std::ratio<0>,
-                           std::ratio<0>,
-                           double>> {
+struct LookupName<QDimensionless<double>> {
     using Named = Number;
+};
+
+template<>
+struct LookupName<QDimensionless<float>> {
+    using Named = FNumber;
 };
 
 #define NEW_UNIT(name, suffix, m, l, t, i, a, o, j, n)           \
     NEW_UNIT2(F##name, F##suffix, m, l, t, i, a, o, j, n, float) \
     NEW_UNIT2(name, suffix, m, l, t, i, a, o, j, n, double)
 
-#define NEW_UNIT_LITERAL(Name, suffix, multiple)                    \
-    NEW_UNIT_LITERAL2(F##Name, F##suffix, F##Name(multiple), float) \
-    NEW_UNIT_LITERAL2(Name, suffix, multiple, double)
+#define NEW_UNIT_LITERAL(Name, suffix, multiple)                             \
+    NEW_UNIT_LITERAL2(F##Name, F##suffix, F##Name(multiple), float, FNumber) \
+    NEW_UNIT_LITERAL2(Name, suffix, multiple, double, Number)
 
-#define NEW_METRIC_PREFIXES(Name, base)           \
-    NEW_METRIC_PREFIXES2(F##Name, F##base, float) \
-    NEW_METRIC_PREFIXES2(Name, base, double)
+#define NEW_METRIC_PREFIXES(Name, base)                    \
+    NEW_METRIC_PREFIXES_FLOAT(Name, base, float, FNumber) \
+    NEW_METRIC_PREFIXES2(Name, base, double, Number)
 
 NEW_UNIT(Mass, kg, 1, 0, 0, 0, 0, 0, 0, 0)
 NEW_UNIT_LITERAL(Mass, g, kg / 1000)
@@ -775,6 +748,7 @@ NEW_UNIT(Torque, Nm, 1, 2, -2, 0, 0, 0, 0, 0)
 NEW_UNIT(Power, watt, 1, 2, -3, 0, 0, 0, 0, 0)
 
 NEW_UNIT(Current, amp, 0, 0, 0, 1, 0, 0, 0, 0)
+NEW_METRIC_PREFIXES(Current, amp)
 
 NEW_UNIT(Charge, coulomb, 0, 0, 1, 1, 0, 0, 0, 0)
 
@@ -792,13 +766,18 @@ NEW_UNIT(Luminosity, candela, 0, 0, 0, 0, 0, 0, 1, 0)
 NEW_UNIT(Moles, mol, 0, 0, 0, 0, 0, 0, 0, 1)
 
 namespace units {
+
+template<typename T>
+using conditionalNumber =
+  std::conditional_t<std::is_same_v<T, float>, FNumber, Number>;
+
 // Helper: if T is arithmetic, convert it to Number; otherwise leave it
 // unchanged.
 template<typename T>
 constexpr auto to_quantity(T value)
-  -> std::conditional_t<std::is_arithmetic_v<T>, Number, T> {
+  -> std::conditional_t<std::is_arithmetic_v<T>, conditionalNumber<T>, T> {
     if constexpr (std::is_arithmetic_v<T>)
-        return Number(value);
+        return conditionalNumber<T>(value);
     else
         return value;
 }
@@ -809,6 +788,12 @@ constexpr auto abs(const T& lhs) {
     auto q = to_quantity(lhs);
     using Q = decltype(q);
     return Q(std::abs(q.internal()));
+}
+
+// returns true if |rhs-lhs| <= tolerance
+template<typename T>
+constexpr bool tolerance(const T& lhs, const T& rhs, const T& tolerance) {
+    return units::abs(rhs - lhs) <= tolerance;
 }
 
 // max: converts both arguments; a static_assert ensures the resulting
@@ -968,7 +953,8 @@ constexpr auto trunc(const T& lhs, const U& rhs) {
                           qrhs.internal());
 }
 
-// round: rounds to the nearest.
+// round: rounds to some precision:
+// equal to: round(qlhs.internal() / qrhs.internal()) * qrhs.internal();
 template<typename T, typename U>
 constexpr auto round(const T& lhs, const U& rhs) {
     auto qlhs = to_quantity(lhs);
@@ -984,24 +970,15 @@ constexpr auto round(const T& lhs, const U& rhs) {
 // mostly useful for velocities
 template<isQuantity Q>
 constexpr Quantity<typename Q::mass,
-                   typename Q::angle,
+                   typename Q::angle, // actually length
                    typename Q::time,
                    typename Q::current,
-                   typename Q::length,
+                   typename Q::length, // actually angle
                    typename Q::temperature,
                    typename Q::luminosity,
                    typename Q::moles,
                    typename Q::floatType>
-toLinear(Quantity<typename Q::mass,
-                  typename Q::length,
-                  typename Q::time,
-                  typename Q::current,
-                  typename Q::angle,
-                  typename Q::temperature,
-                  typename Q::luminosity,
-                  typename Q::moles,
-                  typename Q::floatType> angular,
-         Length diameter) {
+toLinear(Q angular, Length diameter) {
     return unit_cast<Quantity<typename Q::mass,
                               typename Q::angle,
                               typename Q::time,
@@ -1018,24 +995,15 @@ toLinear(Quantity<typename Q::mass,
 // mostly useful for velocities
 template<isQuantity Q>
 constexpr Quantity<typename Q::mass,
-                   typename Q::angle,
+                   typename Q::angle, // actually length
                    typename Q::time,
                    typename Q::current,
-                   typename Q::length,
+                   typename Q::length, // actually angle
                    typename Q::temperature,
                    typename Q::luminosity,
                    typename Q::moles,
                    typename Q::floatType>
-toAngular(Quantity<typename Q::mass,
-                   typename Q::length,
-                   typename Q::time,
-                   typename Q::current,
-                   typename Q::angle,
-                   typename Q::temperature,
-                   typename Q::luminosity,
-                   typename Q::moles,
-                   typename Q::floatType> linear,
-          Length diameter) {
+toAngular(Q linear, Length diameter) {
     return unit_cast<Quantity<typename Q::mass,
                               typename Q::angle,
                               typename Q::time,
@@ -1049,61 +1017,11 @@ toAngular(Quantity<typename Q::mass,
 }
 
 template<isQuantity Q>
-constexpr Quantity<typename Q::mass,
-                   typename Q::angle,
-                   typename Q::time,
-                   typename Q::current,
-                   typename Q::length,
-                   typename Q::temperature,
-                   typename Q::luminosity,
-                   typename Q::moles,
-                   float>
-toFloat(Quantity<typename Q::mass,
-                 typename Q::length,
-                 typename Q::time,
-                 typename Q::current,
-                 typename Q::angle,
-                 typename Q::temperature,
-                 typename Q::luminosity,
-                 typename Q::moles,
-                 double> doubleUnit) {
-    return static_cast<Quantity<typename Q::mass,
-                                typename Q::angle,
-                                typename Q::time,
-                                typename Q::current,
-                                typename Q::length,
-                                typename Q::temperature,
-                                typename Q::luminosity,
-                                typename Q::moles,
-                                float>>(doubleUnit);
+constexpr ConvertFloatType<Q, float> toFloat(Q doubleUnit) {
+    return static_cast<ConvertFloatType<Q, float>>(doubleUnit);
 }
 
 template<isQuantity Q>
-constexpr Quantity<typename Q::mass,
-                   typename Q::angle,
-                   typename Q::time,
-                   typename Q::current,
-                   typename Q::length,
-                   typename Q::temperature,
-                   typename Q::luminosity,
-                   typename Q::moles,
-                   double>
-toDouble(Quantity<typename Q::mass,
-                  typename Q::length,
-                  typename Q::time,
-                  typename Q::current,
-                  typename Q::angle,
-                  typename Q::temperature,
-                  typename Q::luminosity,
-                  typename Q::moles,
-                  float> floatUnit) {
-    return static_cast<Quantity<typename Q::mass,
-                                typename Q::angle,
-                                typename Q::time,
-                                typename Q::current,
-                                typename Q::length,
-                                typename Q::temperature,
-                                typename Q::luminosity,
-                                typename Q::moles,
-                                double>>(floatUnit);
+constexpr ConvertFloatType<Q, double> toDouble(Q floatUnit) {
+    return static_cast<ConvertFloatType<Q, double>>(floatUnit);
 }

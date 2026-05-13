@@ -142,15 +142,30 @@ PID<Length, Voltage> linear_pid(4.7,
                                 5,
                                 // std::nullopt,
                                 127,
+                                0.9,
                                 50_msec,
                                 1_in,
                                 (1.0 / 127.0) * volt);
 
-PID<Angle, Voltage>
-  angular_pid(2.8, 0.0, 5, 10, 127, 50_msec, (1_stDeg), (1.0 / 127.0) * volt);
+PID<Angle, Voltage> angular_pid(2.8,
+                                0.0,
+                                5,
+                                10,
+                                127,
+                                0.9,
+                                50_msec,
+                                (1_stDeg),
+                                (1.0 / 127.0) * volt);
 
-PID<Length, LinearVelocity>
-  linear_vel_pid(2.8, 0.0, 5, 10, 127, 50_msec, (1_in), (1.0 / 127.0) * inps);
+PID<Length, LinearVelocity> linear_vel_pid(2.8,
+                                           0.0,
+                                           5,
+                                           10,
+                                           127,
+                                           0.9,
+                                           50_msec,
+                                           (1_in),
+                                           (1.0 / 127.0) * inps);
 
 // PID<LinearVelocity, Voltage> vel_voltage_pid(2.8,
 //                                              0.0,
@@ -160,6 +175,8 @@ PID<Length, LinearVelocity>
 //                                              50_msec,
 //                                              (1_inps),
 //                                              (1.0 / 127.0) * volt);
+
+// LinearVelocityFeedbackController<typename Controller>
 
 struct dummyVelFeedforward : ControllerBase {
     Voltage update(LinearVelocity target, Time duration) {
@@ -217,22 +234,10 @@ normalLargeChainTolerances tolerances(linearTolerances,
                                       chainLinearTolerances,
                                       chainAngularTolerances);
 
-Chassis chassis(drivetrain, arc_pose_tracker, tolerances);
+Chassis chassis(&drivetrain, &arc_pose_tracker, tolerances);
 
 RunExecutor run;
 AsyncExecutor async;
-
-auto chain_lerp = [](Voltage a, Voltage b, double t) -> Voltage {
-    return (1 - t) * a + t * b;
-
-    // return b;
-
-    // if (t >= 0.5) {
-    //     return b;
-    // } else {
-    //     return a;
-    // }
-};
 
 auto angular_linear_func = [](Angle angle) -> double {
     // reduces the domain to [0,pi]
@@ -260,25 +265,59 @@ auto angular_linear_func = [](Angle angle) -> double {
 
 MotionBuilder mb(chassis, controllers);
 
-ChainedExecutor chain(100_msec, chain_lerp);
+AsyncExecutor chain([](blazing::motionExecutionResult result,
+                       AsyncExecutor* executor) {
+    return (executor->numQueuedMotions() > 1) &&
+           result.inChainTolerance.value_or(false);
+});
 
 void initialize() {
-    std::cout << "started initialize!" << std::endl;
-
-    pros::lcd::initialize();
-    pros::lcd::set_text(1, "Hello PROS User!");
-
-    pros::lcd::register_btn1_cb(on_center_button);
-
-    imu.reset(true);
-
-    // needed for async/chain motions to run
-    async.init();
-    chain.init();
+    // std::cout << "started initialize!" << std::endl;
+    //
+    // pros::lcd::initialize();
+    // pros::lcd::set_text(1, "Hello PROS User!");
+    //
+    // pros::lcd::register_btn1_cb(on_center_button);
+    //
+    // imu.reset(true);
+    //
+    // // needed for async/chain motions to run
+    // async.init();
+    // chain.init();
 }
 
 void opcontrol() {
     std::cout << "running opcontrol!" << std::endl;
+
+    auto test = [](Number angle_num) {
+        Angle angle = angle_num * deg;
+        auto target = angle;
+        auto heading = 0 * deg;
+
+        target = units::constrainAngle2pi(target);
+        heading = units::constrainAngle2pi(heading);
+        Angle error = units::constrainAngle180(target - heading);
+
+        std::cout << "test: " << angle_num << std::endl;
+        std::cout << "target: " << target << std::endl;
+        std::cout << "heading:" << heading << std::endl;
+        std::cout << "error:" << error << std::endl;
+
+        auto first_test = angleError(angle, 0 * deg);
+        auto test_direction =
+          angleError(angle, 0 * deg, AngularDirection::RIGHT);
+        std::cout << "test: " << angle_num << std::endl;
+        std::cout << "no direction:" << first_test << std::endl;
+        std::cout << "direction:" << test_direction << std::endl;
+    };
+
+    test(0);
+    test(-90);
+    test(90);
+    test(-180);
+    test(180);
+    test(-270);
+    test(270);
 
     // pros::Task([&]() {
     //     while (true) {
@@ -287,79 +326,76 @@ void opcontrol() {
     //     }
     // });
 
-    // pros::Task([&]() {
-    //     while (true) {
-    //         arc_pose_tracker.update();
-    //         pros::delay(10);
-    //     }
-    // });
-    //
-    // // default a timeout
-    // mb.setTurnToModifier([](auto turnTo) {
-    //     return turnTo.timeout(5_sec);
-    // });
-    //
-    // mb.setDistanceAtHeadingModifier([](auto distanceAtHeading) {
-    //     return distanceAtHeading.timeout(5_sec);
-    // });
-    //
-    // mb.setMoveToModifier([](auto moveTo) {
-    //     // return moveTo.customAngularLinearFunc(angular_linear_func);
-    //     return moveTo.k_lat(0.3 * rad / m).timeout(5_sec);
-    // });
-    //
-    // mb.setBoomerangModifier([](auto boomerang) {
-    //     // return boomerang.customAngularLinearFunc(angular_linear_func);
-    //     // return boomerang.k_lat();
-    //     return boomerang.k_lat(0.2, true).timeout(7_sec);
-    // });
-    //
-    // arc_pose_tracker.setPose({ -63_in, -16.7_in, 90_stDeg });
-    //
-    // mb.arc(90, 2).turn_maxVolt(0.5_volt) |
-    //   // .angular_clampMaxVoltage(0.5_volt) |
-    //   run;
-    //
-    // mb.moveTo(50, 50_in)
-    //     // .withLinearFeedbackController(linear_pid)
-    //     .closeThreshold(10_in) |
-    //   run;
-    //
-    // mb.boomerang(-24, 48, 180)
-    //     .lead(0.4, 0.38)
-    //     .lead2DistThreshold(7_in)
-    //     .closeThreshold(7_in)
-    //     .timeout(7_sec)
-    //     .executeBeforeMotion([] {
-    //         printf("executed before motion!\n");
-    //     })
-    //     .executeAfterMotion([] {
-    //         printf("ended motion!\n");
-    //     })
-    //     .drive_vel_kp(linear_vel_pid.get_kd() * 0.7) |
-    //   run;
-    //
-    // // pull matchloader down
-    // mb.moveTo(-63, 18) | chain;
-    //
-    // pros::delay(30);
-    //
-    // while (true) {
-    //     Voltage dir = from_volt(
-    //       master.get_analog(pros::E_CONTROLLER_ANALOG_LEFT_Y) / 127.0);
-    //     Voltage turn = -from_volt(
-    //       master.get_analog(pros::E_CONTROLLER_ANALOG_RIGHT_X) / 127.0);
-    //
-    //     drivetrain.moveArcade(dir, turn);
-    //
-    //     pros::lcd::print(0,
-    //                      "%f %f %f",
-    //                      to_in(arc_pose_tracker.getPosition().x),
-    //                      to_in(arc_pose_tracker.getPosition().y),
-    //                      to_stDeg(arc_pose_tracker.getAngle()));
-    //
-    //     pros::delay(20);
-    // }
+    pros::Task([&]() {
+        while (true) {
+            arc_pose_tracker.update();
+            pros::delay(10);
+        }
+    });
+
+    // default a timeout
+    mb.setTurnToModifier([](auto turnTo) {
+        // return turnTo.timeout(5_sec);
+        return turnTo;
+    });
+
+    mb.setDistanceAtHeadingModifier([](auto distanceAtHeading) {});
+
+    mb.setMoveToModifier([](auto moveTo) {});
+
+    mb.setBoomerangModifier([](auto boomerang) {
+        // return boomerang.customAngularLinearFunc(angular_linear_func);
+        // return boomerang.k_lat();
+        (void)boomerang->k_lat(0.2, true).timeout(7_sec);
+        // return boomerang;
+    });
+
+    arc_pose_tracker.setPose({ -63_in, -16.7_in, 90_stDeg });
+
+    mb.arc(90, 2).turn_maxVolt(0.5_volt) |
+      // .angular_clampMaxVoltage(0.5_volt) |
+      run;
+
+    mb.moveTo(50, 50_in)
+        // .withLinearFeedbackController(linear_pid)
+        .closeThreshold(10_in) |
+      run;
+
+    mb.boomerang(-24, 48, 180)
+        .lead(0.4, 0.38)
+        .lead2DistThreshold(7_in)
+        .closeThreshold(7_in)
+        .timeout(7_sec)
+        .executeBeforeMotion([] {
+            printf("executed before motion!\n");
+        })
+        .executeAfterMotion([] {
+            printf("ended motion!\n");
+        }) |
+      // .drive_vel_kp(linear_vel_pid.get_kd() * 0.7) |
+      run;
+
+    // pull matchloader down
+    mb.moveTo(-63, 18) | chain;
+
+    pros::delay(30);
+
+    while (true) {
+        Voltage dir = from_volt(
+          master.get_analog(pros::E_CONTROLLER_ANALOG_LEFT_Y) / 127.0);
+        Voltage turn = -from_volt(
+          master.get_analog(pros::E_CONTROLLER_ANALOG_RIGHT_X) / 127.0);
+
+        drivetrain.moveArcade(dir, turn);
+
+        pros::lcd::print(0,
+                         "%f %f %f",
+                         to_in(arc_pose_tracker.getPosition().x),
+                         to_in(arc_pose_tracker.getPosition().y),
+                         to_stDeg(arc_pose_tracker.getAngle()));
+
+        pros::delay(20);
+    }
 }
 
 /**
@@ -374,15 +410,16 @@ void opcontrol() {
  * from where it left off.
  */
 void autonomous() {
-    std::cout << "auto starts, starting motion!" << std::endl;
 
-    mb.moveTo(50, 50_in)
-        .timeout(4_sec)
-        .closeThreshold(10_in)
-        .only_x(true)
-        .only_y(true)
-        .k_lat(0) |
-      chain;
+    // std::cout << "auto starts, starting motion!" << std::endl;
 
-    std::cout << "ended motion" << std::endl;
+    // mb.moveTo(50, 50_in)
+    //     .timeout(4_sec)
+    //     .closeThreshold(10_in)
+    //     .only_x(true)
+    //     .only_y(true)
+    //     .k_lat(0) |
+    //   chain;
+
+    // std::cout << "ended motion" << std::endl;
 }
