@@ -239,18 +239,6 @@ Chassis chassis(&drivetrain, &arc_pose_tracker, tolerances);
 RunExecutor run;
 AsyncExecutor async;
 
-auto chain_lerp = [](Voltage a, Voltage b, double t) -> Voltage {
-    return (1 - t) * a + t * b;
-
-    // return b;
-
-    // if (t >= 0.5) {
-    //     return b;
-    // } else {
-    //     return a;
-    // }
-};
-
 auto angular_linear_func = [](Angle angle) -> double {
     // reduces the domain to [0,pi]
     angle = units::abs(units::constrainAngle180(angle));
@@ -277,7 +265,11 @@ auto angular_linear_func = [](Angle angle) -> double {
 
 MotionBuilder mb(chassis, controllers);
 
-ChainedExecutor chain(100_msec, chain_lerp);
+AsyncExecutor chain([](blazing::motionExecutionResult result,
+                       AsyncExecutor* executor) {
+    return (executor->numQueuedMotions() > 1) &&
+           result.inChainTolerance.value_or(false);
+});
 
 void initialize() {
     // std::cout << "started initialize!" << std::endl;
@@ -347,16 +339,14 @@ void opcontrol() {
         return turnTo;
     });
 
-    mb.setDistanceAtHeadingModifier([](auto distanceAtHeading) {
-    });
+    mb.setDistanceAtHeadingModifier([](auto distanceAtHeading) {});
 
-    mb.setMoveToModifier([](auto moveTo) {
-    });
+    mb.setMoveToModifier([](auto moveTo) {});
 
     mb.setBoomerangModifier([](auto boomerang) {
         // return boomerang.customAngularLinearFunc(angular_linear_func);
         // return boomerang.k_lat();
-		(void)boomerang->k_lat(0.2, true).timeout(7_sec);
+        (void)boomerang->k_lat(0.2, true).timeout(7_sec);
         // return boomerang;
     });
 
@@ -381,8 +371,8 @@ void opcontrol() {
         })
         .executeAfterMotion([] {
             printf("ended motion!\n");
-        })|
-        // .drive_vel_kp(linear_vel_pid.get_kd() * 0.7) |
+        }) |
+      // .drive_vel_kp(linear_vel_pid.get_kd() * 0.7) |
       run;
 
     // pull matchloader down
